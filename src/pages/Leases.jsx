@@ -14,6 +14,7 @@ function Leases() {
     endDate: '',
     monthlyRent: '',
     deposit: '',
+    prepaymentMonths: '3',
     dueDay: '1',
     status: 'Active'
   })
@@ -32,7 +33,12 @@ function Leases() {
       id: leases.length + 1,
       ...formData,
       monthlyRent: parseFloat(formData.monthlyRent),
-      deposit: parseFloat(formData.deposit) || 0
+      deposit: parseFloat(formData.deposit) || 0,
+      prepaymentMonths: parseInt(formData.prepaymentMonths) || 3
+    }
+    if (newLease.prepaymentMonths < 3) {
+      alert('Prepayment must be at least 3 months (business rule).')
+      return
     }
     setLeases([...leases, newLease])
     
@@ -65,6 +71,7 @@ function Leases() {
       endDate: lease.endDate,
       monthlyRent: lease.monthlyRent.toString(),
       deposit: lease.deposit?.toString() || '',
+      prepaymentMonths: lease.prepaymentMonths?.toString() || '3',
       dueDay: lease.dueDay?.toString() || '1',
       status: lease.status
     })
@@ -212,6 +219,18 @@ function Leases() {
                 onChange={handleChange}
                 className={inputClass}
                 placeholder="e.g. 30000"
+              />
+            </div>
+            <div>
+              <label className={labelClass}>Prepayment (months, min 3) *</label>
+              <input
+                type="number"
+                name="prepaymentMonths"
+                min="3"
+                value={formData.prepaymentMonths}
+                onChange={handleChange}
+                className={inputClass}
+                placeholder="e.g. 3"
               />
             </div>
             <div>
