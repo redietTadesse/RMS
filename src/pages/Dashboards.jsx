@@ -9,8 +9,9 @@ function Dashboard() {
   const vacantSpaces = mockSpaces.filter(s => s.status === 'Vacant').length
   const occupiedSpaces = mockSpaces.filter(s => s.status === 'Occupied').length
   const activeLeases = mockLeases.filter(l => l.status === 'Active').length
-  const pendingPayments = mockInvoices.filter(i => i.status === 'Pending').length
-  const totalRevenue = mockInvoices.filter(i => i.status === 'Paid').reduce((sum, i) => sum + i.amount, 0)
+  const pendingPayments = mockInvoices.filter(i => i.status !== 'Paid').length
+  const totalRevenue = mockInvoices.filter(i => i.status === 'Paid').reduce((sum, i) => sum + i.totalDue, 0)
+  const outstandingPenalties = mockInvoices.filter(i => i.status !== 'Paid').reduce((sum, i) => sum + i.penaltyAmount, 0)
 
   const occupancyData = [
     { name: 'Occupied', value: occupiedSpaces, color: '#6366f1' },
@@ -19,7 +20,7 @@ function Dashboard() {
 
   const revenueData = mockInvoices.map(inv => ({
     name: inv.tenant.split(' ')[0],
-    amount: inv.amount,
+    amount: inv.totalDue,
   }))
 
   return (
@@ -120,9 +121,15 @@ function Dashboard() {
           </div>
           <p className="text-sm text-slate-400">Total Revenue</p>
           <p className="text-3xl font-bold mt-1">ETB {totalRevenue.toLocaleString()}</p>
-          <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-sm">
-            <span className="text-slate-400">Pending payments</span>
-            <span className="font-semibold text-amber-300">{pendingPayments} invoices</span>
+          <div className="mt-4 pt-4 border-t border-white/10 space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Pending payments</span>
+              <span className="font-semibold text-amber-300">{pendingPayments} invoices</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Outstanding penalties</span>
+              <span className="font-semibold text-rose-300">ETB {outstandingPenalties.toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
@@ -145,7 +152,7 @@ function Dashboard() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-slate-800 text-sm">ETB {invoice.amount.toLocaleString()}</p>
+                  <p className="font-semibold text-slate-800 text-sm">ETB {invoice.totalDue.toLocaleString()}</p>
                   <span className={`text-xs font-medium ${invoice.status === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
                     {invoice.status}
                   </span>
