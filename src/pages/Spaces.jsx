@@ -1,127 +1,329 @@
-import { useState } from 'react'
-import { mockSpaces } from '../data/mockData'
-import DashboardLayout from '../components/Layout/DashboardLayout'
-import { Plus, Search, Building2, Edit2, Trash2, Filter } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { spacesApi } from '../services/api'
 
-function Spaces() {
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('All')
+const inputClass =
+  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500'
+const labelClass = 'mb-1 block text-sm font-medium text-gray-700'
 
-  const filtered = mockSpaces.filter(s => {
-    const matchesSearch = s.unitNumber.toLowerCase().includes(search.toLowerCase()) || 
-                          s.category.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = filter === 'All' || s.status === filter
-    return matchesSearch && matchesFilter
-  })
+const EMPTY_FORM = {
+  unitNumber: '',
+  floor: '',
+  category: '',
+  size: '',
+  status: 'VACANT',
+}
+
+const CATEGORIES = ['Shop', 'Office', 'Cafe', 'Restaurant', 'Warehouse', 'Other']
+
+function StatusBadge({ status }) {
+  const styles =
+    status === 'VACANT'
+      ? 'bg-green-100 text-green-700'
+      : 'bg-blue-100 text-blue-700'
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${styles}`}>
+      {status === 'VACANT' ? 'Vacant' : 'Occupied'}
+    </span>
+  )
+}
+
+export default function Spaces() {
+  const [spaces, setSpaces] = useState([])
+  const [filter, setFilter] = useState('') // '', 'VACANT', 'OCCUPIED'
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  // modal state
+  const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [formData, setFormData] = useState(EMPTY_FORM)
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const loadSpaces = async (status = filter) => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await spacesApi.getAll(status || undefined)
+      setSpaces(data)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadSpaces()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter])
+
+  const openAdd = () => {
+    setEditingId(null)
+    setFormData(EMPTY_FORM)
+    setFormError('')
+    setShowModal(true)
+  }
+
+  const openEdit = (space) => {
+    setEditingId(space.id)
+    setFormData({
+      unitNumber: space.unitNumber || '',
+      floor: space.floor?.toString() ?? '',
+      category: space.category || '',
+      size: space.size?.toString() ?? '',
+      status: space.status || 'VACANT',
+    })
+    setFormError('')
+    setShowModal(true)
+  }
+
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setFormData((f) => ({ ...f, [name]: value }))
+  }
+
+  const handleSave = async () => {
+    if (!formData.unitNumber.trim() || formData.floor === '' || !formData.category || formData.size === '') {
+      setFormError('Please fill in all required fields.')
+      return
+    }
+    const payload = {
+      unitNumber: formData.unitNumber.trim(),
+      floor: parseInt(formData.floor, 10),
+      category: formData.category,
+      size: parseFloat(formData.size),
+      status: formData.status,
+    }
+    setSaving(true)
+    setFormError('')
+    try {
+      if (editingId) {
+        await spacesApi.update(editingId, payload)
+      } else {
+        await spacesApi.create(payload)
+      }
+      setShowModal(false)
+      await loadSpaces()
+    } catch (e) {
+      setFormError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (space) => {
+    if (!window.confirm(`Delete space ${space.unitNumber}? This cannot be undone.`)) return
+    try {
+      await spacesApi.remove(space.id)
+      await loadSpaces()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
+  const filterBtn = (value, label) => (
+    <button
+      key={value}
+      onClick={() => setFilter(value)}
+      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+        filter === value
+          ? 'bg-blue-600 text-white'
+          : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+      }`}
+    >
+      {label}
+    </button>
+  )
 
   return (
-    <DashboardLayout>
+    <div className="p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Space Management</h2>
-          <p className="text-slate-500 text-sm mt-1">Manage all your commercial spaces and units</p>
+          <h1 className="text-2xl font-bold text-gray-900">Spaces</h1>
+          <p className="text-sm text-gray-500">Manage the building's rentable units</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg shadow-lg shadow-indigo-500/30">
-          <Plus className="w-4 h-4" /> Add New Space
+        <button
+          onClick={openAdd}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          + Add Space
         </button>
       </div>
 
-      {/* Stat strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        {[
-          { label: 'Total Units', value: mockSpaces.length, color: 'text-slate-800' },
-          { label: 'Vacant', value: mockSpaces.filter(s => s.status === 'Vacant').length, color: 'text-emerald-600' },
-          { label: 'Occupied', value: mockSpaces.filter(s => s.status === 'Occupied').length, color: 'text-amber-600' },
-          { label: 'Total Area (m²)', value: mockSpaces.reduce((sum, s) => sum + s.size, 0), color: 'text-indigo-600' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-            <p className="text-xs text-slate-500">{stat.label}</p>
-            <p className={`text-2xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>
-          </div>
-        ))}
+      {/* Filter */}
+      <div className="mb-4 flex gap-2">
+        {filterBtn('', 'All')}
+        {filterBtn('VACANT', 'Vacant')}
+        {filterBtn('OCCUPIED', 'Occupied')}
       </div>
 
-      {/* Toolbar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
-          <div className="flex items-center gap-2 bg-slate-100 px-3 py-2 rounded-lg flex-1">
-            <Search className="w-4 h-4 text-slate-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by unit or category..."
-              className="bg-transparent outline-none text-sm w-full"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-400" />
-            {['All', 'Vacant', 'Occupied'].map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-                  ${filter === f ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error} — is the backend running on port 8080?
         </div>
+      )}
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                {['Unit', 'Floor', 'Category', 'Size (m²)', 'Status', 'Actions'].map(h => (
-                  <th key={h} className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                ))}
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              {['Unit', 'Floor', 'Category', 'Size (m²)', 'Status', 'Actions'].map((h) => (
+                <th
+                  key={h}
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                  Loading spaces…
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map(space => (
-                <tr key={space.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center">
-                        <Building2 className="w-4 h-4 text-indigo-600" />
-                      </div>
-                      <span className="font-semibold text-slate-800">{space.unitNumber}</span>
-                    </div>
+            ) : spaces.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                  No spaces{filter ? ` with status ${filter.toLowerCase()}` : ''} yet. Add the first one.
+                </td>
+              </tr>
+            ) : (
+              spaces.map((space) => (
+                <tr key={space.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-900">{space.unitNumber}</td>
+                  <td className="px-4 py-3 text-gray-600">{space.floor}</td>
+                  <td className="px-4 py-3 text-gray-600">{space.category}</td>
+                  <td className="px-4 py-3 text-gray-600">{space.size}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={space.status} />
                   </td>
-                  <td className="px-6 py-4 text-slate-600">{space.floor}</td>
-                  <td className="px-6 py-4 text-slate-600">{space.category}</td>
-                  <td className="px-6 py-4 text-slate-600">{space.size}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 text-xs font-semibold rounded-full
-                      ${space.status === 'Vacant' 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : 'bg-amber-100 text-amber-700'}`}>
-                      {space.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <button className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                        <Edit2 className="w-4 h-4" />
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openEdit(space)}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                      >
+                        Edit
                       </button>
-                      <button className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4" />
+                      <button
+                        onClick={() => handleDelete(space)}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Delete
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-sm text-slate-500">
-          Showing {filtered.length} of {mockSpaces.length} spaces
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
-    </DashboardLayout>
+
+      {/* Add / Edit modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">
+              {editingId ? 'Edit Space' : 'Add Space'}
+            </h2>
+
+            {formError && (
+              <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                {formError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className={labelClass}>Unit Number *</label>
+                <input
+                  name="unitNumber"
+                  value={formData.unitNumber}
+                  onChange={handleChange}
+                  className={inputClass}
+                  placeholder="e.g. G-01"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Floor *</label>
+                  <input
+                    type="number"
+                    name="floor"
+                    value={formData.floor}
+                    onChange={handleChange}
+                    className={inputClass}
+                    placeholder="0 = ground"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Size (m²) *</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    name="size"
+                    value={formData.size}
+                    onChange={handleChange}
+                    className={inputClass}
+                    placeholder="e.g. 45.5"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Category *</label>
+                <select
+                  name="category"
+                  value={formData.category}
+                  onChange={handleChange}
+                  className={inputClass}
+                >
+                  <option value="">Select category…</option>
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Status *</label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className={inputClass}
+                >
+                  <option value="VACANT">Vacant</option>
+                  <option value="OCCUPIED">Occupied</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowModal(false)}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                disabled={saving}
+              >
+                {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Add Space'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
-
-export default Spaces
