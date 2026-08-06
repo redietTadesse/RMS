@@ -1,4 +1,3 @@
-// ── System settings (SRS 3.3: penalty % is configurable, default 20%) ──
 export const defaultSettings = {
   penaltyRate: 20,        // % applied to rent when paid after the payment window
   paymentWindowEnd: 10,   // rent must be paid between the 1st and 10th

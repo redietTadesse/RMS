@@ -6,6 +6,8 @@ export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
+  console.log('🔒 ProtectedRoute - loading:', loading, 'user:', !!user);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -15,8 +17,10 @@ export default function ProtectedRoute({ children }) {
   }
 
   if (!user) {
+    console.log('🔒 No user, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  console.log('🔒 User authenticated, rendering children');
   return children;
 }

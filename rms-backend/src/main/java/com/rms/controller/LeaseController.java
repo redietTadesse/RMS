@@ -14,6 +14,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/leases")
+@CrossOrigin(origins = "http://localhost:5173")
 public class LeaseController {
 
     private final LeaseRepository leaseRepository;
