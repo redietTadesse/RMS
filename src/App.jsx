@@ -59,6 +59,18 @@ function AppRoutes() {
           </ProtectedRoute>
         } 
       />
+
+      
+      <Route 
+  path="/payments" 
+  element={
+    <ProtectedRoute>
+      <Payments />
+    </ProtectedRoute> 
+  }
+  />
+
+
       <Route 
         path="/payments" 
         element={
@@ -67,6 +79,8 @@ function AppRoutes() {
           </ProtectedRoute>
         } 
       />
+
+      
     </Routes>
   );
 }
