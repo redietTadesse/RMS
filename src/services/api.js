@@ -118,14 +118,34 @@ export const leasesApi = {
   getByTenant: (tenantId) => request(`/leases/tenant/${tenantId}`),
 };
 
-// ===== Invoices =====
+
+
+
+// Invoices
 export const invoicesApi = {
   getAll: () => request('/invoices'),
   getById: (id) => request(`/invoices/${id}`),
+  getByStatus: (status) => request(`/invoices/status/${status}`),
   getByTenant: (tenantId) => request(`/invoices/tenant/${tenantId}`),
-  pay: (invoiceId, paymentData) =>
-    request(`/invoices/${invoiceId}/pay`, {
+  generate: (leaseId) =>
+    request(`/invoices/generate/${leaseId}`, { method: 'POST' }),
+};
+
+// ===== Payments =====
+export const paymentsApi = {
+  record: (invoiceId, paymentData, receiptFile) => {
+    const formData = new FormData();
+    formData.append('payment', new Blob([JSON.stringify(paymentData)], {
+      type: 'application/json'
+    }));
+    if (receiptFile) {
+      formData.append('receipt', receiptFile);
+    }
+    return request(`/payments/${invoiceId}`, {
       method: 'POST',
-      body: JSON.stringify(paymentData),
-    }),
+      body: formData,
+    });
+  },
+  previewPenalty: (invoiceId, paymentDate) =>
+    request(`/payments/preview?invoiceId=${invoiceId}&paymentDate=${paymentDate}`),
 };

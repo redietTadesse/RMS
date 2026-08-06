@@ -21,15 +21,44 @@ public class FileStorageService {
     }
 
     /**
-     * Stores a file under uploads/tenant-{tenantId}/ and returns the stored path.
+     * Stores a receipt file under uploads/receipts/
+     */
+    public String storeReceipt(MultipartFile file, Long invoiceId) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is empty");
+        }
+
+        String original = file.getOriginalFilename();
+        String safeName = original != null
+                ? Paths.get(original).getFileName().toString().replaceAll("[^a-zA-Z0-9._-]", "_")
+                : "receipt";
+
+        String storedName = UUID.randomUUID().toString().substring(0, 8) + "_" + safeName;
+
+        try {
+            Path receiptDir = rootDir.resolve("receipts");
+            Files.createDirectories(receiptDir);
+            Path target = receiptDir.resolve(storedName);
+            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+            return target.toString();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to store receipt: " + safeName, e);
+        }
+    }
+
+    /**
+     * Stores a tenant document
      */
     public Path store(Long tenantId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File is empty");
         }
-        String original = file.getOriginalFilename() == null ? "file" : file.getOriginalFilename();
-        // Strip any path components a browser/OS might sneak in
-        String safeName = Paths.get(original).getFileName().toString().replaceAll("[^a-zA-Z0-9._-]", "_");
+
+        String original = file.getOriginalFilename();
+        String safeName = original != null
+                ? Paths.get(original).getFileName().toString().replaceAll("[^a-zA-Z0-9._-]", "_")
+                : "file";
+
         String storedName = UUID.randomUUID().toString().substring(0, 8) + "_" + safeName;
 
         try {

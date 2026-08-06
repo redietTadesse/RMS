@@ -11,24 +11,33 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
+    
+    console.log('🔍 Auth check - token:', !!token, 'userData:', !!userData);
+    
     if (token && userData) {
       try {
-        setUser(JSON.parse(userData));
-      } catch {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        console.log('✅ User restored from localStorage:', parsedUser.username);
+      } catch (err) {
+        console.error('❌ Failed to parse user data:', err);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
+    } else {
+      console.log('❌ No token or user data found');
     }
     setLoading(false);
   }, []);
 
-  const login = async (username, password) => {  // Changed from email
+  const login = async (username, password) => {
     setError(null);
     try {
       const data = await authApi.login(username, password);
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data));
       setUser(data);
+      console.log('✅ Login successful:', data.username);
       return data;
     } catch (err) {
       setError(err.message || 'Login failed');
@@ -40,6 +49,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const data = await authApi.register(userData);
+      console.log('✅ Registration successful:', data.username);
       return data;
     } catch (err) {
       setError(err.message || 'Registration failed');
@@ -51,6 +61,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
+    console.log('👋 Logged out');
   };
 
   const value = {
@@ -62,7 +73,6 @@ export const AuthProvider = ({ children }) => {
     logout,
     isAuthenticated: !!user,
   };
-  
 
   return (
     <AuthContext.Provider value={value}>

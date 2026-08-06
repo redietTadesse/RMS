@@ -4,20 +4,15 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/**
- * Mirrors the SRS-compliant invoice model from the frontend:
- * invoice number, lease link, rent and penalty tracked separately,
- * issue/due dates, and total.
- */
 @Entity
-@Table(name = "invoices", uniqueConstraints = @UniqueConstraint(columnNames = "invoice_number"))
+@Table(name = "invoices")
 public class Invoice {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "invoice_number", nullable = false)
+    @Column(name = "invoice_number", unique = true, nullable = false)
     private String invoiceNumber;
 
     @ManyToOne(optional = false)
@@ -25,13 +20,13 @@ public class Invoice {
     private Lease lease;
 
     @Column(name = "rent_amount", nullable = false)
-    private BigDecimal rentAmount;
+    private BigDecimal rentAmount = BigDecimal.ZERO;
 
     @Column(name = "penalty_amount", nullable = false)
     private BigDecimal penaltyAmount = BigDecimal.ZERO;
 
     @Column(name = "total_amount", nullable = false)
-    private BigDecimal totalAmount;
+    private BigDecimal totalAmount = BigDecimal.ZERO;
 
     @Column(name = "issue_date", nullable = false)
     private LocalDate issueDate;
@@ -43,7 +38,16 @@ public class Invoice {
     @Column(nullable = false)
     private InvoiceStatus status = InvoiceStatus.PENDING;
 
-    // --- getters / setters ---
+    @Column(name = "payment_method")
+    private String paymentMethod;
+
+    @Column(name = "payment_date")
+    private LocalDate paymentDate;
+
+    @Column(name = "receipt_path")
+    private String receiptPath;
+
+    // --- Getters and Setters ---
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -70,4 +74,13 @@ public class Invoice {
 
     public InvoiceStatus getStatus() { return status; }
     public void setStatus(InvoiceStatus status) { this.status = status; }
+
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+
+    public LocalDate getPaymentDate() { return paymentDate; }
+    public void setPaymentDate(LocalDate paymentDate) { this.paymentDate = paymentDate; }
+
+    public String getReceiptPath() { return receiptPath; }
+    public void setReceiptPath(String receiptPath) { this.receiptPath = receiptPath; }
 }
