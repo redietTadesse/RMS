@@ -1,24 +1,29 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { Building, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
+// src/pages/Login.jsx
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Building, User, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate();
+  const { login, error: authError, loading: authLoading } = useAuth();
+  
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    setLoading(true)
-    
-    // Mock login process
-    setTimeout(() => {
-      setLoading(false)
-      navigate('/dashboard')
-    }, 1000)
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      await login(username, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Login failed. Please try again.');
+    }
+  };
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-slate-50">
@@ -41,19 +46,32 @@ export default function Login() {
           <h2 className="text-3xl font-bold text-slate-800">Welcome back 👋</h2>
           <p className="text-slate-500 mt-2 mb-8">Please enter your details to sign in.</p>
 
+          {/* Error Display */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          {authError && !error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              {authError}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Input */}
+            {/* Username Input */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
-                  type="email"
+                  type="text"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
-                  placeholder="admin@rms.com"
+                  placeholder="Enter your username"
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -75,6 +93,7 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
                   placeholder="••••••••"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -93,16 +112,16 @@ export default function Login() {
                 id="remember"
                 className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <label htmlFor="remember" className="text-sm text-slate-600">Remember for 30 days</label>
+              <label htmlFor="remember" className="text-sm text-slate-600">Remember me</label>
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={authLoading}
               className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-xl shadow-lg shadow-indigo-500/30 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {authLoading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" /> Signing in...
                 </>
@@ -117,17 +136,16 @@ export default function Login() {
           {/* Footer */}
           <p className="text-center text-sm text-slate-500 mt-8">
             Don't have an account?{' '}
-            <Link to="/" className="font-medium text-indigo-600 hover:text-indigo-700">
+            <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-700">
               Sign up
             </Link>
           </p>
         </div>
       </div>
 
-      {/* Right Side - Branding/Visual (Hidden on mobile) */}
+      {/* Right Side - Branding/Visual */}
       <div className="hidden lg:flex relative items-center justify-center p-12 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 overflow-hidden">
         
-        {/* Background decorative blobs */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl translate-x-1/3 translate-y-1/3"></div>
 
@@ -142,7 +160,6 @@ export default function Login() {
             The all-in-one platform for managing commercial spaces, tenants, leases, and payments.
           </p>
 
-          {/* Mock UI preview card */}
           <div className="mt-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 text-left shadow-2xl">
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
@@ -171,5 +188,5 @@ export default function Login() {
       </div>
 
     </div>
-  )
+  );
 }

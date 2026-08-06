@@ -1,42 +1,63 @@
-// ============================================================
-// API service layer — all backend calls go through this file.
-// Backend: Spring Boot at http://localhost:8080 (CORS enabled
-// for the Vite dev server). Override with VITE_API_URL in .env
-// ============================================================
+// src/services/api.js
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
+// Helper to get token
+const getToken = () => localStorage.getItem('token');
 
-/**
- * Small fetch wrapper: JSON in/out, throws a readable Error on
- * non-2xx responses (using the backend's {error: ...} or field
- * validation messages when available).
- */
+// Helper to get headers with auth
+const getHeaders = (options = {}) => {
+  const headers = options.body instanceof FormData
+    ? {}
+    : { 'Content-Type': 'application/json' };
+  
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
+
+// Fetch wrapper
 async function request(path, options = {}) {
+  const headers = getHeaders(options);
+  
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: options.body instanceof FormData
-      ? undefined // let the browser set the multipart boundary
-      : { 'Content-Type': 'application/json' },
+    headers,
     ...options,
-  })
+  });
 
-  if (res.status === 204) return null
+  if (res.status === 204) return null;
 
-  let data = null
-  const text = await res.text()
+  let data = null;
+  const text = await res.text();
   if (text) {
-    try { data = JSON.parse(text) } catch { data = text }
+    try { data = JSON.parse(text); } catch { data = text; }
   }
 
   if (!res.ok) {
-    let message = `Request failed (${res.status})`
+    let message = `Request failed (${res.status})`;
     if (data && typeof data === 'object') {
-      // {error: "..."} or {fieldName: "validation message", ...}
-      message = data.error || Object.values(data).join(', ') || message
+      message = data.error || Object.values(data).join(', ') || message;
     }
-    throw new Error(message)
+    throw new Error(message);
   }
-  return data
+  return data;
 }
+
+// ===== AUTH API =====
+export const authApi = {
+  login: (username, password) =>
+    request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+  register: (userData) =>
+    request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    }),
+};
 
 // ===== Spaces =====
 export const spacesApi = {
@@ -48,7 +69,7 @@ export const spacesApi = {
   update: (id, space) =>
     request(`/spaces/${id}`, { method: 'PUT', body: JSON.stringify(space) }),
   remove: (id) => request(`/spaces/${id}`, { method: 'DELETE' }),
-}
+};
 
 // ===== Tenants =====
 export const tenantsApi = {
@@ -60,35 +81,51 @@ export const tenantsApi = {
   update: (id, tenant) =>
     request(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(tenant) }),
   remove: (id) => request(`/tenants/${id}`, { method: 'DELETE' }),
-}
+};
 
-// ===== Tenant documents =====
+// ===== Documents =====
 export const documentsApi = {
   getByTenant: (tenantId) => request(`/tenants/${tenantId}/documents`),
-  /** type: 'TIN_CERTIFICATE' | 'ID_CARD' | 'BUSINESS_LICENSE' */
   upload: (tenantId, type, file) => {
-    const form = new FormData()
-    form.append('type', type)
-    form.append('file', file)
+    const form = new FormData();
+    form.append('type', type);
+    form.append('file', file);
     return request(`/tenants/${tenantId}/documents`, {
       method: 'POST',
       body: form,
-    })
+    });
   },
   downloadUrl: (tenantId, documentId) =>
     `${API_BASE}/tenants/${tenantId}/documents/${documentId}/download`,
-}
+};
 
 // ===== Dashboard =====
 export const dashboardApi = {
   getStats: () => request('/dashboard/stats'),
-}
+};
 
-// ===== Leases & Invoices (read-only for now) =====
+// ===== Leases =====
 export const leasesApi = {
   getAll: () => request('/leases'),
-}
+  getById: (id) => request(`/leases/${id}`),
+  create: (lease) =>
+    request('/leases', { method: 'POST', body: JSON.stringify(lease) }),
+  update: (id, lease) =>
+    request(`/leases/${id}`, { method: 'PUT', body: JSON.stringify(lease) }),
+  terminate: (id) =>
+    request(`/leases/${id}/terminate`, { method: 'PUT' }),
+  getActive: () => request('/leases/active'),
+  getByTenant: (tenantId) => request(`/leases/tenant/${tenantId}`),
+};
 
+// ===== Invoices =====
 export const invoicesApi = {
   getAll: () => request('/invoices'),
-}
+  getById: (id) => request(`/invoices/${id}`),
+  getByTenant: (tenantId) => request(`/invoices/tenant/${tenantId}`),
+  pay: (invoiceId, paymentData) =>
+    request(`/invoices/${invoiceId}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(paymentData),
+    }),
+};

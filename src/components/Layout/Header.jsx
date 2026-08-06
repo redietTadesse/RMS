@@ -1,7 +1,11 @@
-import React from 'react'
-import { Menu, Search, Bell, Sun } from 'lucide-react'
+// src/components/Layout/Header.jsx
+import React from 'react';
+import { Menu, Search, Bell, Sun, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Header({ onMenuClick, title }) {
+  const { user, logout } = useAuth();
+
   return (
     <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
       <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
@@ -35,11 +39,20 @@ export default function Header({ onMenuClick, title }) {
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white"></span>
           </button>
 
+          {/* Logout Button */}
+          <button
+            onClick={logout}
+            className="p-2 text-slate-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+
           <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm">
-            AD
+            {user?.username ? user.username.charAt(0).toUpperCase() : 'A'}
           </div>
         </div>
       </div>
     </header>
-  )
+  );
 }
