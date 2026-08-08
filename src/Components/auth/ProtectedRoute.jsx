@@ -2,11 +2,11 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, requiredRole }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  console.log('🔒 ProtectedRoute - loading:', loading, 'user:', !!user);
+  console.log('🔒 ProtectedRoute - loading:', loading, 'user:', !!user, 'role:', user?.role);
 
   if (loading) {
     return (
@@ -19,6 +19,18 @@ export default function ProtectedRoute({ children }) {
   if (!user) {
     console.log('🔒 No user, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Check role if required
+  if (requiredRole && user.role !== requiredRole) {
+    console.log(`🔒 Role mismatch: required ${requiredRole}, got ${user.role}`);
+    // Redirect to appropriate dashboard
+    if (user.role === 'ADMIN') {
+      return <Navigate to="/dashboard" replace />;
+    } else if (user.role === 'TENANT') {
+      return <Navigate to="/tenant-dashboard" replace />;
+    }
+    return <Navigate to="/login" replace />;
   }
 
   console.log('🔒 User authenticated, rendering children');

@@ -2,6 +2,7 @@ package com.rms.service;
 
 import com.rms.dto.AuthRequest;
 import com.rms.dto.AuthResponse;
+import com.rms.entity.Role;
 import com.rms.entity.User;
 import com.rms.repository.UserRepository;
 import com.rms.util.JwtUtil;
@@ -26,14 +27,16 @@ public class AuthService {
     }
 
     public User register(User user) {
-        // Check if username already exists
         if (userRepository.existsByUsername(user.getUsername())) {
             throw new IllegalArgumentException("Username already taken: " + user.getUsername());
         }
 
-        // Hash the password before saving
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        user.setRole("ADMIN");
+
+        // 🔑 NEW: If role is not set, default to TENANT
+        if (user.getRole() == null) {
+            user.setRole(Role.TENANT);
+        }
 
         return userRepository.save(user);
     }
@@ -42,19 +45,20 @@ public class AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
 
-        // Verify password
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new IllegalArgumentException("Invalid username or password");
         }
 
-        // Update last login time
+        if (!user.isActive()) {
+            throw new IllegalArgumentException("Account is disabled");
+        }
+
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        // Generate JWT token
-        String token = jwtUtil.generateToken(user.getUsername(), user.getRole());
+        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
 
-        return new AuthResponse(token, user.getUsername(), user.getName(), user.getRole());
+        return new AuthResponse(token, user.getUsername(), user.getName(), user.getRole().name());
     }
 
     public User getCurrentUser(String username) {

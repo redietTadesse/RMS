@@ -7,17 +7,20 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/spaces', icon: Building2, label: 'Spaces' },
-  { to: '/tenants', icon: Users, label: 'Tenants' },
-  { to: '/leases', icon: FileText, label: 'Leases' },
-  { to: '/payments', icon: CreditCard, label: 'Payments' },
-];
-
 export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
+
+  const navItems = [
+    { to: isAdmin ? '/dashboard' : '/tenant-dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    ...(isAdmin ? [
+      { to: '/spaces', icon: Building2, label: 'Spaces' },
+      { to: '/tenants', icon: Users, label: 'Tenants' },
+      { to: '/leases', icon: FileText, label: 'Leases' },
+      { to: '/payments', icon: CreditCard, label: 'Payments' },
+    ] : []),
+  ];
 
   const handleLogout = () => {
     logout();

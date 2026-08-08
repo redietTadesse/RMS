@@ -1,0 +1,258 @@
+// src/pages/TenantDashboard.jsx
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Building2, FileText, CreditCard, AlertCircle,
+  CheckCircle, Clock, Loader2, Calendar, Home
+} from 'lucide-react';
+import DashboardLayout from '../components/Layout/DashboardLayout';
+import { tenantApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+
+function StatCard({ label, value, icon: Icon, color = 'indigo' }) {
+  const colors = {
+    indigo: 'bg-indigo-100 text-indigo-600',
+    emerald: 'bg-emerald-100 text-emerald-600',
+    amber: 'bg-amber-100 text-amber-600',
+    rose: 'bg-rose-100 text-rose-600',
+    blue: 'bg-blue-100 text-blue-600',
+  };
+  
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-slate-500 font-medium">{label}</p>
+          <p className="text-2xl font-bold text-slate-800 mt-2">{value}</p>
+        </div>
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${colors[color]}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }) {
+  const styles = {
+    ACTIVE: 'bg-emerald-100 text-emerald-700',
+    EXPIRED: 'bg-amber-100 text-amber-700',
+    TERMINATED: 'bg-rose-100 text-rose-700',
+    PENDING: 'bg-amber-100 text-amber-700',
+    PAID: 'bg-emerald-100 text-emerald-700',
+    OVERDUE: 'bg-rose-100 text-rose-700',
+  };
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status] || 'bg-slate-100 text-slate-700'}`}>
+      {status}
+    </span>
+  );
+}
+
+export default function TenantDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [lease, setLease] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    // Redirect if not tenant
+    if (user && user.role !== 'TENANT') {
+      navigate('/dashboard');
+      return;
+    }
+
+    const loadData = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const [leaseData, invoicesData, statsData] = await Promise.all([
+          tenantApi.getMyLease(),
+          tenantApi.getMyInvoices(),
+          tenantApi.getStats(),
+        ]);
+        setLease(leaseData);
+        setInvoices(invoicesData || []);
+        setStats(statsData);
+      } catch (err) {
+        setError(err.message || 'Failed to load tenant data');
+        console.error('Tenant dashboard error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user, navigate]);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <span className="ml-3 text-slate-500">Loading your dashboard...</span>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="bg-red-50 border border-red-200 rounded-lg px-6 py-4 text-sm text-red-700 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5" />
+            {error}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const hasLease = lease && lease.status === 'ACTIVE';
+  const totalInvoices = stats?.totalInvoices || 0;
+  const pendingInvoices = stats?.pendingInvoices || 0;
+  const paidInvoices = stats?.paidInvoices || 0;
+  const overdueInvoices = stats?.overdueInvoices || 0;
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">
+            Welcome back, {user?.name || 'Tenant'} 👋
+          </h1>
+          <p className="text-sm text-slate-500">Here's your rental summary</p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard 
+            label="Total Invoices" 
+            value={totalInvoices} 
+            icon={FileText} 
+            color="indigo" 
+          />
+          <StatCard 
+            label="Pending" 
+            value={pendingInvoices} 
+            icon={Clock} 
+            color="amber" 
+          />
+          <StatCard 
+            label="Paid" 
+            value={paidInvoices} 
+            icon={CheckCircle} 
+            color="emerald" 
+          />
+          <StatCard 
+            label="Overdue" 
+            value={overdueInvoices} 
+            icon={AlertCircle} 
+            color="rose" 
+          />
+        </div>
+
+        {/* Lease Card */}
+        <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Home className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-lg font-semibold text-slate-800">My Lease</h2>
+          </div>
+          
+          {!hasLease ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                <Building2 className="w-8 h-8 text-slate-400" />
+              </div>
+              <p className="text-slate-500">You don't have an active lease yet.</p>
+              <p className="text-sm text-slate-400">Contact your administrator for assistance.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-slate-50 rounded-lg p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Space</p>
+                <p className="text-lg font-bold text-slate-800 mt-1">
+                  {lease.space?.unitNumber || 'N/A'}
+                </p>
+                <p className="text-sm text-slate-500">{lease.space?.category || ''}</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Monthly Rent</p>
+                <p className="text-lg font-bold text-slate-800 mt-1">
+                  ETB {Number(lease.monthlyRent).toLocaleString()}
+                </p>
+                <p className="text-sm text-slate-500">
+                  Due on the {lease.dueDay || 1}st of each month
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</p>
+                <div className="mt-1">
+                  <StatusBadge status={lease.status} />
+                </div>
+                <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
+                  <Calendar className="w-3 h-3" />
+                  <span>{lease.startDate} → {lease.endDate}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Recent Invoices */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-semibold text-slate-800">My Invoices</h2>
+            </div>
+            <span className="text-sm text-slate-500">{invoices.length} total</span>
+          </div>
+          
+          {invoices.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-slate-500">No invoices yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr className="text-left text-slate-500">
+                    <th className="px-6 py-3 font-medium">Invoice #</th>
+                    <th className="px-6 py-3 font-medium">Amount</th>
+                    <th className="px-6 py-3 font-medium">Due Date</th>
+                    <th className="px-6 py-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {invoices.slice(0, 10).map((inv) => (
+                    <tr key={inv.id} className="hover:bg-slate-50/60 transition">
+                      <td className="px-6 py-3 font-medium text-slate-800">{inv.invoiceNumber}</td>
+                      <td className="px-6 py-3 font-semibold text-slate-800">
+                        ETB {Number(inv.totalAmount).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-3 text-slate-600">{inv.dueDate}</td>
+                      <td className="px-6 py-3">
+                        <StatusBadge status={inv.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {invoices.length > 10 && (
+                <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-sm text-slate-500">
+                  Showing 10 of {invoices.length} invoices
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}

@@ -1,93 +1,81 @@
 package com.rms.controller;
 
-import com.rms.entity.DocumentType;
-import com.rms.entity.Tenant;
-import com.rms.entity.TenantDocument;
-import com.rms.service.DocumentService;
-import com.rms.service.TenantService;
-import jakarta.validation.Valid;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
+import com.rms.entity.Invoice;
+import com.rms.entity.Lease;
+import com.rms.entity.User;
+import com.rms.repository.UserRepository;
+import com.rms.service.InvoiceService;
+import com.rms.service.LeaseService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/tenants")
-@CrossOrigin(origins = "http://localhost:5173")
+@RequestMapping("/api/tenant")
 public class TenantController {
 
-    private final TenantService tenantService;
-    private final DocumentService documentService;
+    private final LeaseService leaseService;
+    private final InvoiceService invoiceService;
+    private final UserRepository userRepository;
 
-    public TenantController(TenantService tenantService, DocumentService documentService) {
-        this.tenantService = tenantService;
-        this.documentService = documentService;
+    public TenantController(LeaseService leaseService,
+                            InvoiceService invoiceService,
+                            UserRepository userRepository) {
+        this.leaseService = leaseService;
+        this.invoiceService = invoiceService;
+        this.userRepository = userRepository;
     }
-
-    /** GET /api/tenants  or  GET /api/tenants?search=abebe (matches name, email, or TIN) */
-    @GetMapping
-    public List<Tenant> getAll(@RequestParam(required = false) String search) {
-        return tenantService.getAll(search);
-    }
-
-    @GetMapping("/{id}")
-    public Tenant getById(@PathVariable Long id) {
-        return tenantService.getById(id);
-    }
-
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public Tenant create(@Valid @RequestBody Tenant tenant) {
-        return tenantService.create(tenant);
-    }
-
-    @PutMapping("/{id}")
-    public Tenant update(@PathVariable Long id, @Valid @RequestBody Tenant tenant) {
-        return tenantService.update(id, tenant);
-    }
-
-    @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        tenantService.delete(id);
-    }
-
-    // ===== Documents =====
 
     /**
-     * POST /api/tenants/{id}/documents
-     * multipart/form-data with fields:
-     *   - file: the uploaded file
-     *   - type: TIN_CERTIFICATE | ID_CARD | BUSINESS_LICENSE
+     * Get the logged-in tenant's lease
      */
-    @PostMapping("/{id}/documents")
-    @ResponseStatus(HttpStatus.CREATED)
-    public TenantDocument uploadDocument(@PathVariable Long id,
-                                         @RequestParam("type") DocumentType type,
-                                         @RequestParam("file") MultipartFile file) {
-        return documentService.upload(id, type, file);
+    @GetMapping("/my-lease")
+    public ResponseEntity<Lease> getMyLease(Authentication authentication) {
+        String username = authentication.getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Lease lease = leaseService.getLeaseByTenantUsername(username);
+        return ResponseEntity.ok(lease);
     }
 
-    /** GET /api/tenants/{id}/documents */
-    @GetMapping("/{id}/documents")
-    public List<TenantDocument> getDocuments(@PathVariable Long id) {
-        return documentService.getByTenant(id);
+    /**
+     * Get the logged-in tenant's invoices
+     */
+    @GetMapping("/my-invoices")
+    public ResponseEntity<List<Invoice>> getMyInvoices(Authentication authentication) {
+        String username = authentication.getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        List<Invoice> invoices = invoiceService.getInvoicesByTenantUsername(username);
+        return ResponseEntity.ok(invoices);
     }
 
-    /** GET /api/tenants/{tenantId}/documents/{documentId}/download */
-    @GetMapping("/{tenantId}/documents/{documentId}/download")
-    public ResponseEntity<Resource> downloadDocument(@PathVariable Long tenantId,
-                                                     @PathVariable Long documentId) {
-        TenantDocument doc = documentService.getById(documentId);
-        FileSystemResource resource = new FileSystemResource(doc.getFilePath());
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + doc.getFileName() + "\"")
-                .body(resource);
+    /**
+     * Get tenant dashboard stats
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> getStats(Authentication authentication) {
+        String username = authentication.getName();
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        Lease lease = leaseService.getLeaseByTenantUsername(username);
+        List<Invoice> invoices = invoiceService.getInvoicesByTenantUsername(username);
+
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("hasLease", lease != null);
+        stats.put("leaseStatus", lease != null ? lease.getStatus().name() : "NONE");
+        stats.put("totalInvoices", invoices.size());
+        stats.put("pendingInvoices", invoices.stream().filter(i -> i.getStatus() == InvoiceStatus.PENDING).count());
+        stats.put("paidInvoices", invoices.stream().filter(i -> i.getStatus() == InvoiceStatus.PAID).count());
+        stats.put("overdueInvoices", invoices.stream().filter(i -> i.getStatus() == InvoiceStatus.OVERDUE).count());
+
+        return ResponseEntity.ok(stats);
     }
 }

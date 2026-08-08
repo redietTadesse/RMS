@@ -25,7 +25,7 @@ public class User {
     @NotBlank(message = "Username is required")
     @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
     @Column(unique = true, nullable = false)
-    private String username;  // ← Changed from email
+    private String username;
 
     @NotBlank(message = "Name is required")
     @Column(nullable = false)
@@ -33,10 +33,11 @@ public class User {
 
     @NotBlank(message = "Password is required")
     @Column(nullable = false)
-    private String password; // BCrypt hashed
+    private String password;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String role = "ADMIN";
+    private Role role = Role.ADMIN;  // ← Changed from String to Enum
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -46,5 +47,4 @@ public class User {
 
     @Column(nullable = false)
     private boolean active = true;
-
 }
