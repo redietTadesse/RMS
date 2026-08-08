@@ -4,10 +4,6 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/**
- * Minimal lease entity for now — enough to link a tenant to a space
- * and power dashboard stats. Will be expanded in the leases sprint.
- */
 @Entity
 @Table(name = "leases")
 public class Lease {
@@ -33,6 +29,15 @@ public class Lease {
     @Column(name = "monthly_rent", nullable = false)
     private BigDecimal monthlyRent;
 
+    @Column(name = "deposit")
+    private BigDecimal deposit = BigDecimal.ZERO;
+
+    @Column(name = "prepayment_months", nullable = false)
+    private Integer prepaymentMonths = 3;
+
+    @Column(name = "due_day", nullable = false)
+    private Integer dueDay = 1;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private LeaseStatus status = LeaseStatus.ACTIVE;
@@ -55,6 +60,15 @@ public class Lease {
 
     public BigDecimal getMonthlyRent() { return monthlyRent; }
     public void setMonthlyRent(BigDecimal monthlyRent) { this.monthlyRent = monthlyRent; }
+
+    public BigDecimal getDeposit() { return deposit; }
+    public void setDeposit(BigDecimal deposit) { this.deposit = deposit; }
+
+    public Integer getPrepaymentMonths() { return prepaymentMonths; }
+    public void setPrepaymentMonths(Integer prepaymentMonths) { this.prepaymentMonths = prepaymentMonths; }
+
+    public Integer getDueDay() { return dueDay; }
+    public void setDueDay(Integer dueDay) { this.dueDay = dueDay; }
 
     public LeaseStatus getStatus() { return status; }
     public void setStatus(LeaseStatus status) { this.status = status; }
