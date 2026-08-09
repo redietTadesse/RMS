@@ -1,4 +1,4 @@
-// src/components/Layout/DashboardLayout.jsx
+
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
@@ -6,6 +6,7 @@ import Header from './Header';
 
 const titles = {
   '/dashboard': 'Dashboard',
+  '/tenant-dashboard': 'My Dashboard',
   '/spaces': 'Space Management',
   '/tenants': 'Tenant Management',
   '/leases': 'Lease Management',

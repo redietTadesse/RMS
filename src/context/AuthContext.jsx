@@ -1,3 +1,4 @@
+
 import { createContext, useState, useContext, useEffect } from 'react';
 import { authApi } from '../services/api';
 
@@ -18,7 +19,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
-        console.log('✅ User restored from localStorage:', parsedUser.username);
+        console.log('✅ User restored from localStorage:', parsedUser.username, 'Role:', parsedUser.role);
       } catch (err) {
         console.error('❌ Failed to parse user data:', err);
         localStorage.removeItem('token');
@@ -37,7 +38,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data));
       setUser(data);
-      console.log('✅ Login successful:', data.username);
+      console.log('✅ Login successful:', data.username, 'Role:', data.role);
       return data;
     } catch (err) {
       setError(err.message || 'Login failed');
@@ -72,6 +73,8 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     isAuthenticated: !!user,
+    isAdmin: user?.role === 'ADMIN',
+    isTenant: user?.role === 'TENANT',
   };
 
   return (

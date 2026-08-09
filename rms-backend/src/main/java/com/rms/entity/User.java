@@ -1,5 +1,6 @@
 package com.rms.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -33,11 +34,12 @@ public class User {
 
     @NotBlank(message = "Password is required")
     @Column(nullable = false)
+    @JsonIgnore
     private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role = Role.ADMIN;  // ← Changed from String to Enum
+    private Role role = Role.TENANT;  
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

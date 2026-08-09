@@ -13,7 +13,7 @@ public class AuthRequest {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
-    private String role;  // "ADMIN" or "TENANT"
+    private String role;  
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }

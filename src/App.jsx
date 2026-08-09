@@ -1,14 +1,18 @@
-// src/App.jsx
+
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import LandingPage from './pages/LandingPage';
-import Login from './pages/Login';
-import Register from './pages/Register';  // ← ADD THIS
-import Dashboard from './pages/Dashboards';
-import Spaces from './pages/Spaces';
-import Tenants from './pages/Tenants';
-import Leases from './pages/Leases';
-import Payments from './pages/Payments';
+import LandingPage from './Pages/LandingPage';
+import Login from './Pages/Login';
+import Register from './Pages/Register';
+import Dashboard from './Pages/Dashboards';
+import Spaces from './Pages/Spaces';
+import Tenants from './Pages/Tenants';
+import Leases from './Pages/Leases';
+import Payments from './Pages/Payments';
+import TenantDashboard from './Pages/TenantDashboard';
+import Profile from './Pages/Profile';
+import Settings from './Pages/Settings';
+import UserManagement from './Pages/UserManagement';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function AppRoutes() {
@@ -24,13 +28,47 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />  {/* ← ADD THIS */}
+      <Route
+        path="/register"
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Register />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <UserManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      
+      {}
       <Route 
         path="/dashboard" 
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="ADMIN">
             <Dashboard />
           </ProtectedRoute>
         } 
@@ -38,7 +76,7 @@ function AppRoutes() {
       <Route 
         path="/spaces" 
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="ADMIN">
             <Spaces />
           </ProtectedRoute>
         } 
@@ -46,7 +84,7 @@ function AppRoutes() {
       <Route 
         path="/tenants" 
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="ADMIN">
             <Tenants />
           </ProtectedRoute>
         } 
@@ -54,33 +92,29 @@ function AppRoutes() {
       <Route 
         path="/leases" 
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="ADMIN">
             <Leases />
           </ProtectedRoute>
         } 
       />
-
-      
-      <Route 
-  path="/payments" 
-  element={
-    <ProtectedRoute>
-      <Payments />
-    </ProtectedRoute> 
-  }
-  />
-
-
       <Route 
         path="/payments" 
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredRole="ADMIN">
             <Payments />
           </ProtectedRoute>
         } 
       />
 
-      
+      {}
+      <Route 
+        path="/tenant-dashboard" 
+        element={
+          <ProtectedRoute requiredRole="TENANT">
+            <TenantDashboard />
+          </ProtectedRoute>
+        } 
+      />
     </Routes>
   );
 }

@@ -1,10 +1,10 @@
-// src/services/api.js
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-// Helper to get token
+
 const getToken = () => localStorage.getItem('token');
 
-// Helper to get headers with auth
+
 const getHeaders = (options = {}) => {
   const headers = options.body instanceof FormData
     ? {}
@@ -18,7 +18,7 @@ const getHeaders = (options = {}) => {
   return headers;
 };
 
-// Fetch wrapper
+
 async function request(path, options = {}) {
   const headers = getHeaders(options);
   
@@ -45,7 +45,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-// ===== AUTH API =====
+
 export const authApi = {
   login: (username, password) =>
     request('/auth/login', {
@@ -59,7 +59,7 @@ export const authApi = {
     }),
 };
 
-// ===== Spaces =====
+
 export const spacesApi = {
   getAll: (status) =>
     request(`/spaces${status ? `?status=${status}` : ''}`),
@@ -71,7 +71,7 @@ export const spacesApi = {
   remove: (id) => request(`/spaces/${id}`, { method: 'DELETE' }),
 };
 
-// ===== Tenants =====
+
 export const tenantsApi = {
   getAll: (search) =>
     request(`/tenants${search ? `?search=${encodeURIComponent(search)}` : ''}`),
@@ -83,7 +83,7 @@ export const tenantsApi = {
   remove: (id) => request(`/tenants/${id}`, { method: 'DELETE' }),
 };
 
-// ===== Documents =====
+
 export const documentsApi = {
   getByTenant: (tenantId) => request(`/tenants/${tenantId}/documents`),
   upload: (tenantId, type, file) => {
@@ -99,12 +99,12 @@ export const documentsApi = {
     `${API_BASE}/tenants/${tenantId}/documents/${documentId}/download`,
 };
 
-// ===== Dashboard =====
+
 export const dashboardApi = {
   getStats: () => request('/dashboard/stats'),
 };
 
-// ===== Leases =====
+
 export const leasesApi = {
   getAll: () => request('/leases'),
   getById: (id) => request(`/leases/${id}`),
@@ -114,6 +114,8 @@ export const leasesApi = {
     request(`/leases/${id}`, { method: 'PUT', body: JSON.stringify(lease) }),
   terminate: (id) =>
     request(`/leases/${id}/terminate`, { method: 'PUT' }),
+  remove: (id) =>
+    request(`/leases/${id}`, { method: 'DELETE' }),
   getActive: () => request('/leases/active'),
   getByTenant: (tenantId) => request(`/leases/tenant/${tenantId}`),
 };
@@ -121,7 +123,7 @@ export const leasesApi = {
 
 
 
-// Invoices
+
 export const invoicesApi = {
   getAll: () => request('/invoices'),
   getById: (id) => request(`/invoices/${id}`),
@@ -131,7 +133,7 @@ export const invoicesApi = {
     request(`/invoices/generate/${leaseId}`, { method: 'POST' }),
 };
 
-// ===== Payments =====
+
 export const paymentsApi = {
   record: (invoiceId, paymentData, receiptFile) => {
     const formData = new FormData();
@@ -149,3 +151,42 @@ export const paymentsApi = {
   previewPenalty: (invoiceId, paymentDate) =>
     request(`/payments/preview?invoiceId=${invoiceId}&paymentDate=${paymentDate}`),
 };
+
+
+export const tenantApi = {
+  getMyLease: () => request('/tenant/my-lease'),
+  getMyInvoices: () => request('/tenant/my-invoices'),
+  getStats: () => request('/tenant/stats'),
+};
+
+
+export const adminApi = {
+  getAllUsers: () => request('/users'),
+  getUserById: (id) => request(`/users/${id}`),
+  createUser: (userData) =>
+    request('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    }),
+  updateUser: (id, userData) =>
+    request(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    }),
+  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
+  toggleActive: (id) =>
+    request(`/users/${id}/toggle-active`, { method: 'PATCH' }),
+  changeRole: (id, role) =>
+    request(`/users/${id}/role?role=${encodeURIComponent(role)}`, { method: 'PATCH' }),
+};
+
+
+export const userApi = {
+  getProfile: () => request('/users/me'),
+  changePassword: (payload) =>
+    request('/users/me/password', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+};
+

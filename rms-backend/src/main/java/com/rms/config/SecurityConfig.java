@@ -14,7 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity  // ← Enables @PreAuthorize
+@EnableMethodSecurity  
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -32,23 +32,30 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.configure(http))
+                .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints
-                        .requestMatchers("/api/auth/**").permitAll()
+                        
+                        .requestMatchers("/api/auth/login").permitAll()
 
-                        // 🔑 ADMIN only
+                        
+                        .requestMatchers("/api/auth/register").hasRole("ADMIN")
+
+                        
+                        .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
+
+                        
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/users/**").hasRole("ADMIN")
+
+                        
+                        .requestMatchers("/api/tenant/**").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/spaces/**").hasRole("ADMIN")
                         .requestMatchers("/api/tenants/**").hasRole("ADMIN")
-                        .requestMatchers("/api/reports/**").hasRole("ADMIN")
-
-                        // 🔑 ADMIN + TENANT
-                        .requestMatchers("/api/tenant/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/leases/**").hasRole("ADMIN")
                         .requestMatchers("/api/invoices/**").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/payments/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/dashboard/**").hasRole("ADMIN")
 
-                        // Default
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session

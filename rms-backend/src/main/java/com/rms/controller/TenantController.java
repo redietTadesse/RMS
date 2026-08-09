@@ -1,6 +1,7 @@
 package com.rms.controller;
 
 import com.rms.entity.Invoice;
+import com.rms.entity.InvoiceStatus;
 import com.rms.entity.Lease;
 import com.rms.entity.User;
 import com.rms.repository.UserRepository;
@@ -30,9 +31,7 @@ public class TenantController {
         this.userRepository = userRepository;
     }
 
-    /**
-     * Get the logged-in tenant's lease
-     */
+    
     @GetMapping("/my-lease")
     public ResponseEntity<Lease> getMyLease(Authentication authentication) {
         String username = authentication.getName();
@@ -43,9 +42,7 @@ public class TenantController {
         return ResponseEntity.ok(lease);
     }
 
-    /**
-     * Get the logged-in tenant's invoices
-     */
+    
     @GetMapping("/my-invoices")
     public ResponseEntity<List<Invoice>> getMyInvoices(Authentication authentication) {
         String username = authentication.getName();
@@ -56,9 +53,7 @@ public class TenantController {
         return ResponseEntity.ok(invoices);
     }
 
-    /**
-     * Get tenant dashboard stats
-     */
+    
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getStats(Authentication authentication) {
         String username = authentication.getName();

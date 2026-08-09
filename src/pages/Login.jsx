@@ -1,4 +1,4 @@
-// src/pages/Login.jsx
+
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Building, User, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react';
@@ -18,8 +18,14 @@ export default function Login() {
     setError('');
 
     try {
-      await login(username, password);
-      navigate('/dashboard');
+      const data = await login(username, password);
+      if (data.role === 'ADMIN') {
+        navigate('/dashboard', { replace: true });
+      } else if (data.role === 'TENANT') {
+        navigate('/tenant-dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.');
     }
@@ -28,11 +34,10 @@ export default function Login() {
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-slate-50">
       
-      {/* Left Side - Form */}
+      {}
       <div className="flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md animate-fade-in">
           
-          {/* Mobile Logo */}
           <div className="flex items-center gap-2.5 lg:hidden mb-10">
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
               <Building className="w-5 h-5 text-white" />
@@ -46,7 +51,7 @@ export default function Login() {
           <h2 className="text-3xl font-bold text-slate-800">Welcome back 👋</h2>
           <p className="text-slate-500 mt-2 mb-8">Please enter your details to sign in.</p>
 
-          {/* Error Display */}
+          {}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {error}
@@ -59,7 +64,7 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username Input */}
+            {}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Username</label>
               <div className="relative">
@@ -76,7 +81,7 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Password Input */}
+            {}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-sm font-medium text-slate-700">Password</label>
@@ -105,7 +110,8 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Remember Me */}
+
+            {}
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -115,7 +121,7 @@ export default function Login() {
               <label htmlFor="remember" className="text-sm text-slate-600">Remember me</label>
             </div>
 
-            {/* Submit Button */}
+            {}
             <button
               type="submit"
               disabled={authLoading}
@@ -133,60 +139,27 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Footer */}
           <p className="text-center text-sm text-slate-500 mt-8">
-            Don't have an account?{' '}
-            <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-700">
-              Sign up
-            </Link>
+            Need access?{' '}
+            <span className="font-medium text-indigo-600">Contact your admin.</span>
           </p>
         </div>
       </div>
 
-      {/* Right Side - Branding/Visual */}
+      {}
       <div className="hidden lg:flex relative items-center justify-center p-12 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 overflow-hidden">
-        
         <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl translate-x-1/3 translate-y-1/3"></div>
-
         <div className="relative z-10 max-w-md text-white text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl mb-6 border border-white/20">
             <Building className="w-8 h-8 text-indigo-300" />
           </div>
-          <h2 className="text-4xl font-bold leading-tight">
-            Simplify Your Rental Management
-          </h2>
+          <h2 className="text-4xl font-bold leading-tight">Simplify Your Rental Management</h2>
           <p className="text-indigo-200/80 mt-4 text-lg">
             The all-in-one platform for managing commercial spaces, tenants, leases, and payments.
           </p>
-
-          <div className="mt-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-6 text-left shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
-                <span className="text-xs text-indigo-200">System Online</span>
-              </div>
-              <span className="text-xs text-indigo-200">2026</span>
-            </div>
-            <div className="space-y-3">
-              <div className="h-2 bg-white/20 rounded-full w-3/4"></div>
-              <div className="h-2 bg-white/10 rounded-full"></div>
-              <div className="h-2 bg-white/10 rounded-full w-5/6"></div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="bg-white/10 p-3 rounded-lg">
-                <p className="text-xs text-indigo-200">Total Revenue</p>
-                <p className="text-lg font-bold text-white">ETB 45,000</p>
-              </div>
-              <div className="bg-white/10 p-3 rounded-lg">
-                <p className="text-xs text-indigo-200">Occupied</p>
-                <p className="text-lg font-bold text-white">85%</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
-
     </div>
   );
 }

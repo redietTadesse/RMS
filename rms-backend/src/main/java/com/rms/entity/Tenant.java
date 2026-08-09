@@ -22,7 +22,7 @@ public class Tenant {
     @Column(nullable = false)
     private TenantType type = TenantType.INDIVIDUAL;
 
-    private String contact; // contact person (for companies)
+    private String contact; 
 
     @NotBlank(message = "Phone is required")
     private String phone;
@@ -30,11 +30,14 @@ public class Tenant {
     @Email(message = "Invalid email address")
     private String email;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Column(name = "tin_number")
     private String tinNumber;
 
     @Column(name = "business_license")
-    private String businessLicense; // license number/reference
+    private String businessLicense; 
 
     @Column(name = "has_id_card", nullable = false)
     private boolean hasIdCard = false;
@@ -42,7 +45,7 @@ public class Tenant {
     @Column(name = "has_business_license", nullable = false)
     private boolean hasBusinessLicense = false;
 
-    // --- getters / setters ---
+    
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -60,6 +63,9 @@ public class Tenant {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
 
     public String getTinNumber() { return tinNumber; }
     public void setTinNumber(String tinNumber) { this.tinNumber = tinNumber; }
