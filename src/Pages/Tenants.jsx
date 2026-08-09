@@ -1,13 +1,13 @@
 // src/pages/Tenants.jsx - COMPLETE FILE
 import { useEffect, useRef, useState } from 'react';
-import { tenantsApi, documentsApi } from '../services/api';
+import { tenantsApi, documentsApi, adminApi } from '../services/api';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { Loader2, Plus, Search, Edit, Trash2, FileText, X } from 'lucide-react';
 
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition';
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 
-const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '' };
+const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', userId: '' }; 
 const DOC_TYPES = [
   { value: 'TIN_CERTIFICATE', label: 'TIN Certificate' },
   { value: 'ID_CARD', label: 'ID Card' },
@@ -24,6 +24,7 @@ function DocBadge({ ok, label }) {
 
 export default function Tenants() {
   const [tenants, setTenants] = useState([]);
+  const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -52,7 +53,19 @@ export default function Tenants() {
     }
   };
 
-  useEffect(() => { loadTenants(''); }, []);
+  const loadUsers = async () => {
+    try {
+      const data = await adminApi.getAllUsers();
+      setUsers(data.filter((u) => u.role === 'TENANT'));
+    } catch (e) {
+      console.error('Failed to load users:', e);
+    }
+  };
+
+  useEffect(() => {
+    loadTenants('');
+    loadUsers();
+  }, []);
 
   const handleSearchChange = (e) => {
     const q = e.target.value;
@@ -64,7 +77,7 @@ export default function Tenants() {
   const openAdd = () => { setEditingId(null); setFormData(EMPTY_FORM); setFormError(''); setShowModal(true); };
   const openEdit = (t) => {
     setEditingId(t.id);
-    setFormData({ name: t.name || '', type: t.type || 'INDIVIDUAL', contact: t.contact || '', phone: t.phone || '', email: t.email || '', tinNumber: t.tinNumber || '', businessLicense: t.businessLicense || '' });
+    setFormData({ name: t.name || '', type: t.type || 'INDIVIDUAL', contact: t.contact || '', phone: t.phone || '', email: t.email || '', tinNumber: t.tinNumber || '', businessLicense: t.businessLicense || '', userId: t.userId ?? '' });
     setFormError('');
     setShowModal(true);
   };
@@ -79,13 +92,27 @@ export default function Tenants() {
       setFormError('Name and phone are required.');
       return;
     }
-    const payload = { ...formData, name: formData.name.trim(), phone: formData.phone.trim(), email: formData.email.trim() || null };
+    if (!formData.userId) {
+      setFormError('Please select a user account for this tenant.');
+      return;
+    }
+    const payload = {
+      ...formData,
+      name: formData.name.trim(),
+      phone: formData.phone.trim(),
+      email: formData.email.trim() || null,
+      userId: parseInt(formData.userId, 10),
+    };
     setSaving(true);
     setFormError('');
     try {
       if (editingId) {
         const current = tenants.find((t) => t.id === editingId);
-        await tenantsApi.update(editingId, { ...payload, hasIdCard: current?.hasIdCard ?? false, hasBusinessLicense: current?.hasBusinessLicense ?? false });
+        await tenantsApi.update(editingId, {
+          ...payload,
+          hasIdCard: current?.hasIdCard ?? false,
+          hasBusinessLicense: current?.hasBusinessLicense ?? false,
+        });
       } else {
         await tenantsApi.create(payload);
       }
@@ -163,16 +190,16 @@ export default function Tenants() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {['Name', 'Type', 'Contact', 'Phone', 'Email', 'TIN', 'Documents', 'Actions'].map((h) => (
+                {['Name', 'Type', 'Contact', 'Phone', 'Email', 'TIN', 'User', 'Documents', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading…</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading…</td></tr>
               ) : tenants.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">{search ? `No tenants match "${search}".` : 'No tenants yet.'}</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">{search ? `No tenants match "${search}".` : 'No tenants yet.'}</td></tr>
               ) : (
                 tenants.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50/60 transition">
@@ -182,6 +209,7 @@ export default function Tenants() {
                     <td className="px-4 py-3 text-slate-600">{t.phone}</td>
                     <td className="px-4 py-3 text-slate-600">{t.email || '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{t.tinNumber || '—'}</td>
+                    <td className="px-4 py-3 text-slate-600">{users.find((u) => u.id === t.userId)?.username || 'Not linked'}</td>
                     <td className="px-4 py-3"><div className="flex flex-wrap gap-1"><DocBadge ok={t.hasIdCard} label="ID" /><DocBadge ok={t.hasBusinessLicense} label="License" /></div></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
@@ -217,6 +245,26 @@ export default function Tenants() {
               <div className="grid grid-cols-2 gap-4">
                 <div><label className={labelClass}>TIN Number</label><input name="tinNumber" value={formData.tinNumber} onChange={handleChange} className={inputClass} placeholder="e.g. 0012345678" /></div>
                 <div><label className={labelClass}>Business License No.</label><input name="businessLicense" value={formData.businessLicense} onChange={handleChange} className={inputClass} placeholder="License reference" /></div>
+              </div>
+              <div>
+                <label className={labelClass}>User Account *</label>
+                <select
+                  name="userId"
+                  value={formData.userId}
+                  onChange={handleChange}
+                  className={inputClass}
+                  required
+                >
+                  <option value="">Select User</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.username} ({u.role})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">
+                  Link this tenant to a user account with TENANT role
+                </p>
               </div>
               <p className="text-xs text-slate-500">ID and license files are attached from the Documents button after saving.</p>
             </div>

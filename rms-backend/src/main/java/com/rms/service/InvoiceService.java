@@ -26,13 +26,16 @@ public class InvoiceService {
     private final LeaseRepository leaseRepository;
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public InvoiceService(InvoiceRepository invoiceRepository, LeaseRepository leaseRepository,
-                          TenantRepository tenantRepository, UserRepository userRepository) {
+                          TenantRepository tenantRepository, UserRepository userRepository,
+                          NotificationService notificationService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     
@@ -98,8 +101,22 @@ public class InvoiceService {
             if (invoice.getDueDate().isBefore(today)) {
                 invoice.setStatus(InvoiceStatus.OVERDUE);
                 invoiceRepository.save(invoice);
+                notifyInvoiceOverdue(invoice);
             }
         }
+    }
+
+    
+    public void notifyInvoiceOverdue(Invoice invoice) {
+        Tenant tenant = invoice.getLease().getTenant();
+        notificationService.createForUserOnce(
+                tenant.getUserId(),
+                "INVOICE_OVERDUE",
+                invoice.getId(),
+                "Invoice overdue",
+                "Invoice " + invoice.getInvoiceNumber() + " is overdue. Please pay as soon as possible.",
+                "/payments"
+        );
     }
 
     
@@ -132,6 +149,11 @@ public class InvoiceService {
     public Invoice getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+    }
+
+    
+    public Invoice saveInvoice(Invoice invoice) {
+        return invoiceRepository.save(invoice);
     }
 
     

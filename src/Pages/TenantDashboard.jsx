@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Building2, FileText, CreditCard, AlertCircle,
   CheckCircle, Clock, Loader2, Calendar, Home,
@@ -119,6 +119,7 @@ export default function TenantDashboard() {
   const pendingInvoices = stats?.pendingInvoices || 0;
   const paidInvoices = stats?.paidInvoices || 0;
   const overdueInvoices = stats?.overdueInvoices || 0;
+  const leaseExpired = lease?.endDate && new Date(lease.endDate) < new Date();
 
   const totalPending = invoices
     .filter(i => i.status === 'PENDING' || i.status === 'OVERDUE')
@@ -162,6 +163,50 @@ export default function TenantDashboard() {
             color="rose" 
           />
         </div>
+
+        {overdueInvoices > 0 && (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-rose-800">Overdue Invoices</p>
+                <p className="text-xs text-rose-600">
+                  You have {overdueInvoices} overdue invoice(s). Please pay immediately to avoid penalties.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/payments"
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition text-center"
+            >
+              Pay Now
+            </Link>
+          </div>
+        )}
+
+        {lease && leaseExpired && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+                <Calendar className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-amber-800">Lease Expired</p>
+                <p className="text-xs text-amber-600">
+                  Your lease expired on {lease.endDate}. Please contact admin to renew.
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/profile"
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition text-center"
+            >
+              Contact Admin
+            </Link>
+          </div>
+        )}
 
         {/* Lease Card */}
         <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm">

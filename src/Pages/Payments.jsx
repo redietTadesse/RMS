@@ -9,7 +9,7 @@ import {
   Settings2, Upload, X, Loader2 
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { invoicesApi, paymentsApi, leasesApi } from '../services/api';
+import { invoicesApi, paymentsApi, leasesApi, chapaApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 // ── Status Badge Colors ──
@@ -21,7 +21,7 @@ const statusBadge = {
 
 export default function Payments() {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const todayStr = new Date().toISOString().split('T')[0];
 
   // ── State ──
@@ -40,9 +40,10 @@ export default function Payments() {
   const [payingInvoice, setPayingInvoice] = useState(null);
   const [payForm, setPayForm] = useState({
     paymentDate: todayStr,
-    paymentMethod: 'BANK_TRANSFER',
+    paymentMethod: 'receipt',
     receipt: null,
     receiptName: '',
+    phoneNumber: '',
   });
   const [penaltyPreview, setPenaltyPreview] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +53,7 @@ export default function Payments() {
 
   // ── Generate Invoice ──
   const [generating, setGenerating] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // ── Load Data ──
   const loadData = async () => {
@@ -96,9 +98,10 @@ export default function Payments() {
     setPayingInvoice(invoice);
     setPayForm({
       paymentDate: todayStr,
-      paymentMethod: 'BANK_TRANSFER',
+      paymentMethod: 'receipt',
       receipt: null,
       receiptName: '',
+      phoneNumber: '',
     });
     setPenaltyPreview(0);
   };
@@ -120,7 +123,61 @@ export default function Payments() {
   // ── Submit Payment ──
   const handleRecordPayment = async () => {
     if (!payingInvoice) return;
-    
+
+    if (payForm.paymentMethod === 'receipt') {
+      if (!payForm.receipt) {
+        setError('Please upload a receipt before saving payment.');
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        await paymentsApi.record(
+          payingInvoice.id,
+          {
+            paymentDate: payForm.paymentDate,
+            paymentMethod: payForm.paymentMethod,
+          },
+          payForm.receipt
+        );
+        setPayingInvoice(null);
+        await loadData();
+      } catch (err) {
+        setError(err.message || 'Failed to record payment');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    if (payForm.paymentMethod === 'chapa') {
+      if (!payForm.phoneNumber) {
+        setError('Please enter a phone number for Chapa payments.');
+        return;
+      }
+
+      setSubmitting(true);
+      try {
+        const response = await chapaApi.initialize(payingInvoice.id, {
+          firstName: user?.name?.split(' ')[0] || 'Tenant',
+          lastName: user?.name?.split(' ').slice(1).join(' ') || '',
+          email: user?.email || '',
+          phoneNumber: payForm.phoneNumber,
+        });
+
+        if (response?.checkoutUrl) {
+          window.location.href = response.checkoutUrl;
+        } else {
+          throw new Error('Invalid Chapa response');
+        }
+      } catch (err) {
+        setError(err.message || 'Failed to initialize payment');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     setSubmitting(true);
     try {
       await paymentsApi.record(
@@ -160,6 +217,22 @@ export default function Payments() {
   };
 
   // ── Get Tenant Name from Lease ──
+  const handleUpdateStatuses = async () => {
+    setUpdatingStatus(true);
+    setError('');
+    try {
+      await Promise.all([
+        invoicesApi.markOverdue(),
+        leasesApi.markExpired(),
+      ]);
+      await loadData();
+    } catch (err) {
+      setError(err.message || 'Failed to update statuses');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const getTenantName = (invoice) => {
     if (invoice.lease?.tenant?.name) return invoice.lease.tenant.name;
     return invoice.leaseId ? `Lease #${invoice.leaseId}` : 'Unknown';
@@ -195,6 +268,18 @@ export default function Payments() {
             >
               <Settings2 className="w-4 h-4" />
               Penalty: {settings.penaltyRate}%
+            </button>
+            <button
+              onClick={handleUpdateStatuses}
+              disabled={updatingStatus}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-lg text-sm transition disabled:opacity-50"
+            >
+              {updatingStatus ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Clock className="w-4 h-4" />
+              )}
+              Update Status
             </button>
             <button
               onClick={handleGenerateInvoice}
@@ -357,38 +442,81 @@ export default function Payments() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Payment Method</label>
-                <select
-                  value={payForm.paymentMethod}
-                  onChange={(e) => setPayForm({ ...payForm, paymentMethod: e.target.value })}
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm"
-                >
-                  <option value="BANK_TRANSFER">Bank Transfer</option>
-                  <option value="CASH">Cash</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
+              <div className="mt-4 space-y-3">
+                <div className="border-t border-slate-200 pt-4">
+                  <p className="text-sm font-medium text-slate-700 mb-3">Choose Payment Method:</p>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Receipt</label>
-                <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-slate-200 rounded-lg cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/40 transition">
-                  <Upload className="w-4 h-4 text-slate-400 shrink-0" />
-                  <span className="text-sm text-slate-500 truncate">
-                    {payForm.receiptName || 'Upload receipt (PNG, JPG, PDF)'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (file) {
-                        setPayForm({ ...payForm, receipt: file, receiptName: file.name });
-                      }
-                    }}
-                  />
-                </label>
+                  <div className="border rounded-lg p-4 hover:border-indigo-300 transition">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="receipt"
+                        checked={payForm.paymentMethod === 'receipt'}
+                        onChange={() => setPayForm({ ...payForm, paymentMethod: 'receipt' })}
+                        className="w-4 h-4 text-indigo-600"
+                      />
+                      <div>
+                        <p className="font-medium text-slate-800">Upload Receipt</p>
+                        <p className="text-xs text-slate-500">Pay via bank transfer or cash, upload receipt</p>
+                      </div>
+                    </div>
+
+                    {payForm.paymentMethod === 'receipt' && (
+                      <div className="mt-3 pl-7">
+                        <label className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-slate-200 rounded-lg cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/40 transition">
+                          <Upload className="w-4 h-4 text-slate-400 shrink-0" />
+                          <span className="text-sm text-slate-500 truncate">
+                            {payForm.receiptName || 'Upload receipt (PNG, JPG, PDF)'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                setPayForm({ ...payForm, receipt: file, receiptName: file.name });
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border rounded-lg p-4 hover:border-indigo-300 transition">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="chapa"
+                        checked={payForm.paymentMethod === 'chapa'}
+                        onChange={() => setPayForm({ ...payForm, paymentMethod: 'chapa' })}
+                        className="w-4 h-4 text-indigo-600"
+                      />
+                      <div>
+                        <p className="font-medium text-slate-800">Pay with Chapa</p>
+                        <p className="text-xs text-slate-500">Telebirr, CBE Birr, Cards, Mobile Money</p>
+                      </div>
+                    </div>
+
+                    {payForm.paymentMethod === 'chapa' && (
+                      <div className="mt-3 pl-7 space-y-2">
+                        <input
+                          type="text"
+                          placeholder="Phone Number (e.g., 0912345678)"
+                          value={payForm.phoneNumber || ''}
+                          onChange={(e) => setPayForm({ ...payForm, phoneNumber: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                        />
+                        <p className="text-xs text-slate-400">
+                          📱 You'll be redirected to Chapa to complete payment
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className={`rounded-xl p-4 text-sm ${penaltyPreview > 0 ? 'bg-rose-50 border border-rose-100' : 'bg-emerald-50 border border-emerald-100'}`}>

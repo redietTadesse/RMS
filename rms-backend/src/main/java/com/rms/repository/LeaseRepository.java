@@ -18,5 +18,7 @@ public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
     Optional<Lease> findByTenantIdAndStatus(Long tenantId, LeaseStatus status);
 
+    Optional<Lease> findFirstByTenantIdOrderByEndDateDesc(Long tenantId);
+
     boolean existsBySpaceAndStatus(Space space, LeaseStatus status);
 }

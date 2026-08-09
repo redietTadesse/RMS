@@ -1,16 +1,38 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Menu, Search, Bell, Sun, Moon, LogOut, 
   User, Settings, ChevronDown, Home 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { notificationsApi } from '../../services/api';
 
 export default function Header({ onMenuClick, title }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isDark, setIsDark] = useState(false);
+
+  const loadNotifications = async () => {
+    if (!user) return;
+    try {
+      const [items, unread] = await Promise.all([
+        notificationsApi.getMine(),
+        notificationsApi.getUnreadCount(),
+      ]);
+      setNotifications(items || []);
+      setUnreadCount(unread?.count || 0);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadNotifications();
+  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -20,6 +42,30 @@ export default function Header({ onMenuClick, title }) {
   const toggleTheme = () => {
     setIsDark(!isDark);
     document.documentElement.classList.toggle('dark');
+  };
+
+  const handleNotificationClick = async (notification) => {
+    try {
+      if (!notification.readFlag) {
+        await notificationsApi.markRead(notification.id);
+        await loadNotifications();
+      }
+      setShowNotifications(false);
+      if (notification.link) {
+        navigate(notification.link);
+      }
+    } catch (err) {
+      console.error('Failed to update notification:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationsApi.markAllRead();
+      await loadNotifications();
+    } catch (err) {
+      console.error('Failed to mark notifications as read:', err);
+    }
   };
 
   
@@ -83,10 +129,84 @@ export default function Header({ onMenuClick, title }) {
           </button>
 
           {}
-          <button className="relative p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full ring-2 ring-white animate-pulse"></span>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                setShowDropdown(false);
+                if (!showNotifications) loadNotifications();
+              }}
+              className="relative p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              aria-label="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-5 h-5 px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotifications && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowNotifications(false)}
+                />
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in">
+                  <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-slate-800">Notifications</p>
+                      <p className="text-xs text-slate-500">{unreadCount} unread</p>
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-slate-500">
+                        No notifications yet.
+                      </div>
+                    ) : (
+                      notifications.slice(0, 10).map((notification) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`w-full px-4 py-3 text-left border-b border-slate-100 last:border-0 hover:bg-slate-50 transition ${
+                            notification.readFlag ? 'bg-white' : 'bg-indigo-50/50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
+                              notification.readFlag ? 'bg-slate-200' : 'bg-rose-500'
+                            }`} />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 truncate">
+                                {notification.title}
+                              </p>
+                              <p className="text-xs text-slate-600 mt-0.5 line-clamp-2">
+                                {notification.message}
+                              </p>
+                              <p className="text-[11px] text-slate-400 mt-1">
+                                {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : ''}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
           {}
           <div className="relative">

@@ -18,6 +18,21 @@ const getHeaders = (options = {}) => {
   return headers;
 };
 
+export const chapaApi = {
+  initialize: (invoiceId, customerData) =>
+    request('/payments/chapa/initialize', {
+      method: 'POST',
+      body: JSON.stringify({
+        invoiceId,
+        firstName: customerData.firstName,
+        lastName: customerData.lastName,
+        email: customerData.email,
+        phoneNumber: customerData.phoneNumber,
+      }),
+    }),
+  verify: (txRef) =>
+    request(`/payments/chapa/verify?tx_ref=${txRef}`),
+};
 
 async function request(path, options = {}) {
   const headers = getHeaders(options);
@@ -114,6 +129,10 @@ export const leasesApi = {
     request(`/leases/${id}`, { method: 'PUT', body: JSON.stringify(lease) }),
   terminate: (id) =>
     request(`/leases/${id}/terminate`, { method: 'PUT' }),
+  markExpired: () =>
+    request('/leases/test/mark-expired', { method: 'POST' }),
+  forceExpire: (id) =>
+    request(`/leases/test/${id}/force-expire`, { method: 'POST' }),
   remove: (id) =>
     request(`/leases/${id}`, { method: 'DELETE' }),
   getActive: () => request('/leases/active'),
@@ -131,6 +150,10 @@ export const invoicesApi = {
   getByTenant: (tenantId) => request(`/invoices/tenant/${tenantId}`),
   generate: (leaseId) =>
     request(`/invoices/generate/${leaseId}`, { method: 'POST' }),
+  markOverdue: () =>
+    request('/invoices/test/mark-overdue', { method: 'POST' }),
+  forceOverdue: (id) =>
+    request(`/invoices/test/${id}/force-overdue`, { method: 'POST' }),
 };
 
 
@@ -157,6 +180,14 @@ export const tenantApi = {
   getMyLease: () => request('/tenant/my-lease'),
   getMyInvoices: () => request('/tenant/my-invoices'),
   getStats: () => request('/tenant/stats'),
+};
+
+
+export const notificationsApi = {
+  getMine: () => request('/notifications'),
+  getUnreadCount: () => request('/notifications/unread-count'),
+  markRead: (id) => request(`/notifications/${id}/read`, { method: 'PUT' }),
+  markAllRead: () => request('/notifications/read-all', { method: 'PUT' }),
 };
 
 

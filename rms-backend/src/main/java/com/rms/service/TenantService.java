@@ -53,10 +53,20 @@ public class TenantService {
         tenant.setContact(updated.getContact());
         tenant.setPhone(updated.getPhone());
         tenant.setEmail(updated.getEmail());
+        tenant.setUserId(updated.getUserId());
         tenant.setTinNumber(updated.getTinNumber());
         tenant.setBusinessLicense(updated.getBusinessLicense());
         tenant.setHasIdCard(updated.isHasIdCard());
         tenant.setHasBusinessLicense(updated.isHasBusinessLicense());
+
+        if (tenant.getUserId() != null) {
+            User user = userRepository.findById(tenant.getUserId())
+                    .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + tenant.getUserId()));
+            if (user.getRole() != com.rms.entity.Role.TENANT) {
+                throw new IllegalArgumentException("User must have TENANT role");
+            }
+        }
+
         return tenantRepository.save(tenant);
     }
 

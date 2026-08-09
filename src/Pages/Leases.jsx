@@ -217,43 +217,58 @@ export default function Leases() {
 
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Tenant */}
+                {/* Tenant - READ-ONLY when editing */}
                 <div>
                   <label className={labelClass}>Tenant *</label>
-                  <select
-                    name="tenantId"
-                    value={formData.tenantId}
-                    onChange={handleChange}
-                    className={inputClass}
-                    required
-                  >
-                    <option value="">Select Tenant</option>
-                    {tenants.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
+                  {editingId ? (
+                    <div className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-700">
+                      {tenants.find(t => t.id === parseInt(formData.tenantId))?.name || 'N/A'}
+                    </div>
+                  ) : (
+                    <select
+                      name="tenantId"
+                      value={formData.tenantId}
+                      onChange={handleChange}
+                      className={inputClass}
+                      required
+                    >
+                      <option value="">Select Tenant</option>
+                      {tenants.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
-                {/* Space */}
+                {/* Space - READ-ONLY when editing */}
                 <div>
                   <label className={labelClass}>Space *</label>
-                  <select
-                    name="spaceId"
-                    value={formData.spaceId}
-                    onChange={handleChange}
-                    className={inputClass}
-                    required
-                  >
-                    <option value="">Select Space</option>
-                    {spaces.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.unitNumber} ({s.status})
-                      </option>
-                    ))}
-                  </select>
-                  {formData.spaceId && (
+                  {editingId ? (
+                    <div className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-slate-100 text-slate-700">
+                      {spaces.find(s => s.id === parseInt(formData.spaceId))?.unitNumber || 'N/A'}
+                    </div>
+                  ) : (
+                    <select
+                      name="spaceId"
+                      value={formData.spaceId}
+                      onChange={handleChange}
+                      className={inputClass}
+                      required
+                    >
+                      <option value="">Select Space</option>
+                      {spaces.map((s) => {
+                        const isAvailable = s.status === 'VACANT';
+                        return (
+                          <option key={s.id} value={s.id} disabled={!isAvailable}>
+                            {s.unitNumber} ({s.status})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  )}
+                  {!editingId && formData.spaceId && (
                     <p className={`text-xs mt-1.5 font-medium ${isSpaceOccupied ? 'text-amber-600' : 'text-emerald-600'}`}>
                       {isSpaceOccupied ? '⚠️ This space is currently occupied' : '✅ This space is available'}
                     </p>
@@ -348,7 +363,7 @@ export default function Leases() {
               <div className="flex gap-3 mt-6">
                 <button
                   type="submit"
-                  disabled={saving || isSpaceOccupied}
+                  disabled={saving || (!editingId && isSpaceOccupied)}
                   className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? (

@@ -15,16 +15,20 @@ public class DashboardService {
     private final SpaceRepository spaceRepository;
     private final LeaseRepository leaseRepository;
     private final InvoiceRepository invoiceRepository;
+    private final LeaseService leaseService;
 
     public DashboardService(SpaceRepository spaceRepository,
                             LeaseRepository leaseRepository,
-                            InvoiceRepository invoiceRepository) {
+                            InvoiceRepository invoiceRepository,
+                            LeaseService leaseService) {
         this.spaceRepository = spaceRepository;
         this.leaseRepository = leaseRepository;
         this.invoiceRepository = invoiceRepository;
+        this.leaseService = leaseService;
     }
 
     public DashboardStats getStats() {
+        leaseService.syncExpiredLeases();
         return new DashboardStats(
                 spaceRepository.count(),
                 spaceRepository.countByStatus(SpaceStatus.VACANT),

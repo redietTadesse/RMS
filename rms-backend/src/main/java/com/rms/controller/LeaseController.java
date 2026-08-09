@@ -55,4 +55,17 @@ public class LeaseController {
     public Lease terminate(@PathVariable Long id) {
         return leaseService.terminateLease(id);
     }
+
+    @PostMapping("/test/mark-expired")
+    @ResponseStatus(HttpStatus.OK)
+    public String testMarkExpired() {
+        int count = leaseService.syncExpiredLeases();
+        return count + " leases marked as EXPIRED";
+    }
+
+    @PostMapping("/test/{id}/force-expire")
+    @ResponseStatus(HttpStatus.OK)
+    public Lease forceExpire(@PathVariable Long id) {
+        return leaseService.forceExpire(id);
+    }
 }

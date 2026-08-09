@@ -13,6 +13,7 @@ import TenantDashboard from './Pages/TenantDashboard';
 import Profile from './Pages/Profile';
 import Settings from './Pages/Settings';
 import UserManagement from './Pages/UserManagement';
+import PaymentCallback from './Pages/PaymentCallback';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function AppRoutes() {
@@ -104,6 +105,14 @@ function AppRoutes() {
             <Payments />
           </ProtectedRoute>
         } 
+      />
+      <Route
+        path="/payment-callback"
+        element={
+          <ProtectedRoute>
+            <PaymentCallback />
+          </ProtectedRoute>
+        }
       />
 
       {}
