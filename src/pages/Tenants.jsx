@@ -1,4 +1,4 @@
-// src/pages/Tenants.jsx - COMPLETE FILE
+
 import { useEffect, useRef, useState } from 'react';
 import { tenantsApi, documentsApi } from '../services/api';
 import DashboardLayout from '../components/Layout/DashboardLayout';
@@ -198,7 +198,7 @@ export default function Tenants() {
         </div>
       </div>
 
-      {/* Add/Edit Modal */}
+      {}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto bg-white rounded-xl shadow-xl p-6">
@@ -230,7 +230,7 @@ export default function Tenants() {
         </div>
       )}
 
-      {/* Documents Modal */}
+      {}
       {docsTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto bg-white rounded-xl shadow-xl p-6">

@@ -1,21 +1,23 @@
-// src/pages/TenantDashboard.jsx
+
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, FileText, CreditCard, AlertCircle,
-  CheckCircle, Clock, Loader2, Calendar, Home
+  CheckCircle, Clock, Loader2, Calendar, Home,
+  DollarSign
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { tenantApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-function StatCard({ label, value, icon: Icon, color = 'indigo' }) {
+function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
   const colors = {
     indigo: 'bg-indigo-100 text-indigo-600',
     emerald: 'bg-emerald-100 text-emerald-600',
     amber: 'bg-amber-100 text-amber-600',
     rose: 'bg-rose-100 text-rose-600',
     blue: 'bg-blue-100 text-blue-600',
+    purple: 'bg-purple-100 text-purple-600',
   };
   
   return (
@@ -59,7 +61,7 @@ export default function TenantDashboard() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-    // Redirect if not tenant
+    
     if (user && user.role !== 'TENANT') {
       navigate('/dashboard');
       return;
@@ -118,10 +120,14 @@ export default function TenantDashboard() {
   const paidInvoices = stats?.paidInvoices || 0;
   const overdueInvoices = stats?.overdueInvoices || 0;
 
+  const totalPending = invoices
+    .filter(i => i.status === 'PENDING' || i.status === 'OVERDUE')
+    .reduce((sum, i) => sum + (i.totalAmount || 0), 0);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
+        {}
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
             Welcome back, {user?.name || 'Tenant'} 👋
@@ -173,7 +179,7 @@ export default function TenantDashboard() {
               <p className="text-sm text-slate-400">Contact your administrator for assistance.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-slate-50 rounded-lg p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Space</p>
                 <p className="text-lg font-bold text-slate-800 mt-1">
@@ -191,6 +197,13 @@ export default function TenantDashboard() {
                 </p>
               </div>
               <div className="bg-slate-50 rounded-lg p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Deposit</p>
+                <p className="text-lg font-bold text-slate-800 mt-1">
+                  ETB {Number(lease.deposit || 0).toLocaleString()}
+                </p>
+                <p className="text-sm text-slate-500">{lease.prepaymentMonths || 3} months prepayment</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</p>
                 <div className="mt-1">
                   <StatusBadge status={lease.status} />
@@ -204,7 +217,7 @@ export default function TenantDashboard() {
           )}
         </div>
 
-        {/* Recent Invoices */}
+        {}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">

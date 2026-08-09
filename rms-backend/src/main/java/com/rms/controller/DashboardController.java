@@ -18,7 +18,7 @@ public class DashboardController {
         this.dashboardService = dashboardService;
     }
 
-    /** GET /api/dashboard/stats */
+    
     @GetMapping("/stats")
     public DashboardStats getStats() {
         return dashboardService.getStats();

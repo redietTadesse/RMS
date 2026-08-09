@@ -1,4 +1,4 @@
-// src/pages/Spaces.jsx - COMPLETE FILE
+
 import { useEffect, useState } from 'react';
 import { spacesApi } from '../services/api';
 import DashboardLayout from '../components/Layout/DashboardLayout';

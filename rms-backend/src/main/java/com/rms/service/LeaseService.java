@@ -6,6 +6,7 @@ import com.rms.exception.ResourceNotFoundException;
 import com.rms.repository.LeaseRepository;
 import com.rms.repository.SpaceRepository;
 import com.rms.repository.TenantRepository;
+import com.rms.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,13 +18,16 @@ public class LeaseService {
     private final LeaseRepository leaseRepository;
     private final SpaceRepository spaceRepository;
     private final TenantRepository tenantRepository;
+    private final UserRepository userRepository;
 
     public LeaseService(LeaseRepository leaseRepository,
                         SpaceRepository spaceRepository,
-                        TenantRepository tenantRepository) {
+                        TenantRepository tenantRepository,
+                        UserRepository userRepository) {
         this.leaseRepository = leaseRepository;
         this.spaceRepository = spaceRepository;
         this.tenantRepository = tenantRepository;
+        this.userRepository = userRepository;
     }
 
     public List<Lease> getAll() {
@@ -43,12 +47,19 @@ public class LeaseService {
         return leaseRepository.findByTenantId(tenantId);
     }
 
-    /**
-     * Create a lease.
-     * Business Rule 1: space must be Vacant (no other ACTIVE lease on it)
-     * Business Rule 2: prepayment must be >= 3 months
-     * Business Rule 3: space status -> OCCUPIED on creation
-     */
+    
+    public Lease getLeaseByTenantUsername(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+
+        Tenant tenant = tenantRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("No tenant found for user: " + username));
+
+        return leaseRepository.findByTenantIdAndStatus(tenant.getId(), LeaseStatus.ACTIVE)
+                .orElse(null);
+    }
+
+    
     @Transactional
     public Lease createLease(LeaseRequest request) {
         Tenant tenant = tenantRepository.findById(request.getTenantId())
@@ -57,13 +68,13 @@ public class LeaseService {
         Space space = spaceRepository.findById(request.getSpaceId())
                 .orElseThrow(() -> new IllegalArgumentException("Space not found with id " + request.getSpaceId()));
 
-        // Business Rule 1: space must be vacant
+        
         if (space.getStatus() != SpaceStatus.VACANT
                 || leaseRepository.existsBySpaceAndStatus(space, LeaseStatus.ACTIVE)) {
             throw new IllegalArgumentException("Space " + space.getUnitNumber() + " is not vacant");
         }
 
-        // Business Rule 2: prepayment >= 3 months
+        
         if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
             throw new IllegalArgumentException("Prepayment must be at least 3 months");
         }
@@ -85,17 +96,14 @@ public class LeaseService {
 
         Lease saved = leaseRepository.save(lease);
 
-        // Business Rule 3: space becomes Occupied
+        
         space.setStatus(SpaceStatus.OCCUPIED);
         spaceRepository.save(space);
 
         return saved;
     }
 
-    /**
-     * Update a lease's editable fields. Does not change tenant/space assignment
-     * or re-run the vacancy check — only terminate+recreate should reassign a space.
-     */
+    
     @Transactional
     public Lease updateLease(Long id, LeaseRequest request) {
         Lease lease = getById(id);
@@ -122,10 +130,7 @@ public class LeaseService {
         return leaseRepository.save(lease);
     }
 
-    /**
-     * Terminate a lease.
-     * Business Rule 4: space status -> VACANT on termination
-     */
+    
     @Transactional
     public Lease terminateLease(Long id) {
         Lease lease = getById(id);

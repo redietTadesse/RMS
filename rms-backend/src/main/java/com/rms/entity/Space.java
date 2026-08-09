@@ -22,17 +22,17 @@ public class Space {
     private Integer floor;
 
     @NotBlank(message = "Category is required")
-    private String category; // e.g. Shop, Office, Warehouse, Cafe
+    private String category; 
 
     @NotNull(message = "Size is required")
     @Positive(message = "Size must be positive")
-    private BigDecimal size; // square meters
+    private BigDecimal size; 
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SpaceStatus status = SpaceStatus.VACANT;
 
-    // --- getters / setters ---
+    
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

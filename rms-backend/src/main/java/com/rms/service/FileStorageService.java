@@ -20,9 +20,7 @@ public class FileStorageService {
         this.rootDir = Paths.get(uploadDir).toAbsolutePath().normalize();
     }
 
-    /**
-     * Stores a receipt file under uploads/receipts/
-     */
+    
     public String storeReceipt(MultipartFile file, Long invoiceId) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File is empty");
@@ -46,9 +44,7 @@ public class FileStorageService {
         }
     }
 
-    /**
-     * Stores a tenant document
-     */
+    
     public Path store(Long tenantId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File is empty");

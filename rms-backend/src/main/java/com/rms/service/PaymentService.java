@@ -30,9 +30,7 @@ public class PaymentService {
         this.fileStorageService = fileStorageService;
     }
 
-    /**
-     * Record a payment for an invoice
-     */
+    
     @Transactional
     public Invoice recordPayment(Long invoiceId, PaymentRequest request, MultipartFile receipt) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
@@ -42,17 +40,17 @@ public class PaymentService {
             throw new IllegalArgumentException("Invoice already paid");
         }
 
-        // Calculate penalty if payment is late
+        
         BigDecimal penalty = calculatePenalty(invoice, request.getPaymentDate());
         BigDecimal totalAmount = invoice.getRentAmount().add(penalty);
 
-        // Save receipt if provided
+        
         String receiptPath = null;
         if (receipt != null && !receipt.isEmpty()) {
             receiptPath = fileStorageService.storeReceipt(receipt, invoiceId);
         }
 
-        // Update invoice
+        
         invoice.setPenaltyAmount(penalty);
         invoice.setTotalAmount(totalAmount);
         invoice.setStatus(InvoiceStatus.PAID);
@@ -63,15 +61,13 @@ public class PaymentService {
         return invoiceRepository.save(invoice);
     }
 
-    /**
-     * Calculate penalty based on payment date
-     */
+    
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
         if (paymentDate.getDayOfMonth() <= paymentWindowEnd) {
             return BigDecimal.ZERO;
         }
 
-        // Apply penalty rate (default 20%)
+        
         BigDecimal penalty = invoice.getRentAmount()
                 .multiply(BigDecimal.valueOf(penaltyRate))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
@@ -79,9 +75,7 @@ public class PaymentService {
         return penalty;
     }
 
-    /**
-     * Get penalty for an invoice (without saving)
-     */
+    
     public BigDecimal calculatePenaltyPreview(Long invoiceId, LocalDate paymentDate) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));

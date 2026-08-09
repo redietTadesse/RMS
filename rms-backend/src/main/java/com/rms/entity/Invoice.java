@@ -47,7 +47,7 @@ public class Invoice {
     @Column(name = "receipt_path")
     private String receiptPath;
 
-    // --- Getters and Setters ---
+    
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

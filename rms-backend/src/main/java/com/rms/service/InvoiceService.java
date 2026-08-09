@@ -4,8 +4,12 @@ import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.entity.Lease;
 import com.rms.entity.LeaseStatus;
+import com.rms.entity.Tenant;
+import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
 import com.rms.repository.LeaseRepository;
+import com.rms.repository.TenantRepository;
+import com.rms.repository.UserRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,16 +24,18 @@ public class InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final LeaseRepository leaseRepository;
+    private final TenantRepository tenantRepository;
+    private final UserRepository userRepository;
 
-    public InvoiceService(InvoiceRepository invoiceRepository, LeaseRepository leaseRepository) {
+    public InvoiceService(InvoiceRepository invoiceRepository, LeaseRepository leaseRepository,
+                          TenantRepository tenantRepository, UserRepository userRepository) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
+        this.tenantRepository = tenantRepository;
+        this.userRepository = userRepository;
     }
 
-    /**
-     * Generate invoices for all active leases on the 1st of each month
-     * Runs at midnight on the 1st of every month
-     */
+    
     @Scheduled(cron = "0 0 0 1 * ?")
     @Transactional
     public void generateMonthlyInvoices() {
@@ -40,18 +46,16 @@ public class InvoiceService {
         }
     }
 
-    /**
-     * Generate a single invoice for a lease
-     */
+    
     @Transactional
     public Invoice generateInvoiceForLease(Lease lease) {
         LocalDate today = LocalDate.now();
         LocalDate monthStart = today.withDayOfMonth(1);
         LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
-        // Check if invoice already exists for this month
+        
         if (invoiceRepository.existsByLeaseAndIssueDateBetween(lease, monthStart, monthEnd)) {
-            return null; // Already generated
+            return null; 
         }
 
         String invoiceNumber = generateInvoiceNumber();
@@ -70,9 +74,7 @@ public class InvoiceService {
         return invoiceRepository.save(invoice);
     }
 
-    /**
-     * Generate a single invoice manually (for testing or ad-hoc)
-     */
+    
     @Transactional
     public Invoice generateInvoice(Long leaseId) {
         Lease lease = leaseRepository.findById(leaseId)
@@ -85,9 +87,7 @@ public class InvoiceService {
         return generateInvoiceForLease(lease);
     }
 
-    /**
-     * Mark overdue invoices (runs daily at 1 AM)
-     */
+    
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional
     public void markOverdueInvoices() {
@@ -102,38 +102,39 @@ public class InvoiceService {
         }
     }
 
-    /**
-     * Get all invoices for a tenant
-     */
+    
     public List<Invoice> getInvoicesByTenant(Long tenantId) {
         return invoiceRepository.findByLeaseTenantId(tenantId);
     }
 
-    /**
-     * Get invoices by status
-     */
+    
+    public List<Invoice> getInvoicesByTenantUsername(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+
+        Tenant tenant = tenantRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("No tenant found for user: " + username));
+
+        return invoiceRepository.findByLeaseTenantId(tenant.getId());
+    }
+
+    
     public List<Invoice> getInvoicesByStatus(InvoiceStatus status) {
         return invoiceRepository.findByStatus(status);
     }
 
-    /**
-     * Get all invoices
-     */
+    
     public List<Invoice> getAllInvoices() {
         return invoiceRepository.findAll();
     }
 
-    /**
-     * Get invoice by ID
-     */
+    
     public Invoice getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
     }
 
-    /**
-     * Generate invoice number: INV-YYYY-XXXX
-     */
+    
     private String generateInvoiceNumber() {
         String year = String.valueOf(LocalDate.now().getYear());
         long count = invoiceRepository.count() + 1;

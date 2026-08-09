@@ -19,41 +19,31 @@ public class InvoiceController {
         this.invoiceService = invoiceService;
     }
 
-    /**
-     * Get all invoices (newest first)
-     */
+    
     @GetMapping
     public List<Invoice> getAllInvoices() {
         return invoiceService.getAllInvoices();
     }
 
-    /**
-     * Get invoice by ID
-     */
+    
     @GetMapping("/{id}")
     public Invoice getInvoiceById(@PathVariable Long id) {
         return invoiceService.getInvoiceById(id);
     }
 
-    /**
-     * Get invoices by status
-     */
+    
     @GetMapping("/status/{status}")
     public List<Invoice> getInvoicesByStatus(@PathVariable InvoiceStatus status) {
         return invoiceService.getInvoicesByStatus(status);
     }
 
-    /**
-     * Get invoices for a tenant
-     */
+    
     @GetMapping("/tenant/{tenantId}")
     public List<Invoice> getInvoicesByTenant(@PathVariable Long tenantId) {
         return invoiceService.getInvoicesByTenant(tenantId);
     }
 
-    /**
-     * Manually generate an invoice for a lease (admin only)
-     */
+    
     @PostMapping("/generate/{leaseId}")
     @ResponseStatus(HttpStatus.CREATED)
     public Invoice generateInvoice(@PathVariable Long leaseId) {

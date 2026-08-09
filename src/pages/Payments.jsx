@@ -1,4 +1,4 @@
-// src/pages/Payments.jsx
+
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -12,7 +12,7 @@ import DashboardLayout from '../components/Layout/DashboardLayout';
 import { invoicesApi, paymentsApi, leasesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
-// ── Status Badge Colors ──
+
 const statusBadge = {
   PENDING: 'bg-amber-100 text-amber-700',
   PAID: 'bg-emerald-100 text-emerald-700',
@@ -24,7 +24,7 @@ export default function Payments() {
   const { token } = useAuth();
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // ── State ──
+  
   const [invoices, setInvoices] = useState([]);
   const [leases, setLeases] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +36,7 @@ export default function Payments() {
   });
   const [showSettings, setShowSettings] = useState(false);
 
-  // ── Payment Modal State ──
+  
   const [payingInvoice, setPayingInvoice] = useState(null);
   const [payForm, setPayForm] = useState({
     paymentDate: todayStr,
@@ -47,13 +47,13 @@ export default function Payments() {
   const [penaltyPreview, setPenaltyPreview] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── View Invoice Modal ──
+  
   const [viewingInvoice, setViewingInvoice] = useState(null);
 
-  // ── Generate Invoice ──
+  
   const [generating, setGenerating] = useState(false);
 
-  // ── Load Data ──
+  
   const loadData = async () => {
     setLoading(true);
     setError('');
@@ -75,7 +75,7 @@ export default function Payments() {
     loadData();
   }, []);
 
-  // ── Calculate Totals ──
+  
   const totals = useMemo(() => ({
     total: invoices.length,
     pending: invoices.filter(i => i.status === 'PENDING').reduce((s, i) => s + (i.totalAmount || 0), 0),
@@ -85,13 +85,13 @@ export default function Payments() {
     totalPenalties: invoices.filter(i => i.status === 'PAID').reduce((s, i) => s + (i.penaltyAmount || 0), 0),
   }), [invoices]);
 
-  // ── Filtered Invoices ──
+  
   const filteredInvoices = useMemo(() => {
     if (statusFilter === 'All') return invoices;
     return invoices.filter(i => i.status === statusFilter);
   }, [invoices, statusFilter]);
 
-  // ── Open Payment Modal ──
+  
   const openPaymentModal = (invoice) => {
     setPayingInvoice(invoice);
     setPayForm({
@@ -103,7 +103,7 @@ export default function Payments() {
     setPenaltyPreview(0);
   };
 
-  // ── Handle Payment Date Change (for penalty preview) ──
+  
   const handlePaymentDateChange = async (date) => {
     setPayForm({ ...payForm, paymentDate: date });
     if (payingInvoice) {
@@ -117,7 +117,7 @@ export default function Payments() {
     }
   };
 
-  // ── Submit Payment ──
+  
   const handleRecordPayment = async () => {
     if (!payingInvoice) return;
     
@@ -140,7 +140,7 @@ export default function Payments() {
     }
   };
 
-  // ── Generate Invoice ──
+  
   const handleGenerateInvoice = async () => {
     const activeLease = leases.find(l => l.status === 'ACTIVE');
     if (!activeLease) {
@@ -159,13 +159,13 @@ export default function Payments() {
     }
   };
 
-  // ── Get Tenant Name from Lease ──
+  
   const getTenantName = (invoice) => {
     if (invoice.lease?.tenant?.name) return invoice.lease.tenant.name;
     return invoice.leaseId ? `Lease #${invoice.leaseId}` : 'Unknown';
   };
 
-  // ── Loading State ──
+  
   if (loading) {
     return (
       <DashboardLayout>
@@ -180,7 +180,7 @@ export default function Payments() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
+        {}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Invoices & Payments</h2>
@@ -211,7 +211,7 @@ export default function Payments() {
           </div>
         </div>
 
-        {/* Error Display */}
+        {}
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-center justify-between">
             <span>{error}</span>
@@ -221,7 +221,7 @@ export default function Payments() {
           </div>
         )}
 
-        {/* Summary Cards */}
+        {}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {[
             { label: 'Total', value: totals.total, icon: DollarSign, iconBg: 'bg-indigo-100 text-indigo-600' },
@@ -244,7 +244,7 @@ export default function Payments() {
           ))}
         </div>
 
-        {/* Filters */}
+        {}
         <div className="flex gap-2 flex-wrap">
           {['All', 'PENDING', 'PAID', 'OVERDUE'].map(f => (
             <button
@@ -260,7 +260,7 @@ export default function Payments() {
           ))}
         </div>
 
-        {/* Invoice Table */}
+        {}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
@@ -332,7 +332,7 @@ export default function Payments() {
         </div>
       </div>
 
-      {/* ── Record Payment Modal ── */}
+      {}
       {payingInvoice && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
@@ -418,7 +418,7 @@ export default function Payments() {
         </div>
       )}
 
-      {/* ── View Invoice Modal ── */}
+      {}
       {viewingInvoice && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
@@ -457,7 +457,7 @@ export default function Payments() {
         </div>
       )}
 
-      {/* ── Settings Modal ── */}
+      {}
       {showSettings && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">

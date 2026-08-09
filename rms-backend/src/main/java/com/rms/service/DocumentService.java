@@ -39,7 +39,7 @@ public class DocumentService {
         doc.setFilePath(storedPath.toString());
         TenantDocument saved = documentRepository.save(doc);
 
-        // Keep the tenant's document flags in sync (SRS: docs required before lease creation)
+        
         if (type == DocumentType.ID_CARD) {
             tenant.setHasIdCard(true);
         } else if (type == DocumentType.BUSINESS_LICENSE) {
@@ -49,7 +49,7 @@ public class DocumentService {
     }
 
     public List<TenantDocument> getByTenant(Long tenantId) {
-        tenantService.getById(tenantId); // 404 if tenant doesn't exist
+        tenantService.getById(tenantId); 
         return documentRepository.findByTenantId(tenantId);
     }
 

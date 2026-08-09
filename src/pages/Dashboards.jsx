@@ -1,4 +1,4 @@
-// src/pages/Dashboards.jsx - COMPLETE FILE
+
 import { useEffect, useState } from 'react';
 import {
   PieChart, Pie, Cell,

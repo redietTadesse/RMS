@@ -30,7 +30,7 @@ public class TenantDocument {
     @Column(name = "uploaded_at", nullable = false)
     private LocalDateTime uploadedAt = LocalDateTime.now();
 
-    // --- getters / setters ---
+    
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

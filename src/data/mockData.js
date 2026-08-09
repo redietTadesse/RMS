@@ -1,6 +1,6 @@
 export const defaultSettings = {
-  penaltyRate: 20,        // % applied to rent when paid after the payment window
-  paymentWindowEnd: 10,   // rent must be paid between the 1st and 10th
+  penaltyRate: 20,        
+  paymentWindowEnd: 10,   
 }
 
 export const mockTenants = [
@@ -16,14 +16,14 @@ export const mockSpaces = [
   { id: 4, unitNumber: "B-202", floor: "2", category: "Cafe", size: 80, status: "Occupied" },
 ]
 
-// SRS 4.3: leases track prepayment (minimum 3 months)
+
 export const mockLeases = [
   { id: 1, tenant: "ABC Trading", space: "A-102", startDate: "2026-01-01", endDate: "2026-12-31", monthlyRent: 15000, deposit: 30000, prepaymentMonths: 3, dueDay: 1, status: "Active" },
   { id: 2, tenant: "XYZ Cafe", space: "B-202", startDate: "2026-03-01", endDate: "2026-12-31", monthlyRent: 8000, deposit: 16000, prepaymentMonths: 6, dueDay: 1, status: "Active" },
 ]
 
-// SRS 4.4: invoice = number, lease link, rent, penalty (tracked separately),
-// total, issue date, due date, status (Pending | Paid | Overdue)
+
+
 export const mockInvoices = [
   {
     id: 1,
@@ -61,7 +61,7 @@ export const mockInvoices = [
     leaseId: 1,
     tenant: "ABC Trading",
     rentAmount: 15000,
-    penaltyAmount: 3000, // paid on the 14th → 20% penalty, tracked separately
+    penaltyAmount: 3000, 
     totalDue: 18000,
     issueDate: "2026-06-01",
     dueDate: "2026-06-10",

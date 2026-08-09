@@ -4,7 +4,7 @@ import { FaBuilding, FaUsers, FaFileContract, FaMoneyBill, FaArrowRight, FaCheck
 function LandingPage() {
   return (
     <div className="min-h-screen bg-white">
-      {/* Navigation */}
+      {}
       <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md border-b border-gray-100 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -19,14 +19,14 @@ function LandingPage() {
               >
                 Sign In
               </Link>
-<Link 
-  to="/register"  
-  className="font-medium text-indigo-600 hover:text-indigo-700"
->
-  Sign up
-</Link>
               <Link 
-                to="/dashboard" 
+                to="/login"  
+                className="font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Admin sign up
+              </Link>
+              <Link 
+                to="/login" 
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
               >
                 Get Started
@@ -36,7 +36,7 @@ function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {}
       <section className="pt-32 pb-20 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -96,7 +96,7 @@ function LandingPage() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {}
       <section className="py-20 bg-gray-50 px-4">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">

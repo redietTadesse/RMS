@@ -20,7 +20,7 @@ public class SpaceController {
         this.spaceService = spaceService;
     }
 
-    /** GET /api/spaces  or  GET /api/spaces?status=VACANT */
+    
     @GetMapping
     public List<Space> getAll(@RequestParam(required = false) SpaceStatus status) {
         return spaceService.getAll(status);

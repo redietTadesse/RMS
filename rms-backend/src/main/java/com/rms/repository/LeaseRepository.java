@@ -6,6 +6,7 @@ import com.rms.entity.Space;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
@@ -14,6 +15,8 @@ public interface LeaseRepository extends JpaRepository<Lease, Long> {
     List<Lease> findByStatus(LeaseStatus status);
 
     List<Lease> findByTenantId(Long tenantId);
+
+    Optional<Lease> findByTenantIdAndStatus(Long tenantId, LeaseStatus status);
 
     boolean existsBySpaceAndStatus(Space space, LeaseStatus status);
 }

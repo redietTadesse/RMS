@@ -23,10 +23,7 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
-    /**
-     * Record a payment for an invoice
-     * POST /api/payments/{invoiceId}
-     */
+    
     @PostMapping("/{invoiceId}")
     @ResponseStatus(HttpStatus.OK)
     public Invoice recordPayment(
@@ -36,10 +33,7 @@ public class PaymentController {
         return paymentService.recordPayment(invoiceId, request, receipt);
     }
 
-    /**
-     * Preview penalty amount before recording payment
-     * GET /api/payments/preview?invoiceId=1&paymentDate=2026-08-15
-     */
+    
     @GetMapping("/preview")
     public ResponseEntity<BigDecimal> previewPenalty(
             @RequestParam Long invoiceId,

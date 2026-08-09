@@ -10,9 +10,9 @@ public class PaymentRequest {
     private LocalDate paymentDate;
 
     @NotBlank(message = "Payment method is required")
-    private String paymentMethod; // CASH, BANK_TRANSFER, OTHER
+    private String paymentMethod; 
 
-    // Getters and Setters
+    
     public LocalDate getPaymentDate() { return paymentDate; }
     public void setPaymentDate(LocalDate paymentDate) { this.paymentDate = paymentDate; }
 

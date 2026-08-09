@@ -1,23 +1,27 @@
-// src/pages/Register.jsx
-import { useState } from 'react';
+
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Building, User, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
+import { Building, User, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle, Shield, Users, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { adminApi } from '../services/api';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { register, loading: authLoading } = useAuth();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   
   const [formData, setFormData] = useState({
     username: '',
     name: '',
     password: '',
     confirmPassword: '',
+    role: 'TENANT',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
@@ -26,12 +30,35 @@ export default function Register() {
     });
   };
 
+  useEffect(() => {
+    if (user && !isAdmin) {
+      navigate('/dashboard');
+    }
+  }, [user, isAdmin, navigate]);
+
+  if (user && !isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
+          <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">Access Denied</h2>
+          <p className="text-slate-500 mt-2">Only administrators can create new users.</p>
+          <Link to="/dashboard" className="mt-4 inline-block text-indigo-600 hover:text-indigo-700">
+            ← Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess(false);
 
-    // Validation
+    
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -52,29 +79,40 @@ export default function Register() {
       return;
     }
 
+    setLoading(true);
     try {
-      await register({
+      await adminApi.createUser({
         username: formData.username,
         name: formData.name,
         password: formData.password,
+        role: formData.role,
       });
       setSuccess(true);
       setTimeout(() => {
-        navigate('/login');
-      }, 2000);
+        setSuccess(false);
+        setFormData({
+          username: '',
+          name: '',
+          password: '',
+          confirmPassword: '',
+          role: 'TENANT',
+        });
+      }, 3000);
     } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.');
+      setError(err.message || 'Failed to create user. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-slate-50">
       
-      {/* Left Side - Form */}
+      {}
       <div className="flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md animate-fade-in">
           
-          {/* Mobile Logo */}
+          {}
           <div className="flex items-center gap-2.5 lg:hidden mb-10">
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
               <Building className="w-5 h-5 text-white" />
@@ -85,18 +123,18 @@ export default function Register() {
             </div>
           </div>
 
-          <h2 className="text-3xl font-bold text-slate-800">Create Account 🚀</h2>
-          <p className="text-slate-500 mt-2 mb-8">Register to start managing your rentals.</p>
+          <h2 className="text-3xl font-bold text-slate-800">Create New User 🚀</h2>
+          <p className="text-slate-500 mt-2 mb-8">Admins can create tenant or admin users here.</p>
 
-          {/* Success Message */}
+          {}
           {success && (
             <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700 flex items-center gap-2">
               <CheckCircle className="w-5 h-5" />
-              Registration successful! Redirecting to login...
+              User created successfully.
             </div>
           )}
 
-          {/* Error Display */}
+          {}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
               {error}
@@ -104,7 +142,7 @@ export default function Register() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Username */}
+            {}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Username *</label>
               <div className="relative">
@@ -122,7 +160,7 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Full Name */}
+            {}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Full Name *</label>
               <div className="relative">
@@ -140,7 +178,7 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Password */}
+            {}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Password *</label>
               <div className="relative">
@@ -165,7 +203,40 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Confirm Password */}
+            {}
+            {isAdmin && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Register as</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, role: 'ADMIN' })}
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all ${
+                      formData.role === 'ADMIN'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" />
+                    Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, role: 'TENANT' })}
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all ${
+                      formData.role === 'TENANT'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    Tenant
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password *</label>
               <div className="relative">
@@ -190,13 +261,13 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Submit Button */}
+            {}
             <button
               type="submit"
-              disabled={authLoading || success}
+              disabled={loading || success}
               className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-xl shadow-lg shadow-indigo-500/30 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {authLoading ? (
+              {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" /> Creating account...
                 </>
@@ -208,17 +279,17 @@ export default function Register() {
             </button>
           </form>
 
-          {/* Footer */}
+          {}
           <p className="text-center text-sm text-slate-500 mt-8">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-700">
-              Sign in
+            Admin-only user creation.{' '}
+            <Link to="/users" className="font-medium text-indigo-600 hover:text-indigo-700">
+              View all users
             </Link>
           </p>
         </div>
       </div>
 
-      {/* Right Side - Branding/Visual */}
+      {}
       <div className="hidden lg:flex relative items-center justify-center p-12 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 overflow-hidden">
         
         <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>

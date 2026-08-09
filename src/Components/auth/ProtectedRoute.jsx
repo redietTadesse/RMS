@@ -1,4 +1,4 @@
-// src/components/auth/ProtectedRoute.jsx
+
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,10 +21,10 @@ export default function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role if required
+  
   if (requiredRole && user.role !== requiredRole) {
     console.log(`🔒 Role mismatch: required ${requiredRole}, got ${user.role}`);
-    // Redirect to appropriate dashboard
+    
     if (user.role === 'ADMIN') {
       return <Navigate to="/dashboard" replace />;
     } else if (user.role === 'TENANT') {
