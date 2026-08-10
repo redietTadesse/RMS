@@ -18,21 +18,6 @@ const getHeaders = (options = {}) => {
   return headers;
 };
 
-export const chapaApi = {
-  initialize: (invoiceId, customerData) =>
-    request('/payments/chapa/initialize', {
-      method: 'POST',
-      body: JSON.stringify({
-        invoiceId,
-        firstName: customerData.firstName,
-        lastName: customerData.lastName,
-        email: customerData.email,
-        phoneNumber: customerData.phoneNumber,
-      }),
-    }),
-  verify: (txRef) =>
-    request(`/payments/chapa/verify?tx_ref=${txRef}`),
-};
 
 async function request(path, options = {}) {
   const headers = getHeaders(options);
@@ -59,6 +44,23 @@ async function request(path, options = {}) {
   }
   return data;
 }
+
+
+export const chapaApi = {
+  initialize: (invoiceId, customerData) =>
+    request('/payments/chapa/initialize', {
+      method: 'POST',
+      body: JSON.stringify({
+        invoiceId,
+        firstName: customerData.firstName,
+        lastName: customerData.lastName,
+        email: customerData.email,
+        phoneNumber: customerData.phoneNumber,
+      }),
+    }),
+  verify: (txRef) =>
+    request(`/payments/chapa/verify?tx_ref=${txRef}`),
+};
 
 
 export const authApi = {
@@ -154,6 +156,18 @@ export const invoicesApi = {
     request('/invoices/test/mark-overdue', { method: 'POST' }),
   forceOverdue: (id) =>
     request(`/invoices/test/${id}/force-overdue`, { method: 'POST' }),
+
+  downloadPdf: (id) => {
+    const token = getToken();
+    return fetch(`${API_BASE}/invoices/${id}/pdf`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    }).then(res => {
+      if (!res.ok) throw new Error('Failed to download invoice');
+      return res.blob();
+    });
+  }
 };
 
 

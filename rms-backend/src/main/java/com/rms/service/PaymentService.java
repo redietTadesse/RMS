@@ -3,7 +3,9 @@ package com.rms.service;
 import com.rms.dto.PaymentRequest;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
+import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
+import com.rms.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,8 @@ public class PaymentService {
 
     private final InvoiceRepository invoiceRepository;
     private final FileStorageService fileStorageService;
+    private final UserRepository userRepository;
+    private final EmailService emailService;  // ← ADD final + inject
 
     @Value("${app.penalty-rate:20}")
     private int penaltyRate;
@@ -25,12 +29,16 @@ public class PaymentService {
     @Value("${app.payment-window-end:10}")
     private int paymentWindowEnd;
 
-    public PaymentService(InvoiceRepository invoiceRepository, FileStorageService fileStorageService) {
+    public PaymentService(InvoiceRepository invoiceRepository,
+                          FileStorageService fileStorageService,
+                          UserRepository userRepository,
+                          EmailService emailService) {  // ← ADD emailService to constructor
         this.invoiceRepository = invoiceRepository;
         this.fileStorageService = fileStorageService;
+        this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
-    
     @Transactional
     public Invoice recordPayment(Long invoiceId, PaymentRequest request, MultipartFile receipt) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
@@ -40,17 +48,17 @@ public class PaymentService {
             throw new IllegalArgumentException("Invoice already paid");
         }
 
-        
+        // Calculate penalty
         BigDecimal penalty = calculatePenalty(invoice, request.getPaymentDate());
         BigDecimal totalAmount = invoice.getRentAmount().add(penalty);
 
-        
+        // Store receipt
         String receiptPath = null;
         if (receipt != null && !receipt.isEmpty()) {
             receiptPath = fileStorageService.storeReceipt(receipt, invoiceId);
         }
 
-        
+        // Update invoice
         invoice.setPenaltyAmount(penalty);
         invoice.setTotalAmount(totalAmount);
         invoice.setStatus(InvoiceStatus.PAID);
@@ -58,16 +66,23 @@ public class PaymentService {
         invoice.setPaymentDate(request.getPaymentDate());
         invoice.setReceiptPath(receiptPath);
 
-        return invoiceRepository.save(invoice);
+        // ✅ SAVE FIRST
+        Invoice saved = invoiceRepository.save(invoice);
+
+        // ✅ THEN send email (using 'saved')
+        User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+        if (user != null && user.getEmail() != null) {
+            emailService.sendPaymentConfirmationEmail(user, saved);
+        }
+
+        return saved;
     }
 
-    
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
         if (paymentDate.getDayOfMonth() <= paymentWindowEnd) {
             return BigDecimal.ZERO;
         }
 
-        
         BigDecimal penalty = invoice.getRentAmount()
                 .multiply(BigDecimal.valueOf(penaltyRate))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
@@ -75,7 +90,6 @@ public class PaymentService {
         return penalty;
     }
 
-    
     public BigDecimal calculatePenaltyPreview(Long invoiceId, LocalDate paymentDate) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));

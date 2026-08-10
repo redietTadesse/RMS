@@ -2,6 +2,7 @@ package com.rms.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -49,4 +50,8 @@ public class User {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    @Email(message = "Invalid email address")
+    @Column(unique = true)
+    private String email;
 }

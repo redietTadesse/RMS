@@ -27,21 +27,6 @@ public class AuthService {
         this.jwtUtil = jwtUtil;
     }
 
-    public User register(User user) {
-        if (userRepository.existsByUsername(user.getUsername())) {
-            throw new IllegalArgumentException("Username already taken: " + user.getUsername());
-        }
-
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-
-        
-        if (user.getRole() == null) {
-            user.setRole(Role.TENANT);
-        }
-
-        return userRepository.save(user);
-    }
-
     public User register(CreateUserRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already taken: " + request.getUsername());
@@ -51,6 +36,7 @@ public class AuthService {
         user.setUsername(request.getUsername());
         user.setName(request.getName());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setEmail(request.getEmail());  // ← ADD THIS
 
         Role role = Role.TENANT;
         if (request.getRole() != null && !request.getRole().isBlank()) {
@@ -65,7 +51,6 @@ public class AuthService {
 
         return userRepository.save(user);
     }
-
 
     public AuthResponse login(AuthRequest request) {
         User user = userRepository.findByUsername(request.getUsername())

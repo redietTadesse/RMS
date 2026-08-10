@@ -27,15 +27,17 @@ public class InvoiceService {
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     public InvoiceService(InvoiceRepository invoiceRepository, LeaseRepository leaseRepository,
                           TenantRepository tenantRepository, UserRepository userRepository,
-                          NotificationService notificationService) {
+                          NotificationService notificationService, EmailService emailService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.emailService = emailService;
     }
 
     
@@ -49,21 +51,23 @@ public class InvoiceService {
         }
     }
 
-    
+
     @Transactional
     public Invoice generateInvoiceForLease(Lease lease) {
         LocalDate today = LocalDate.now();
         LocalDate monthStart = today.withDayOfMonth(1);
         LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
-        
+        // CHECK FIRST: Does invoice already exist for this month?
         if (invoiceRepository.existsByLeaseAndIssueDateBetween(lease, monthStart, monthEnd)) {
-            return null; 
+            return null; // Already generated
         }
 
+        // Generate invoice number
         String invoiceNumber = generateInvoiceNumber();
         LocalDate dueDate = today.withDayOfMonth(10);
 
+        // Create invoice
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumber);
         invoice.setLease(lease);
@@ -74,9 +78,27 @@ public class InvoiceService {
         invoice.setDueDate(dueDate);
         invoice.setStatus(InvoiceStatus.PENDING);
 
-        return invoiceRepository.save(invoice);
-    }
+        // Save
+        Invoice saved = invoiceRepository.save(invoice);
 
+        // Send notifications
+        User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
+        if (user != null) {
+            // In-app notification
+            notificationService.createForUserOnce(
+                    user.getId(),
+                    "INVOICE_GENERATED",
+                    saved.getId(),
+                    "New Invoice Generated",
+                    "Invoice " + saved.getInvoiceNumber() + " for ETB " + saved.getTotalAmount() + " is due on " + saved.getDueDate(),
+                    "/payments"
+            );
+            // Email notification
+            emailService.sendInvoiceGeneratedEmail(user, saved, lease);
+        }
+
+        return saved;
+    }
     
     @Transactional
     public Invoice generateInvoice(Long leaseId) {
