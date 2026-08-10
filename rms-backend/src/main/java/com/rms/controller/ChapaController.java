@@ -34,6 +34,8 @@ public class ChapaController {
         return ResponseEntity.ok(response);
     }
 
+
+
     /**
      * Verify Chapa payment
      * GET /api/payments/chapa/verify?tx_ref=xxx
@@ -41,10 +43,14 @@ public class ChapaController {
     @GetMapping("/verify")
     public ResponseEntity<Map<String, Boolean>> verifyPayment(
             @RequestParam("tx_ref") String txRef) {
-        boolean verified = chapaService.verifyPayment(txRef);
-        return ResponseEntity.ok(Map.of("verified", verified));
+        try {
+            boolean verified = chapaService.verifyPayment(txRef);
+            return ResponseEntity.ok(Map.of("verified", verified));
+        } catch (Exception e) {
+            System.err.println("Verification error: " + e.getMessage());
+            return ResponseEntity.ok(Map.of("verified", false));
+        }
     }
-
     /**
      * Chapa webhook endpoint
      * POST /api/payments/chapa/webhook

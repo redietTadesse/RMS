@@ -84,11 +84,10 @@ public class ChapaService {
                         "description", "Payment for Invoice " + invoice.getInvoiceNumber()
                 )
         );
-        payload.put("meta", Map.of(
-                        "invoice_id", invoiceId.toString(),
-                        "invoice_number", invoice.getInvoiceNumber()
-                )
-        );
+        payload.put("customization", Map.of(
+                "title", "RMS Payment",  // ← 11 chars - OK!
+                "description", "Payment for Invoice " + invoice.getInvoiceNumber()
+        ));
 
         try {
             // Call Chapa API
@@ -124,6 +123,8 @@ public class ChapaService {
         }
     }
 
+
+
     /**
      * Verify a Chapa payment by transaction reference
      */
@@ -133,13 +134,23 @@ public class ChapaService {
                     .uri("/transaction/verify/" + txRef)
                     .header("Authorization", "Bearer " + secretKey)
                     .retrieve()
+                    .onStatus(status -> status.isError(), clientResponse -> {
+                        return clientResponse.bodyToMono(String.class)
+                                .flatMap(error -> {
+                                    System.err.println("Chapa verify error: " + error);
+                                    return Mono.error(new RuntimeException("Chapa verification failed: " + error));
+                                });
+                    })
                     .bodyToMono(String.class)
                     .block();
+
+            System.out.println("✅ Chapa verify response: " + response);
 
             JsonNode jsonResponse = objectMapper.readTree(response);
             if (jsonResponse.has("status") && jsonResponse.get("status").asText().equals("success")) {
                 JsonNode data = jsonResponse.get("data");
                 String status = data.get("status").asText();
+                System.out.println("✅ Payment status: " + status);
                 return "success".equalsIgnoreCase(status);
             }
             return false;
