@@ -13,6 +13,7 @@ const titles = {
   '/payments': 'Payment Management',
   '/profile': 'Profile',
   '/settings': 'Settings',
+  '/reports': 'Reports',
 };
 
 export default function DashboardLayout({ children }) {
