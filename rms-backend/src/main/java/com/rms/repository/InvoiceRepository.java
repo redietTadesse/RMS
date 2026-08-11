@@ -9,11 +9,14 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     long countByStatus(InvoiceStatus status);
 
     List<Invoice> findByStatus(InvoiceStatus status);
+
+    List<Invoice> findByStatusIn(List<InvoiceStatus> statuses);
 
     List<Invoice> findByLease(Lease lease);
 
@@ -32,4 +35,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     @Query("SELECT COALESCE(SUM(i.totalAmount), 0) FROM Invoice i WHERE i.status = :status")
     BigDecimal sumTotalAmountByStatus(@Param("status") InvoiceStatus status);
+
+    @Query("SELECT i FROM Invoice i WHERE i.status = 'PAID' AND i.issueDate BETWEEN :start AND :end")
+    List<Invoice> findPaidBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
 }

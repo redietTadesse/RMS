@@ -1,10 +1,9 @@
-
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, Building2, Users, FileText, 
-  CreditCard, X, Building, LogOut, Shield, 
-  Settings, HelpCircle, ChevronRight
+import {
+  LayoutDashboard, Building2, Users, FileText,
+  CreditCard, X, Building, LogOut, Shield,
+  Settings, HelpCircle, ChevronRight, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,7 +18,6 @@ export default function Sidebar({ open, onClose }) {
     onClose();
   };
 
-  
   const getInitials = () => {
     if (!user?.name) return '?';
     return user.name
@@ -33,25 +31,26 @@ export default function Sidebar({ open, onClose }) {
   const isAdmin = user?.role === 'ADMIN';
   const isTenant = user?.role === 'TENANT';
 
-  
+  // ✅ Fixed: closed the array with ]
   const navItems = [
-    { 
-      to: isAdmin ? '/dashboard' : '/tenant-dashboard', 
-      icon: LayoutDashboard, 
-      label: 'Dashboard' 
+    {
+      to: isAdmin ? '/dashboard' : '/tenant-dashboard',
+      icon: LayoutDashboard,
+      label: 'Dashboard'
     },
     ...(isAdmin ? [
       { to: '/spaces', icon: Building2, label: 'Spaces' },
       { to: '/tenants', icon: Users, label: 'Tenants' },
       { to: '/leases', icon: FileText, label: 'Leases' },
       { to: '/payments', icon: CreditCard, label: 'Payments' },
+      { to: '/reports', icon: BarChart3, label: 'Reports' },
       { to: '/users', icon: Shield, label: 'Users' },
     ] : []),
-  ];
+  ]; // ✅ THIS WAS MISSING
 
   return (
     <>
-      {}
+      {/* Overlay for mobile */}
       {open && (
         <div
           className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 lg:hidden"
@@ -60,11 +59,11 @@ export default function Sidebar({ open, onClose }) {
       )}
 
       <aside
-        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-slate-900 text-slate-300 
+        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-slate-900 text-slate-300
         flex flex-col z-50 transition-transform duration-300 ease-out
         ${open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
-        {}
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-800/80">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
@@ -83,12 +82,12 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
 
-        {}
+        {/* Navigation */}
         <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
           <p className="px-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">
             {isAdmin ? 'Admin Menu' : 'My Account'}
           </p>
-          
+
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -96,8 +95,8 @@ export default function Sidebar({ open, onClose }) {
               onClick={onClose}
               className={({ isActive }) =>
                 `group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-                ${isActive 
-                  ? 'bg-gradient-to-r from-indigo-500/20 to-purple-600/20 text-white shadow-lg shadow-indigo-500/10' 
+                ${isActive
+                  ? 'bg-gradient-to-r from-indigo-500/20 to-purple-600/20 text-white shadow-lg shadow-indigo-500/10'
                   : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`
               }
             >
@@ -113,11 +112,11 @@ export default function Sidebar({ open, onClose }) {
             </NavLink>
           ))}
 
-          {}
+          {/* Support section */}
           <div className="my-4 border-t border-slate-800/60"></div>
-          
+
           <p className="px-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Support</p>
-          
+
           <NavLink
             to="/settings"
             onClick={onClose}
@@ -126,7 +125,7 @@ export default function Sidebar({ open, onClose }) {
             <Settings className="w-[18px] h-[18px] text-slate-500" />
             Settings
           </NavLink>
-          
+
           <NavLink
             to="/help"
             onClick={onClose}
@@ -137,7 +136,7 @@ export default function Sidebar({ open, onClose }) {
           </NavLink>
         </nav>
 
-        {}
+        {/* Footer */}
         <div className="px-3 py-4 border-t border-slate-800/80">
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-slate-800/40 hover:bg-slate-800/60 transition-colors group cursor-pointer">
             <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-lg shadow-indigo-500/20 shrink-0">
@@ -153,7 +152,7 @@ export default function Sidebar({ open, onClose }) {
             </div>
           </div>
 
-          {}
+          {/* Role badge */}
           <div className="mt-2 px-3">
             <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider
               ${isAdmin ? 'bg-indigo-500/20 text-indigo-400' : isTenant ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/20 text-slate-400'}`}>
@@ -161,7 +160,7 @@ export default function Sidebar({ open, onClose }) {
             </span>
           </div>
 
-          {}
+          {/* Logout */}
           <button
             onClick={handleLogout}
             className="flex items-center justify-center gap-2 w-full mt-2 px-3 py-2 rounded-lg text-sm font-medium text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"

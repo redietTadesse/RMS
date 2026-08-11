@@ -5,8 +5,9 @@ import com.rms.entity.LeaseStatus;
 import com.rms.entity.Space;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
+import java.util.Optional;   // add this import
 
 public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
@@ -16,9 +17,12 @@ public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
     List<Lease> findByTenantId(Long tenantId);
 
-    Optional<Lease> findByTenantIdAndStatus(Long tenantId, LeaseStatus status);
+    boolean existsBySpaceAndStatus(Space space, LeaseStatus status);
+
+    List<Lease> findByStatusAndEndDateBetween(LeaseStatus status, LocalDate start, LocalDate end);
+
+    // These were missing – add them back
+    List<Lease> findByTenantIdAndStatus(Long tenantId, LeaseStatus status);
 
     Optional<Lease> findFirstByTenantIdOrderByEndDateDesc(Long tenantId);
-
-    boolean existsBySpaceAndStatus(Space space, LeaseStatus status);
 }

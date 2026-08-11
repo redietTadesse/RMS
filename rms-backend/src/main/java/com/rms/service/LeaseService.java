@@ -60,7 +60,7 @@ public class LeaseService {
         return leaseRepository.findByTenantId(tenantId);
     }
 
-    
+    // ✅ CORRECTED METHOD – fixes the .or() error
     @Transactional
     public Lease getLeaseByTenantUsername(String username) {
         syncExpiredLeases();
@@ -70,12 +70,13 @@ public class LeaseService {
         Tenant tenant = tenantRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("No tenant found for user: " + username));
 
+        // Convert List<Lease> to Optional<Lease> using stream().findFirst()
         return leaseRepository.findByTenantIdAndStatus(tenant.getId(), LeaseStatus.ACTIVE)
+                .stream().findFirst()
                 .or(() -> leaseRepository.findFirstByTenantIdOrderByEndDateDesc(tenant.getId()))
                 .orElse(null);
     }
 
-    
     @Transactional
     public Lease createLease(LeaseRequest request) {
         syncExpiredLeases();
@@ -86,13 +87,11 @@ public class LeaseService {
         Space space = spaceRepository.findById(request.getSpaceId())
                 .orElseThrow(() -> new IllegalArgumentException("Space not found with id " + request.getSpaceId()));
 
-        
         if (space.getStatus() != SpaceStatus.VACANT
                 || leaseRepository.existsBySpaceAndStatus(space, LeaseStatus.ACTIVE)) {
             throw new IllegalArgumentException("Space " + space.getUnitNumber() + " is not vacant");
         }
 
-        
         if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
             throw new IllegalArgumentException("Prepayment must be at least 3 months");
         }
@@ -114,14 +113,12 @@ public class LeaseService {
 
         Lease saved = leaseRepository.save(lease);
 
-        
         space.setStatus(SpaceStatus.OCCUPIED);
         spaceRepository.save(space);
 
         return saved;
     }
 
-    
     @Transactional
     public Lease updateLease(Long id, LeaseRequest request) {
         Lease lease = getById(id);
@@ -148,7 +145,6 @@ public class LeaseService {
         return leaseRepository.save(lease);
     }
 
-    
     @Transactional
     public Lease terminateLease(Long id) {
         Lease lease = getById(id);
@@ -171,7 +167,6 @@ public class LeaseService {
     @Transactional
     public void autoMarkExpiredLeases() {
         int expiredCount = syncExpiredLeases();
-
         if (expiredCount > 0) {
             System.out.println(expiredCount + " leases marked as EXPIRED.");
         }
