@@ -1,13 +1,15 @@
-// src/pages/Tenants.jsx - COMPLETE FILE
+// src/pages/Tenants.jsx - COMPLETE FIXED FILE
 import { useEffect, useRef, useState } from 'react';
 import { tenantsApi, documentsApi, adminApi } from '../services/api';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { Loader2, Plus, Search, Edit, Trash2, FileText, X } from 'lucide-react';
+import DocumentList from '../components/Documents/DocumentList';
+import DocumentUpload from '../components/Documents/DocumentUpload';
 
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition';
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 
-const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', userId: '' }; 
+const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', userId: '' };
 const DOC_TYPES = [
   { value: 'TIN_CERTIFICATE', label: 'TIN Certificate' },
   { value: 'ID_CARD', label: 'ID Card' },
@@ -39,6 +41,11 @@ export default function Tenants() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [docsError, setDocsError] = useState('');
   const [uploadingType, setUploadingType] = useState('');
+  
+  // Document upload states
+  const [showDocUpload, setShowDocUpload] = useState(false);
+  const [tenantDocuments, setTenantDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   const loadTenants = async (q = search) => {
     setLoading(true);
@@ -59,6 +66,29 @@ export default function Tenants() {
       setUsers(data.filter((u) => u.role === 'TENANT'));
     } catch (e) {
       console.error('Failed to load users:', e);
+    }
+  };
+
+  const loadDocuments = async (tenantId) => {
+    setLoadingDocs(true);
+    try {
+      const data = await documentsApi.getForTenant(tenantId);
+      setTenantDocuments(data);
+    } catch (err) {
+      console.error('Failed to load documents:', err);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const openDocs = async (t) => {
+    setDocsTenant(t);
+    await loadDocuments(t.id);
+  };
+
+  const handleDocUpload = () => {
+    if (docsTenant) {
+      loadDocuments(docsTenant.id);
     }
   };
 
@@ -132,20 +162,6 @@ export default function Tenants() {
       await loadTenants();
     } catch (e) {
       setError(e.message);
-    }
-  };
-
-  const openDocs = async (t) => {
-    setDocsTenant(t);
-    setDocs([]);
-    setDocsError('');
-    setDocsLoading(true);
-    try {
-      setDocs(await documentsApi.getByTenant(t.id));
-    } catch (e) {
-      setDocsError(e.message);
-    } finally {
-      setDocsLoading(false);
     }
   };
 
@@ -278,41 +294,117 @@ export default function Tenants() {
         </div>
       )}
 
-      {/* Documents Modal */}
+      {/* Documents Modal with Upload */}
       {docsTenant && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto bg-white rounded-xl shadow-xl p-6">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto bg-white rounded-xl shadow-xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">Documents</h2>
-              <button onClick={() => setDocsTenant(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"><X className="w-5 h-5" /></button>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">Documents</h2>
+                <p className="text-sm text-slate-500">{docsTenant.name}</p>
+              </div>
+              <button onClick={() => setDocsTenant(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <p className="mb-4 text-sm text-slate-500">{docsTenant.name}</p>
-            {docsError && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 border border-red-200">{docsError}</div>}
-            <div className="space-y-3">
-              {DOC_TYPES.map(({ value, label }) => (
-                <div key={value} className="rounded-lg border border-slate-200 p-3">
-                  <label className={labelClass}>{label}</label>
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" disabled={uploadingType !== ''} onChange={(e) => { handleUpload(value, e.target.files[0]); e.target.value = ''; }} className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100" />
-                  {uploadingType === value && <p className="mt-1 text-xs text-indigo-600">Uploading…</p>}
-                </div>
-              ))}
-            </div>
-            <h3 className="mb-2 mt-5 text-sm font-semibold text-slate-700">Uploaded files</h3>
-            {docsLoading ? <p className="text-sm text-slate-400">Loading…</p> : docs.length === 0 ? <p className="text-sm text-slate-400">No documents uploaded yet.</p> : (
-              <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-                {docs.map((d) => (
-                  <li key={d.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                    <div><p className="font-medium text-slate-800">{docLabel(d.type)}</p><p className="text-xs text-slate-500">{d.fileName}</p></div>
-                    <a href={documentsApi.downloadUrl(docsTenant.id, d.id)} className="text-xs font-medium text-indigo-600 hover:underline">Download</a>
-                  </li>
+
+            {/* Upload Button */}
+            <button
+              onClick={() => setShowDocUpload(true)}
+              className="mb-4 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm transition"
+            >
+              <Plus className="w-4 h-4" />
+              Upload Document
+            </button>
+
+            {/* Document List */}
+            {loadingDocs ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+              </div>
+            ) : tenantDocuments.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                <p className="text-slate-500">No documents uploaded yet.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {tenantDocuments.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between px-4 py-3 hover:bg-slate-50/60 transition">
+                    <div>
+                      <p className="font-medium text-slate-800">{doc.fileName}</p>
+                      <p className="text-sm text-slate-500">{doc.type}</p>
+                      {doc.description && <p className="text-sm text-slate-500">{doc.description}</p>}
+                      <p className="text-xs text-slate-400">Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            const token = localStorage.getItem('token');
+                            const response = await fetch(`http://localhost:8080/api/documents/download/${doc.id}`, {
+                              headers: {
+                                'Authorization': `Bearer ${token}`
+                              }
+                            });
+                            
+                            if (!response.ok) {
+                              throw new Error(`Download failed: ${response.status}`);
+                            }
+                            
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = doc.fileName || 'document';
+                            document.body.appendChild(a);
+                            a.click();
+                            a.remove();
+                            window.URL.revokeObjectURL(url);
+                            
+                          } catch (error) {
+                            console.error('Download failed:', error);
+                            alert('Failed to download document. Please try again.');
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition"
+                      >
+                        Download
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Delete this document?')) {
+                            documentsApi.delete(doc.id).then(() => {
+                              loadDocuments(docsTenant.id);
+                            });
+                          }
+                        }}
+                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
+
             <div className="mt-6 flex justify-end">
-              <button onClick={() => setDocsTenant(null)} className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition">Close</button>
+              <button onClick={() => setDocsTenant(null)} className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition">
+                Close
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Document Upload Modal */}
+      {showDocUpload && docsTenant && (
+        <DocumentUpload
+          tenantId={docsTenant.id}
+          onUpload={handleDocUpload}
+          onClose={() => setShowDocUpload(false)}
+        />
       )}
     </DashboardLayout>
   );
