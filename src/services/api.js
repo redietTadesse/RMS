@@ -1,9 +1,7 @@
-
+// src/services/api.js
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-
 const getToken = () => localStorage.getItem('token');
-
 
 const getHeaders = (options = {}) => {
   const headers = options.body instanceof FormData
@@ -17,7 +15,6 @@ const getHeaders = (options = {}) => {
   
   return headers;
 };
-
 
 async function request(path, options = {}) {
   const headers = getHeaders(options);
@@ -45,7 +42,7 @@ async function request(path, options = {}) {
   return data;
 }
 
-
+// ===== Chapa API =====
 export const chapaApi = {
   initialize: (invoiceId, customerData) =>
     request('/payments/chapa/initialize', {
@@ -62,7 +59,7 @@ export const chapaApi = {
     request(`/payments/chapa/verify?tx_ref=${txRef}`),
 };
 
-
+// ===== Auth API =====
 export const authApi = {
   login: (username, password) =>
     request('/auth/login', {
@@ -76,7 +73,7 @@ export const authApi = {
     }),
 };
 
-
+// ===== Spaces API =====
 export const spacesApi = {
   getAll: (status) =>
     request(`/spaces${status ? `?status=${status}` : ''}`),
@@ -88,7 +85,7 @@ export const spacesApi = {
   remove: (id) => request(`/spaces/${id}`, { method: 'DELETE' }),
 };
 
-
+// ===== Tenants API =====
 export const tenantsApi = {
   getAll: (search) =>
     request(`/tenants${search ? `?search=${encodeURIComponent(search)}` : ''}`),
@@ -100,41 +97,30 @@ export const tenantsApi = {
   remove: (id) => request(`/tenants/${id}`, { method: 'DELETE' }),
 };
 
-
-// src/services/api.js - Add these document APIs
-
-// ===== Documents =====
+// ===== Documents API =====
 export const documentsApi = {
-    // Get documents for a specific tenant (ADMIN)
-    getForTenant: (tenantId) => request(`/documents/tenant/${tenantId}`),
-    
-    // Get my documents (TENANT)
-    getMyDocuments: () => request('/documents/my-documents'),
-    
-    // Upload document for a tenant (ADMIN)
-    uploadForTenant: (tenantId, type, description, file) => {
-        const formData = new FormData();
-        formData.append('type', type);
-        formData.append('description', description || '');
-        formData.append('file', file);
-        
-        return request(`/documents/upload/${tenantId}`, {
-            method: 'POST',
-            body: formData,
-        });
-    },
-    
-    downloadUrl: (documentId) => `${API_BASE}/documents/download/${documentId}`,
-    
-    delete: (documentId) => request(`/documents/${documentId}`, { method: 'DELETE' }),
+  getForTenant: (tenantId) => request(`/documents/tenant/${tenantId}`),
+  getMyDocuments: () => request('/documents/my-documents'),
+  uploadForTenant: (tenantId, type, description, file) => {
+    const formData = new FormData();
+    formData.append('type', type);
+    formData.append('description', description || '');
+    formData.append('file', file);
+    return request(`/documents/upload/${tenantId}`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+  downloadUrl: (documentId) => `${API_BASE}/documents/download/${documentId}`,
+  delete: (documentId) => request(`/documents/${documentId}`, { method: 'DELETE' }),
 };
 
-
+// ===== Dashboard API =====
 export const dashboardApi = {
   getStats: () => request('/dashboard/stats'),
 };
 
-
+// ===== Leases API =====
 export const leasesApi = {
   getAll: () => request('/leases'),
   getById: (id) => request(`/leases/${id}`),
@@ -154,10 +140,7 @@ export const leasesApi = {
   getByTenant: (tenantId) => request(`/leases/tenant/${tenantId}`),
 };
 
-
-
-
-
+// ===== Invoices API =====
 export const invoicesApi = {
   getAll: () => request('/invoices'),
   getById: (id) => request(`/invoices/${id}`),
@@ -169,7 +152,6 @@ export const invoicesApi = {
     request('/invoices/test/mark-overdue', { method: 'POST' }),
   forceOverdue: (id) =>
     request(`/invoices/test/${id}/force-overdue`, { method: 'POST' }),
-
   downloadPdf: (id) => {
     const token = getToken();
     return fetch(`${API_BASE}/invoices/${id}/pdf`, {
@@ -183,7 +165,7 @@ export const invoicesApi = {
   }
 };
 
-
+// ===== Payments API =====
 export const paymentsApi = {
   record: (invoiceId, paymentData, receiptFile) => {
     const formData = new FormData();
@@ -202,14 +184,14 @@ export const paymentsApi = {
     request(`/payments/preview?invoiceId=${invoiceId}&paymentDate=${paymentDate}`),
 };
 
-
+// ===== Tenant API =====
 export const tenantApi = {
   getMyLease: () => request('/tenant/my-lease'),
   getMyInvoices: () => request('/tenant/my-invoices'),
   getStats: () => request('/tenant/stats'),
 };
 
-
+// ===== Notifications API =====
 export const notificationsApi = {
   getMine: () => request('/notifications'),
   getUnreadCount: () => request('/notifications/unread-count'),
@@ -217,7 +199,7 @@ export const notificationsApi = {
   markAllRead: () => request('/notifications/read-all', { method: 'PUT' }),
 };
 
-
+// ===== Admin API =====
 export const adminApi = {
   getAllUsers: () => request('/users'),
   getUserById: (id) => request(`/users/${id}`),
@@ -238,7 +220,7 @@ export const adminApi = {
     request(`/users/${id}/role?role=${encodeURIComponent(role)}`, { method: 'PATCH' }),
 };
 
-
+// ===== User API =====
 export const userApi = {
   getProfile: () => request('/users/me'),
   changePassword: (payload) =>
@@ -247,4 +229,3 @@ export const userApi = {
       body: JSON.stringify(payload),
     }),
 };
-

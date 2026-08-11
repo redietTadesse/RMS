@@ -35,7 +35,8 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
 
-                        
+                        // ✅ ADD THIS LINE - Public login
+                        .requestMatchers("/api/auth/login").permitAll()
 
                         // Register - ADMIN only
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
@@ -60,7 +61,7 @@ public class SecurityConfig {
                         // 🔒 ADMIN only - Documents
                         .requestMatchers("/api/documents/upload/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/tenant/**").hasRole("ADMIN")
-                        .requestMatchers("/api/documents/delete/**").hasRole("ADMIN")  // ✅ FIXED!
+                        .requestMatchers("/api/documents/delete/**").hasRole("ADMIN")
 
                         // 🔒 ADMIN + TENANT - View/Download
                         .requestMatchers("/api/documents/my-documents").hasAnyRole("ADMIN", "TENANT")

@@ -19,7 +19,8 @@ public class TenantDocument {
     private Tenant tenant;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length =  50)
+
     private DocumentType type;
 
     @Column(name = "file_name", nullable = false)
