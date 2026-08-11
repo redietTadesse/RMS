@@ -1,4 +1,4 @@
-
+// src/components/auth/ProtectedRoute.jsx
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -8,6 +8,7 @@ export default function ProtectedRoute({ children, requiredRole }) {
 
   console.log('🔒 ProtectedRoute - loading:', loading, 'user:', !!user, 'role:', user?.role);
 
+  // Show loading spinner while checking auth
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -16,15 +17,15 @@ export default function ProtectedRoute({ children, requiredRole }) {
     );
   }
 
+  // ✅ CHECK: If no user, redirect to login
   if (!user) {
     console.log('🔒 No user, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  
+  // ✅ CHECK: If role is required and doesn't match
   if (requiredRole && user.role !== requiredRole) {
     console.log(`🔒 Role mismatch: required ${requiredRole}, got ${user.role}`);
-    
     if (user.role === 'ADMIN') {
       return <Navigate to="/dashboard" replace />;
     } else if (user.role === 'TENANT') {

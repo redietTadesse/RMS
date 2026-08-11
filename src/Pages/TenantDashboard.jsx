@@ -1,4 +1,4 @@
-
+// src/pages/TenantDashboard.jsx - UPDATED WITH DOCUMENTS
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
@@ -7,7 +7,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { tenantApi } from '../services/api';
+import { tenantApi, documentsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
@@ -59,9 +59,12 @@ export default function TenantDashboard() {
   const [lease, setLease] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [stats, setStats] = useState(null);
+  
+  // ✅ NEW: Documents state
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   useEffect(() => {
-    
     if (user && user.role !== 'TENANT') {
       navigate('/dashboard');
       return;
@@ -89,6 +92,55 @@ export default function TenantDashboard() {
 
     loadData();
   }, [user, navigate]);
+
+  // ✅ NEW: Load documents for tenant
+  const loadDocuments = async () => {
+    setLoadingDocs(true);
+    try {
+      const data = await documentsApi.getMyDocuments();
+      setDocuments(data || []);
+    } catch (err) {
+      console.error('Failed to load documents:', err);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user && user.role === 'TENANT') {
+      loadDocuments();
+    }
+  }, [user]);
+
+  // ✅ NEW: Handle document download
+  const handleDownload = async (doc) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8080/api/documents/download/${doc.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.fileName || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Failed to download document. Please try again.');
+    }
+  };
 
   if (loading) {
     return (
@@ -128,7 +180,7 @@ export default function TenantDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {}
+        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
             Welcome back, {user?.name || 'Tenant'} 👋
@@ -262,7 +314,7 @@ export default function TenantDashboard() {
           )}
         </div>
 
-        {}
+        {/* My Invoices */}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -307,6 +359,54 @@ export default function TenantDashboard() {
                   Showing 10 of {invoices.length} invoices
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* ✅ NEW: My Documents */}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-semibold text-slate-800">My Documents</h2>
+            </div>
+            <span className="text-sm text-slate-500">{documents.length} files</span>
+          </div>
+          
+          {loadingDocs ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-slate-500">No documents uploaded yet.</p>
+              <p className="text-sm text-slate-400">Contact your administrator for assistance.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {documents.map((doc) => (
+                <div key={doc.id} className="px-6 py-4 flex items-center justify-between hover:bg-slate-50/60 transition">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-800">{doc.type}</span>
+                      <span className="text-xs text-slate-400">•</span>
+                      <span className="text-sm text-slate-500">{doc.fileName}</span>
+                    </div>
+                    {doc.description && (
+                      <p className="text-sm text-slate-500">{doc.description}</p>
+                    )}
+                    <p className="text-xs text-slate-400 mt-1">
+                      Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleDownload(doc)}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition"
+                  >
+                    Download
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>

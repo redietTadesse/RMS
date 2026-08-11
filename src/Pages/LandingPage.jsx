@@ -19,12 +19,7 @@ function LandingPage() {
               >
                 Sign In
               </Link>
-<Link 
-  to="/register"  
-  className="font-medium text-indigo-600 hover:text-indigo-700"
->
-  Sign up
-</Link>
+
               <Link 
                 to="/dashboard" 
                 className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
