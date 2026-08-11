@@ -8,7 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -23,8 +23,8 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
-    
     @PostMapping("/{invoiceId}")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.OK)
     public Invoice recordPayment(
             @PathVariable Long invoiceId,
@@ -32,6 +32,7 @@ public class PaymentController {
             @RequestPart(value = "receipt", required = false) MultipartFile receipt) {
         return paymentService.recordPayment(invoiceId, request, receipt);
     }
+
 
     
     @GetMapping("/preview")

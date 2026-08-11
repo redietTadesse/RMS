@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rms.dto.ChapaPaymentResponse;
 import com.rms.entity.Invoice;
+import com.rms.entity.Tenant;
 import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
 import com.rms.repository.UserRepository;
@@ -28,6 +29,7 @@ public class ChapaService {
     private final InvoiceRepository invoiceRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final CurrentUserService currentUserService;
 
     @Value("${chapa.secret-key}")
     private String secretKey;
@@ -40,10 +42,12 @@ public class ChapaService {
 
     public ChapaService(InvoiceRepository invoiceRepository,
                         UserRepository userRepository,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper,
+                        CurrentUserService currentUserService) {
         this.invoiceRepository = invoiceRepository;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
+        this.currentUserService = currentUserService;
         this.webClient = WebClient.builder()
                 .baseUrl("https://api.chapa.co/v1")
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -51,11 +55,15 @@ public class ChapaService {
     }
 
     /**
-     * Initialize a Chapa payment for an invoice
+     * Initialize a Chapa payment for an invoice.
+     * Only the tenant who owns the invoice may initialize payment (enforced from the JWT).
      */
     public ChapaPaymentResponse initializePayment(Long invoiceId, String phoneNumber) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+
+        // Ownership: a tenant may only pay their own invoice. Throws 403 otherwise.
+        Tenant tenant = currentUserService.requireOwnership(invoice);
 
         if (invoice.getStatus() == com.rms.entity.InvoiceStatus.PAID) {
             throw new IllegalArgumentException("Invoice already paid");
@@ -75,17 +83,12 @@ public class ChapaService {
         payload.put("first_name", user.getName().split(" ")[0]);
         payload.put("last_name", user.getName().split(" ").length > 1 ?
                 user.getName().substring(user.getName().indexOf(" ") + 1) : "Tenant");
-        payload.put("email", "tenant@rms.com"); // Chapa requires email, use placeholder
+        payload.put("email", tenant.getEmail() != null ? tenant.getEmail() : "tenant@rms.com");
         payload.put("phone_number", phoneNumber);
         payload.put("callback_url", redirectUrl + "?status=success&tx_ref=" + txRef);
         payload.put("return_url", redirectUrl + "?status=return&tx_ref=" + txRef);
         payload.put("customization", Map.of(
-                        "title", "RMS Rental Payment",
-                        "description", "Payment for Invoice " + invoice.getInvoiceNumber()
-                )
-        );
-        payload.put("customization", Map.of(
-                "title", "RMS Payment",  // ← 11 chars - OK!
+                "title", "RMS Payment",
                 "description", "Payment for Invoice " + invoice.getInvoiceNumber()
         ));
 
@@ -107,11 +110,6 @@ public class ChapaService {
             JsonNode jsonResponse = objectMapper.readTree(response);
             if (jsonResponse.has("status") && jsonResponse.get("status").asText().equals("success")) {
                 String checkoutUrl = jsonResponse.get("data").get("checkout_url").asText();
-
-                // Store tx_ref with invoice for later verification
-                // You could add a tx_ref field to Invoice entity
-                // For now, we'll use a separate map or database table
-
                 return new ChapaPaymentResponse(checkoutUrl, txRef, "Payment initialized successfully");
             } else {
                 String message = jsonResponse.has("message") ? jsonResponse.get("message").asText() : "Payment initialization failed";
@@ -122,8 +120,6 @@ public class ChapaService {
             throw new RuntimeException("Failed to initialize Chapa payment: " + e.getMessage());
         }
     }
-
-
 
     /**
      * Verify a Chapa payment by transaction reference
@@ -144,13 +140,13 @@ public class ChapaService {
                     .bodyToMono(String.class)
                     .block();
 
-            System.out.println("✅ Chapa verify response: " + response);
+            System.out.println("Chapa verify response: " + response);
 
             JsonNode jsonResponse = objectMapper.readTree(response);
             if (jsonResponse.has("status") && jsonResponse.get("status").asText().equals("success")) {
                 JsonNode data = jsonResponse.get("data");
                 String status = data.get("status").asText();
-                System.out.println("✅ Payment status: " + status);
+                System.out.println("Payment status: " + status);
                 return "success".equalsIgnoreCase(status);
             }
             return false;
@@ -175,15 +171,10 @@ public class ChapaService {
             String txRef = (String) payload.get("tx_ref");
             String invoiceNumber = (String) ((Map) payload.get("meta")).get("invoice_number");
 
-            // Find and mark invoice as paid
-            // You'll need to store tx_ref or use invoice number
-            // For simplicity, we'll look up by invoice number
-
-            System.out.println("✅ Payment successful for tx_ref: " + txRef);
+            System.out.println("Payment successful for tx_ref: " + txRef);
             System.out.println("   Invoice: " + invoiceNumber);
 
-            // TODO: Mark invoice as PAID
-            // invoiceService.markAsPaid(invoiceNumber);
+            // TODO: Mark invoice as PAID — see note below. This is why status never flips.
         }
     }
 
@@ -191,9 +182,7 @@ public class ChapaService {
      * Verify webhook signature
      */
     private boolean verifyWebhookSignature(Map<String, Object> payload, String signature) {
-        // HMAC SHA256 verification
-        // Implementation depends on Chapa's signature format
-        // https://developer.chapa.co/integrations/webhooks
+        // HMAC SHA256 verification — see https://developer.chapa.co/integrations/webhooks
         return true; // Simplified for now
     }
 }
