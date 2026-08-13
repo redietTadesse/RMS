@@ -55,4 +55,7 @@ Desktop.ini
 # ============================================
 *.log
 *.tmp
-*.temp
+*.tempuploads/
+
+# uploaded receipt files
+/uploads/

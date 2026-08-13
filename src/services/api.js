@@ -1,4 +1,3 @@
-
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 
@@ -142,9 +141,6 @@ export const leasesApi = {
 };
 
 
-
-
-
 export const invoicesApi = {
   getAll: () => request('/invoices'),
   getById: (id) => request(`/invoices/${id}`),
@@ -156,7 +152,6 @@ export const invoicesApi = {
     request('/invoices/test/mark-overdue', { method: 'POST' }),
   forceOverdue: (id) =>
     request(`/invoices/test/${id}/force-overdue`, { method: 'POST' }),
-
   downloadPdf: (id) => {
     const token = getToken();
     return fetch(`${API_BASE}/invoices/${id}/pdf`, {
@@ -167,7 +162,7 @@ export const invoicesApi = {
       if (!res.ok) throw new Error('Failed to download invoice');
       return res.blob();
     });
-  }
+  },
 };
 
 
@@ -187,6 +182,8 @@ export const paymentsApi = {
   },
   previewPenalty: (invoiceId, paymentDate) =>
     request(`/payments/preview?invoiceId=${invoiceId}&paymentDate=${paymentDate}`),
+  approve: (invoiceId) =>
+    request(`/payments/${invoiceId}/approve`, { method: 'PUT' }),
 };
 
 
@@ -194,6 +191,14 @@ export const tenantApi = {
   getMyLease: () => request('/tenant/my-lease'),
   getMyInvoices: () => request('/tenant/my-invoices'),
   getStats: () => request('/tenant/stats'),
+  submitReceipt: (invoiceId, paymentDate, receiptFile) => {
+    const form = new FormData();
+    form.append('receipt', receiptFile);
+    return request(`/tenant/invoices/${invoiceId}/receipt?paymentDate=${paymentDate}&paymentMethod=receipt`, {
+      method: 'POST',
+      body: form,
+    });
+  },
 };
 
 
@@ -234,4 +239,3 @@ export const userApi = {
       body: JSON.stringify(payload),
     }),
 };
-
