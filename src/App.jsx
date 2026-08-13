@@ -14,6 +14,7 @@ import Profile from './Pages/Profile';
 import Settings from './Pages/Settings';
 import UserManagement from './Pages/UserManagement';
 import PaymentCallback from './Pages/PaymentCallback';
+import Reports from './Pages/Reports';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function AppRoutes() {
@@ -34,7 +35,7 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/payment-callback" element={<PaymentCallback />} />
 
-      {/* ✅ Admin-Only Routes */}
+      {/* Admin-Only Routes */}
       <Route
         path="/register"
         element={
@@ -88,6 +89,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredRole="ADMIN">
             <Payments />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Reports />
           </ProtectedRoute>
         }
       />
