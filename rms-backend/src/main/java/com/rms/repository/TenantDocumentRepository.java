@@ -5,5 +5,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface TenantDocumentRepository extends JpaRepository<TenantDocument, Long> {
+
     List<TenantDocument> findByTenantId(Long tenantId);
+
+    long countByTenantId(Long tenantId);
+
+    void deleteByTenantId(Long tenantId);
 }

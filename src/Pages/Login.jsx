@@ -132,14 +132,7 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Footer */}
-          <p className="text-center text-sm text-slate-500 mt-8">
-            Don't have an account?{' '}
-            <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-700">
-              Sign up
-            </Link>
-          </p>
+        
         </div>
       </div>
 

@@ -100,19 +100,32 @@ export const tenantsApi = {
 };
 
 
+// src/services/api.js - Add these document APIs
+
+// ===== Documents =====
 export const documentsApi = {
-  getByTenant: (tenantId) => request(`/tenants/${tenantId}/documents`),
-  upload: (tenantId, type, file) => {
-    const form = new FormData();
-    form.append('type', type);
-    form.append('file', file);
-    return request(`/tenants/${tenantId}/documents`, {
-      method: 'POST',
-      body: form,
-    });
-  },
-  downloadUrl: (tenantId, documentId) =>
-    `${API_BASE}/tenants/${tenantId}/documents/${documentId}/download`,
+    // Get documents for a specific tenant (ADMIN)
+    getForTenant: (tenantId) => request(`/documents/tenant/${tenantId}`),
+    
+    // Get my documents (TENANT)
+    getMyDocuments: () => request('/documents/my-documents'),
+    
+    // Upload document for a tenant (ADMIN)
+    uploadForTenant: (tenantId, type, description, file) => {
+        const formData = new FormData();
+        formData.append('type', type);
+        formData.append('description', description || '');
+        formData.append('file', file);
+        
+        return request(`/documents/upload/${tenantId}`, {
+            method: 'POST',
+            body: formData,
+        });
+    },
+    
+    downloadUrl: (documentId) => `${API_BASE}/documents/download/${documentId}`,
+    
+    delete: (documentId) => request(`/documents/${documentId}`, { method: 'DELETE' }),
 };
 
 
