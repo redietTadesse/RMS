@@ -60,6 +60,31 @@ public class EmailService {
         }
     }
 
+
+    /**
+     * Send a test email (for testing purposes)
+     */
+    public void sendTestEmail() {
+        try {
+            String testEmail = "eyobyaregal1111@gmail.com";
+
+            Context context = new Context();
+            context.setVariable("message", "This is a test email from RMS!");
+            context.setVariable("year", java.time.Year.now().getValue());
+
+            String htmlContent = templateEngine.process("email/test", context);
+            sendHtmlEmail(
+                    testEmail,
+                    "🧪 Test Email from RMS",
+                    htmlContent
+            );
+            System.out.println("✅ Test email sent to: " + testEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Test email failed: " + e.getMessage());
+            throw e;
+        }
+    }
+
     /**
      * Send payment reminder (3 days before due date)
      */
