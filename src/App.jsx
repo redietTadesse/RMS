@@ -1,4 +1,4 @@
-// src/App.jsx
+
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './Pages/LandingPage';
@@ -13,8 +13,6 @@ import TenantDashboard from './Pages/TenantDashboard';
 import Profile from './Pages/Profile';
 import Settings from './Pages/Settings';
 import UserManagement from './Pages/UserManagement';
-import PaymentCallback from './Pages/PaymentCallback';
-import Reports from './Pages/Reports';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function AppRoutes() {
@@ -30,12 +28,9 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Public Routes */}
+      {}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/payment-callback" element={<PaymentCallback />} />
-
-      {/* Admin-Only Routes */}
       <Route
         path="/register"
         element={
@@ -53,56 +48,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/spaces"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <Spaces />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tenants"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <Tenants />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/leases"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <Leases />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/payments"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <Payments />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/reports"
-        element={
-          <ProtectedRoute requiredRole="ADMIN">
-            <Reports />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Both Admin + Tenant */}
-      <Route
         path="/profile"
         element={
           <ProtectedRoute>
@@ -118,15 +63,57 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      
+      {}
+      <Route 
+        path="/dashboard" 
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Dashboard />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/spaces" 
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Spaces />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/tenants" 
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Tenants />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/leases" 
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Leases />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/payments" 
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Payments />
+          </ProtectedRoute>
+        } 
+      />
 
-      {/* Tenant-Only Routes */}
-      <Route
-        path="/tenant-dashboard"
+      {}
+      <Route 
+        path="/tenant-dashboard" 
         element={
           <ProtectedRoute requiredRole="TENANT">
             <TenantDashboard />
           </ProtectedRoute>
-        }
+        } 
       />
     </Routes>
   );
