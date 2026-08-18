@@ -33,7 +33,11 @@ public class PaymentController {
         return paymentService.recordPayment(invoiceId, request, receipt);
     }
 
-
+    @PutMapping("/{invoiceId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Invoice approvePayment(@PathVariable Long invoiceId) {
+        return paymentService.approvePayment(invoiceId);
+    }
     
     @GetMapping("/preview")
     public ResponseEntity<BigDecimal> previewPenalty(

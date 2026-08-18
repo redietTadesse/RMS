@@ -278,6 +278,9 @@ export const paymentsApi = {
     request(
       `/payments/preview?invoiceId=${invoiceId}&paymentDate=${paymentDate}`
     ),
+
+  approve: (invoiceId) =>
+    request(`/payments/${invoiceId}/approve`, { method: 'PUT' }),
 };
 
 // ===== TENANT (SELF) =====
@@ -290,6 +293,18 @@ export const tenantApi = {
 
   getStats: () =>
     request('/tenant/stats'),
+
+  submitReceipt: (invoiceId, paymentDate, receiptFile) => {
+    const form = new FormData();
+    form.append('receipt', receiptFile);
+    return request(
+      `/tenant/invoices/${invoiceId}/receipt?paymentDate=${paymentDate}&paymentMethod=receipt`,
+      {
+        method: 'POST',
+        body: form,
+      }
+    );
+  },
 };
 
 // ===== NOTIFICATIONS =====

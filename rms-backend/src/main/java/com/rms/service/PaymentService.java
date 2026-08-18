@@ -77,7 +77,48 @@ public class PaymentService {
 
         return saved;
     }
+    @Transactional
+    public Invoice submitReceipt(Long invoiceId, LocalDate paymentDate,
+                                 String paymentMethod, MultipartFile receipt) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
 
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new IllegalArgumentException("Invoice already paid");
+        }
+        if (receipt == null || receipt.isEmpty()) {
+            throw new IllegalArgumentException("A receipt file is required");
+        }
+
+        BigDecimal penalty = calculatePenalty(invoice, paymentDate);
+        invoice.setPenaltyAmount(penalty);
+        invoice.setTotalAmount(invoice.getRentAmount().add(penalty));
+        invoice.setStatus(InvoiceStatus.SUBMITTED);
+        invoice.setPaymentMethod(paymentMethod);
+        invoice.setPaymentDate(paymentDate);
+        invoice.setReceiptPath(fileStorageService.storeReceipt(receipt, invoiceId));
+
+        return invoiceRepository.save(invoice);
+    }
+
+    @Transactional
+    public Invoice approvePayment(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+
+        if (invoice.getStatus() != InvoiceStatus.SUBMITTED) {
+            throw new IllegalArgumentException("Only submitted payments can be approved");
+        }
+
+        invoice.setStatus(InvoiceStatus.PAID);
+        Invoice saved = invoiceRepository.save(invoice);
+
+        User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+        if (user != null && user.getEmail() != null) {
+            emailService.sendPaymentConfirmationEmail(user, saved);
+        }
+        return saved;
+    }
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
         if (paymentDate.getDayOfMonth() <= paymentWindowEnd) {
             return BigDecimal.ZERO;

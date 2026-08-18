@@ -1,13 +1,13 @@
 // src/pages/TenantDashboard.jsx - UPDATED WITH DOCUMENTS
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Building2, FileText, CreditCard, AlertCircle,
+import {
+  Building2, FileText, CreditCard, AlertCircle, Upload,
   CheckCircle, Clock, Loader2, Calendar, Home,
   DollarSign
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { tenantApi, documentsApi } from '../services/api';
+import { tenantApi, chapaApi, documentsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
@@ -19,7 +19,7 @@ function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
     blue: 'bg-blue-100 text-blue-600',
     purple: 'bg-purple-100 text-purple-600',
   };
-  
+
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">
       <div className="flex items-start justify-between">
@@ -41,6 +41,7 @@ function StatusBadge({ status }) {
     EXPIRED: 'bg-amber-100 text-amber-700',
     TERMINATED: 'bg-rose-100 text-rose-700',
     PENDING: 'bg-amber-100 text-amber-700',
+    SUBMITTED: 'bg-blue-100 text-blue-700',
     PAID: 'bg-emerald-100 text-emerald-700',
     OVERDUE: 'bg-rose-100 text-rose-700',
   };
@@ -59,7 +60,10 @@ export default function TenantDashboard() {
   const [lease, setLease] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [stats, setStats] = useState(null);
-  
+  const [payingId, setPayingId] = useState(null);
+  const [payError, setPayError] = useState('');
+  const [uploadingId, setUploadingId] = useState(null);
+
   // ✅ NEW: Documents state
   const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -93,6 +97,53 @@ export default function TenantDashboard() {
     loadData();
   }, [user, navigate]);
 
+  const refresh = async () => {
+    const [invoicesData, statsData] = await Promise.all([
+      tenantApi.getMyInvoices(),
+      tenantApi.getStats(),
+    ]);
+    setInvoices(invoicesData || []);
+    setStats(statsData);
+  };
+
+  const handlePay = async (invoice) => {
+    setPayError('');
+    setPayingId(invoice.id);
+    try {
+      const res = await chapaApi.initialize(invoice.id, {
+        firstName: user?.name?.split(' ')[0] || 'Tenant',
+        lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
+        email: lease?.tenant?.email || user?.email || 'tenant@example.com',
+        phoneNumber: lease?.tenant?.phone || '0900000000',
+      });
+      const url = res?.checkoutUrl || res?.checkout_url || res?.data?.checkout_url;
+      if (url) {
+        window.location.href = url;
+      } else {
+        setPayError('Payment started but no checkout link was returned. Contact admin.');
+        setPayingId(null);
+      }
+    } catch (err) {
+      setPayError(err.message || 'Could not start payment. Please try again.');
+      setPayingId(null);
+    }
+  };
+
+  const handleReceiptUpload = async (invoice, file) => {
+    if (!file) return;
+    setPayError('');
+    setUploadingId(invoice.id);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await tenantApi.submitReceipt(invoice.id, today, file);
+      await refresh();
+    } catch (err) {
+      setPayError(err.message || 'Could not upload receipt. Please try again.');
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
   // ✅ NEW: Load documents for tenant
   const loadDocuments = async () => {
     setLoadingDocs(true);
@@ -121,11 +172,11 @@ export default function TenantDashboard() {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Download failed: ${response.status}`);
       }
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -135,7 +186,7 @@ export default function TenantDashboard() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      
+
     } catch (error) {
       console.error('Download failed:', error);
       alert('Failed to download document. Please try again.');
@@ -173,10 +224,6 @@ export default function TenantDashboard() {
   const overdueInvoices = stats?.overdueInvoices || 0;
   const leaseExpired = lease?.endDate && new Date(lease.endDate) < new Date();
 
-  const totalPending = invoices
-    .filter(i => i.status === 'PENDING' || i.status === 'OVERDUE')
-    .reduce((sum, i) => sum + (i.totalAmount || 0), 0);
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -190,30 +237,10 @@ export default function TenantDashboard() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard 
-            label="Total Invoices" 
-            value={totalInvoices} 
-            icon={FileText} 
-            color="indigo" 
-          />
-          <StatCard 
-            label="Pending" 
-            value={pendingInvoices} 
-            icon={Clock} 
-            color="amber" 
-          />
-          <StatCard 
-            label="Paid" 
-            value={paidInvoices} 
-            icon={CheckCircle} 
-            color="emerald" 
-          />
-          <StatCard 
-            label="Overdue" 
-            value={overdueInvoices} 
-            icon={AlertCircle} 
-            color="rose" 
-          />
+          <StatCard label="Total Invoices" value={totalInvoices} icon={FileText} color="indigo" />
+          <StatCard label="Pending" value={pendingInvoices} icon={Clock} color="amber" />
+          <StatCard label="Paid" value={paidInvoices} icon={CheckCircle} color="emerald" />
+          <StatCard label="Overdue" value={overdueInvoices} icon={AlertCircle} color="rose" />
         </div>
 
         {overdueInvoices > 0 && (
@@ -229,12 +256,6 @@ export default function TenantDashboard() {
                 </p>
               </div>
             </div>
-            <Link
-              to="/payments"
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition text-center"
-            >
-              Pay Now
-            </Link>
           </div>
         )}
 
@@ -266,7 +287,7 @@ export default function TenantDashboard() {
             <Home className="w-5 h-5 text-indigo-600" />
             <h2 className="text-lg font-semibold text-slate-800">My Lease</h2>
           </div>
-          
+
           {!hasLease ? (
             <div className="text-center py-8">
               <div className="w-16 h-16 mx-auto bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -314,6 +335,12 @@ export default function TenantDashboard() {
           )}
         </div>
 
+        {payError && (
+          <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-sm text-rose-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" /> {payError}
+          </div>
+        )}
+
         {/* My Invoices */}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -323,7 +350,7 @@ export default function TenantDashboard() {
             </div>
             <span className="text-sm text-slate-500">{invoices.length} total</span>
           </div>
-          
+
           {invoices.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-slate-500">No invoices yet.</p>
@@ -337,6 +364,7 @@ export default function TenantDashboard() {
                     <th className="px-6 py-3 font-medium">Amount</th>
                     <th className="px-6 py-3 font-medium">Due Date</th>
                     <th className="px-6 py-3 font-medium">Status</th>
+                    <th className="px-6 py-3 font-medium text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -349,6 +377,41 @@ export default function TenantDashboard() {
                       <td className="px-6 py-3 text-slate-600">{inv.dueDate}</td>
                       <td className="px-6 py-3">
                         <StatusBadge status={inv.status} />
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        {inv.status === 'PAID' ? (
+                          <span className="text-xs text-emerald-600 font-medium">Paid</span>
+                        ) : inv.status === 'SUBMITTED' ? (
+                          <span className="text-xs text-blue-600 font-medium">Awaiting approval</span>
+                        ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handlePay(inv)}
+                              disabled={payingId === inv.id}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition inline-flex items-center gap-1.5"
+                            >
+                              {payingId === inv.id ? (
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Starting…</>
+                              ) : (
+                                <><CreditCard className="w-3 h-3" /> Pay online</>
+                              )}
+                            </button>
+                            <label className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer">
+                              {uploadingId === inv.id ? (
+                                <><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</>
+                              ) : (
+                                <><Upload className="w-3 h-3" /> Upload receipt</>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*,.pdf"
+                                className="hidden"
+                                disabled={uploadingId === inv.id}
+                                onChange={(e) => handleReceiptUpload(inv, e.target.files[0])}
+                              />
+                            </label>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -372,15 +435,14 @@ export default function TenantDashboard() {
             </div>
             <span className="text-sm text-slate-500">{documents.length} files</span>
           </div>
-          
+
           {loadingDocs ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+            <div className="text-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mx-auto" />
             </div>
           ) : documents.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-slate-500">No documents uploaded yet.</p>
-              <p className="text-sm text-slate-400">Contact your administrator for assistance.</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -389,7 +451,7 @@ export default function TenantDashboard() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-slate-800">{doc.type}</span>
-                      <span className="text-xs text-slate-400">•</span>
+                      <span className="text-slate-300">·</span>
                       <span className="text-sm text-slate-500">{doc.fileName}</span>
                     </div>
                     {doc.description && (
@@ -401,7 +463,7 @@ export default function TenantDashboard() {
                   </div>
                   <button
                     onClick={() => handleDownload(doc)}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-lg transition"
                   >
                     Download
                   </button>
