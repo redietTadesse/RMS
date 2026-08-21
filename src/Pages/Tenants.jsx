@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { tenantsApi, documentsApi, adminApi } from '../services/api';
+import { verificationApi } from '../services/verificationApi';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { Loader2, Plus, Search, Edit, Trash2, FileText, X } from 'lucide-react';
 import DocumentList from '../components/Documents/DocumentList';
@@ -8,7 +9,8 @@ import DocumentUpload from '../components/Documents/DocumentUpload';
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition';
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 
-const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', userId: '' };
+const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', faydaNumber: '', tinStatus: 'UNVERIFIED', identityStatus: 'UNVERIFIED', userId: '' };
+const EMPTY_VERIFY = { tinBusy: false, tinResult: null, faydaBusy: false, faydaTxn: null, faydaOtp: '', faydaPending: null, faydaResult: null };
 const DOC_TYPES = [
   { value: 'TIN_CERTIFICATE', label: 'TIN Certificate' },
   { value: 'ID_CARD', label: 'ID Card' },
@@ -23,6 +25,22 @@ function DocBadge({ ok, label }) {
   );
 }
 
+function VerifyPill({ result }) {
+  if (!result) return null;
+  const map = {
+    VERIFIED: 'bg-emerald-100 text-emerald-700',
+    FAILED: 'bg-rose-100 text-rose-700',
+    ERROR: 'bg-amber-100 text-amber-700',
+    PENDING: 'bg-blue-100 text-blue-700',
+    UNVERIFIED: 'bg-slate-100 text-slate-600',
+  };
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${map[result.status] || map.UNVERIFIED}`}>
+      {result.status}
+    </span>
+  );
+}
+
 export default function Tenants() {
   const [tenants, setTenants] = useState([]);
   const [users, setUsers] = useState([]);
@@ -33,6 +51,7 @@ export default function Tenants() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [verify, setVerify] = useState(EMPTY_VERIFY);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [docsTenant, setDocsTenant] = useState(null);
@@ -103,13 +122,70 @@ export default function Tenants() {
     searchTimer.current = setTimeout(() => loadTenants(q), 300);
   };
 
-  const openAdd = () => { setEditingId(null); setFormData(EMPTY_FORM); setFormError(''); setShowModal(true); };
+  const openAdd = () => { setEditingId(null); setFormData(EMPTY_FORM); setVerify(EMPTY_VERIFY); setFormError(''); setShowModal(true); };
   const openEdit = (t) => {
     setEditingId(t.id);
-    setFormData({ name: t.name || '', type: t.type || 'INDIVIDUAL', contact: t.contact || '', phone: t.phone || '', email: t.email || '', tinNumber: t.tinNumber || '', businessLicense: t.businessLicense || '', userId: t.userId ?? '' });
+    setFormData({ name: t.name || '', type: t.type || 'INDIVIDUAL', contact: t.contact || '', phone: t.phone || '', email: t.email || '', tinNumber: t.tinNumber || '', businessLicense: t.businessLicense || '', faydaNumber: t.faydaNumber || '', tinStatus: t.tinStatus || 'UNVERIFIED', identityStatus: t.identityStatus || 'UNVERIFIED', userId: t.userId ?? '' });
+    setVerify(EMPTY_VERIFY);
     setFormError('');
     setShowModal(true);
   };
+
+  const toErr = (err) =>
+    err && err.kind === 'auth'
+      ? { status: 'ERROR', message: `Server rejected the request (${err.status}). Check the ADMIN token and the /api/verification/** rule in SecurityConfig.` }
+      : { status: 'ERROR', message: 'Could not reach the verification service. Is the backend running on 8080?' };
+
+  const verifyTin = async () => {
+    setVerify((v) => ({ ...v, tinBusy: true, tinResult: null }));
+    try {
+      const data = await verificationApi.verifyTin(formData.tinNumber);
+      setVerify((v) => ({ ...v, tinResult: data }));
+      setFormData((f) => ({ ...f, tinStatus: data.status }));
+    } catch (err) {
+      const r = toErr(err);
+      setVerify((v) => ({ ...v, tinResult: r }));
+      setFormData((f) => ({ ...f, tinStatus: 'ERROR' }));
+    } finally {
+      setVerify((v) => ({ ...v, tinBusy: false }));
+    }
+  };
+
+  const faydaSendCode = async () => {
+    setVerify((v) => ({ ...v, faydaBusy: true, faydaResult: null, faydaPending: null }));
+    try {
+      const data = await verificationApi.initiateIdentity(formData.faydaNumber);
+      if (data && data.status === 'PENDING' && data.transactionId) {
+        setVerify((v) => ({ ...v, faydaTxn: data.transactionId, faydaPending: data.message }));
+      } else {
+        setVerify((v) => ({ ...v, faydaResult: data }));
+        setFormData((f) => ({ ...f, identityStatus: data.status }));
+      }
+    } catch (err) {
+      const r = toErr(err);
+      setVerify((v) => ({ ...v, faydaResult: r }));
+      setFormData((f) => ({ ...f, identityStatus: 'ERROR' }));
+    } finally {
+      setVerify((v) => ({ ...v, faydaBusy: false }));
+    }
+  };
+
+  const faydaVerifyCode = async () => {
+    setVerify((v) => ({ ...v, faydaBusy: true }));
+    try {
+      const data = await verificationApi.completeIdentity(verify.faydaTxn, verify.faydaOtp);
+      setVerify((v) => ({ ...v, faydaResult: data, faydaPending: null }));
+      setFormData((f) => ({ ...f, identityStatus: data.status }));
+    } catch (err) {
+      const r = toErr(err);
+      setVerify((v) => ({ ...v, faydaResult: r }));
+      setFormData((f) => ({ ...f, identityStatus: 'ERROR' }));
+    } finally {
+      setVerify((v) => ({ ...v, faydaBusy: false }));
+    }
+  };
+
+  const faydaReset = () => setVerify((v) => ({ ...v, faydaTxn: null, faydaOtp: '', faydaPending: null }));
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -130,6 +206,7 @@ export default function Tenants() {
       name: formData.name.trim(),
       phone: formData.phone.trim(),
       email: formData.email.trim() || null,
+      faydaNumber: formData.faydaNumber.trim() || null,
       userId: parseInt(formData.userId, 10),
     };
     setSaving(true);
@@ -257,9 +334,33 @@ export default function Tenants() {
                 <div><label className={labelClass}>Phone *</label><input name="phone" value={formData.phone} onChange={handleChange} className={inputClass} placeholder="+2519…" /></div>
                 <div><label className={labelClass}>Email</label><input type="email" name="email" value={formData.email} onChange={handleChange} className={inputClass} placeholder="name@example.com" /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className={labelClass}>TIN Number</label><input name="tinNumber" value={formData.tinNumber} onChange={handleChange} className={inputClass} placeholder="e.g. 0012345678" /></div>
-                <div><label className={labelClass}>Business License No.</label><input name="businessLicense" value={formData.businessLicense} onChange={handleChange} className={inputClass} placeholder="License reference" /></div>
+              <div className="space-y-2">
+                <label className={labelClass}>TIN Number</label>
+                <div className="flex gap-2">
+                  <input name="tinNumber" value={formData.tinNumber} onChange={handleChange} className={inputClass} placeholder="e.g. 0012345678" />
+                  <button type="button" onClick={verifyTin} disabled={verify.tinBusy || !formData.tinNumber.trim()} className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">{verify.tinBusy ? 'Checking…' : 'Verify'}</button>
+                </div>
+                {verify.tinResult && (<div className="flex items-center gap-2"><VerifyPill result={verify.tinResult} /><span className="text-xs text-slate-500">{verify.tinResult.message}</span></div>)}
+              </div>
+              <div><label className={labelClass}>Business License No.</label><input name="businessLicense" value={formData.businessLicense} onChange={handleChange} className={inputClass} placeholder="License reference" /></div>
+              <div className="space-y-2">
+                <label className={labelClass}>Fayda Number</label>
+                {!verify.faydaTxn ? (
+                  <div className="flex gap-2">
+                    <input name="faydaNumber" value={formData.faydaNumber} onChange={handleChange} className={inputClass} placeholder="12-digit Fayda number" />
+                    <button type="button" onClick={faydaSendCode} disabled={verify.faydaBusy || !formData.faydaNumber.trim()} className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">{verify.faydaBusy ? 'Sending…' : 'Send code'}</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {verify.faydaPending && <p className="text-xs text-blue-600">{verify.faydaPending}</p>}
+                    <div className="flex gap-2">
+                      <input value={verify.faydaOtp} onChange={(e) => setVerify((v) => ({ ...v, faydaOtp: e.target.value }))} className={inputClass} placeholder="Enter code (demo: 123456)" />
+                      <button type="button" onClick={faydaVerifyCode} disabled={verify.faydaBusy || !verify.faydaOtp.trim()} className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">{verify.faydaBusy ? 'Verifying…' : 'Verify'}</button>
+                    </div>
+                    <button type="button" onClick={faydaReset} className="text-xs text-slate-500 underline hover:text-slate-700">Start over</button>
+                  </div>
+                )}
+                {verify.faydaResult && (<div className="flex items-center gap-2"><VerifyPill result={verify.faydaResult} /><span className="text-xs text-slate-500">{verify.faydaResult.message}</span></div>)}
               </div>
               <div>
                 <label className={labelClass}>User Account *</label>
