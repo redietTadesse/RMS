@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -43,17 +44,14 @@ public class InvoiceService {
         this.settingsService = settingsService;
     }
 
-    
     @Scheduled(cron = "0 0 0 1 * ?")
     @Transactional
     public void generateMonthlyInvoices() {
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
-
         for (Lease lease : activeLeases) {
             generateInvoiceForLease(lease);
         }
     }
-
 
     @Transactional
     public Invoice generateInvoiceForLease(Lease lease) {
@@ -61,16 +59,16 @@ public class InvoiceService {
         LocalDate monthStart = today.withDayOfMonth(1);
         LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
-        // CHECK FIRST: Does invoice already exist for this month?
         if (invoiceRepository.existsByLeaseAndIssueDateBetween(lease, monthStart, monthEnd)) {
-            return null; // Already generated
+            System.out.println("Invoice already exists for lease " + lease.getId() + " this month");
+            return null;
         }
 
-        // Generate invoice number
-        String invoiceNumber = generateInvoiceNumber();
-        LocalDate dueDate = today.withDayOfMonth(10);
+        int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 10;
+        LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
 
-        // Create invoice
+        String invoiceNumber = generateInvoiceNumber();
+
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumber);
         invoice.setLease(lease);
@@ -80,29 +78,27 @@ public class InvoiceService {
         invoice.setIssueDate(today);
         invoice.setDueDate(dueDate);
         invoice.setStatus(InvoiceStatus.PENDING);
+        invoice.setCreatedAt(today);
 
-        // Save
         Invoice saved = invoiceRepository.save(invoice);
 
-        // Send notifications
         User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
         if (user != null) {
-            // In-app notification
             notificationService.createForUserOnce(
                     user.getId(),
                     "INVOICE_GENERATED",
                     saved.getId(),
                     "New Invoice Generated",
-                    "Invoice " + saved.getInvoiceNumber() + " for ETB " + saved.getTotalAmount() + " is due on " + saved.getDueDate(),
+                    "Invoice " + saved.getInvoiceNumber() + " for ETB " + saved.getTotalAmount() +
+                            " is due on " + saved.getDueDate(),
                     "/payments"
             );
-            // Email notification
             emailService.sendInvoiceGeneratedEmail(user, saved, lease);
         }
 
         return saved;
     }
-    
+
     @Transactional
     public Invoice generateInvoice(Long leaseId) {
         Lease lease = leaseRepository.findById(leaseId)
@@ -115,7 +111,6 @@ public class InvoiceService {
         return generateInvoiceForLease(lease);
     }
 
-    
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional
     public void markOverdueInvoices() {
@@ -128,7 +123,6 @@ public class InvoiceService {
             if (invoice.getDueDate().isBefore(today)) {
                 invoice.setStatus(InvoiceStatus.OVERDUE);
 
-                // Apply penalty if not already applied
                 if (invoice.getPenaltyAmount().compareTo(BigDecimal.ZERO) == 0) {
                     BigDecimal penalty = invoice.getRentAmount()
                             .multiply(BigDecimal.valueOf(penaltyRate))
@@ -140,7 +134,6 @@ public class InvoiceService {
                 invoiceRepository.save(invoice);
                 notifyInvoiceOverdue(invoice);
 
-                // Send email notification
                 User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
                 if (user != null && user.getEmail() != null) {
                     emailService.sendOverdueEmail(user, invoice);
@@ -149,7 +142,6 @@ public class InvoiceService {
         }
     }
 
-    
     public void notifyInvoiceOverdue(Invoice invoice) {
         Tenant tenant = invoice.getLease().getTenant();
         notificationService.createForUserOnce(
@@ -162,12 +154,10 @@ public class InvoiceService {
         );
     }
 
-    
     public List<Invoice> getInvoicesByTenant(Long tenantId) {
         return invoiceRepository.findByLeaseTenantId(tenantId);
     }
 
-    
     public List<Invoice> getInvoicesByTenantUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
@@ -178,28 +168,35 @@ public class InvoiceService {
         return invoiceRepository.findByLeaseTenantId(tenant.getId());
     }
 
-    
     public List<Invoice> getInvoicesByStatus(InvoiceStatus status) {
         return invoiceRepository.findByStatus(status);
     }
 
-    
     public List<Invoice> getAllInvoices() {
         return invoiceRepository.findAll();
     }
 
-    
     public Invoice getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
     }
 
-    
     public Invoice saveInvoice(Invoice invoice) {
         return invoiceRepository.save(invoice);
     }
 
-    
+    public long getDaysOverdue(Invoice invoice) {
+        if (invoice.getStatus() != InvoiceStatus.OVERDUE) {
+            return 0;
+        }
+        return ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
+    }
+
+    public boolean isOverdue(Invoice invoice) {
+        return invoice.getStatus() == InvoiceStatus.OVERDUE ||
+                (invoice.getStatus() == InvoiceStatus.PENDING && invoice.getDueDate().isBefore(LocalDate.now()));
+    }
+
     private String generateInvoiceNumber() {
         String year = String.valueOf(LocalDate.now().getYear());
         long count = invoiceRepository.count() + 1;

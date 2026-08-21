@@ -22,17 +22,20 @@ public class PaymentService {
     private final UserRepository userRepository;
     private final EmailService emailService;
     private final SettingsService settingsService;
+    private final NotificationService notificationService;
 
     public PaymentService(InvoiceRepository invoiceRepository,
                           FileStorageService fileStorageService,
                           UserRepository userRepository,
                           EmailService emailService,
-                          SettingsService settingsService) {
+                          SettingsService settingsService,
+                          NotificationService notificationService) {
         this.invoiceRepository = invoiceRepository;
         this.fileStorageService = fileStorageService;
         this.userRepository = userRepository;
         this.emailService = emailService;
         this.settingsService = settingsService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -44,57 +47,31 @@ public class PaymentService {
             throw new IllegalArgumentException("Invoice already paid");
         }
 
-        // Calculate penalty
         BigDecimal penalty = calculatePenalty(invoice, request.getPaymentDate());
         BigDecimal totalAmount = invoice.getRentAmount().add(penalty);
 
-        // Store receipt
         String receiptPath = null;
         if (receipt != null && !receipt.isEmpty()) {
             receiptPath = fileStorageService.storeReceipt(receipt, invoiceId);
         }
 
-        // Update invoice
         invoice.setPenaltyAmount(penalty);
         invoice.setTotalAmount(totalAmount);
-        invoice.setStatus(InvoiceStatus.PAID);
+        invoice.setStatus(InvoiceStatus.SUBMITTED);
         invoice.setPaymentMethod(request.getPaymentMethod());
         invoice.setPaymentDate(request.getPaymentDate());
         invoice.setReceiptPath(receiptPath);
 
-        // ✅ SAVE FIRST
         Invoice saved = invoiceRepository.save(invoice);
 
-        // ✅ THEN send email (using 'saved')
+        notifyAdminOfSubmittedPayment(saved);
+
         User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
         if (user != null && user.getEmail() != null) {
             emailService.sendPaymentConfirmationEmail(user, saved);
         }
 
         return saved;
-    }
-    @Transactional
-    public Invoice submitReceipt(Long invoiceId, LocalDate paymentDate,
-                                 String paymentMethod, MultipartFile receipt) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
-
-        if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new IllegalArgumentException("Invoice already paid");
-        }
-        if (receipt == null || receipt.isEmpty()) {
-            throw new IllegalArgumentException("A receipt file is required");
-        }
-
-        BigDecimal penalty = calculatePenalty(invoice, paymentDate);
-        invoice.setPenaltyAmount(penalty);
-        invoice.setTotalAmount(invoice.getRentAmount().add(penalty));
-        invoice.setStatus(InvoiceStatus.SUBMITTED);
-        invoice.setPaymentMethod(paymentMethod);
-        invoice.setPaymentDate(paymentDate);
-        invoice.setReceiptPath(fileStorageService.storeReceipt(receipt, invoiceId));
-
-        return invoiceRepository.save(invoice);
     }
 
     @Transactional
@@ -109,12 +86,38 @@ public class PaymentService {
         invoice.setStatus(InvoiceStatus.PAID);
         Invoice saved = invoiceRepository.save(invoice);
 
-        User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
-        if (user != null && user.getEmail() != null) {
-            emailService.sendPaymentConfirmationEmail(user, saved);
+        User tenant = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+        if (tenant != null) {
+            if (tenant.getEmail() != null) {
+                emailService.sendPaymentApprovedEmail(tenant, saved);
+            }
+            notificationService.createForUser(
+                    tenant.getId(),
+                    "PAYMENT_APPROVED",
+                    "Payment Approved",
+                    "Your payment for invoice " + saved.getInvoiceNumber() + " has been approved.",
+                    "/payments"
+            );
         }
+
         return saved;
     }
+
+    private void notifyAdminOfSubmittedPayment(Invoice invoice) {
+        User admin = userRepository.findByUsername("admin").orElse(null);
+        if (admin != null) {
+            notificationService.createForUser(
+                    admin.getId(),
+                    "PAYMENT_SUBMITTED",
+                    "Payment Submitted",
+                    "Tenant " + invoice.getLease().getTenant().getName() +
+                            " has submitted payment for invoice " + invoice.getInvoiceNumber() +
+                            ". Please review and approve.",
+                    "/payments"
+            );
+        }
+    }
+
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
         int paymentWindowEnd = settingsService.getIntSetting("payment_window_end", 10);
         if (paymentDate.getDayOfMonth() <= paymentWindowEnd) {
@@ -122,11 +125,9 @@ public class PaymentService {
         }
 
         int penaltyRate = settingsService.getIntSetting("penalty_rate", 20);
-        BigDecimal penalty = invoice.getRentAmount()
+        return invoice.getRentAmount()
                 .multiply(BigDecimal.valueOf(penaltyRate))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-
-        return penalty;
     }
 
     public BigDecimal calculatePenaltyPreview(Long invoiceId, LocalDate paymentDate) {

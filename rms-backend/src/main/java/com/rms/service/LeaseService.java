@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Service
@@ -60,7 +61,6 @@ public class LeaseService {
         return leaseRepository.findByTenantId(tenantId);
     }
 
-    // ✅ CORRECTED METHOD – fixes the .or() error
     @Transactional
     public Lease getLeaseByTenantUsername(String username) {
         syncExpiredLeases();
@@ -70,7 +70,6 @@ public class LeaseService {
         Tenant tenant = tenantRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("No tenant found for user: " + username));
 
-        // Convert List<Lease> to Optional<Lease> using stream().findFirst()
         return leaseRepository.findByTenantIdAndStatus(tenant.getId(), LeaseStatus.ACTIVE)
                 .stream().findFirst()
                 .or(() -> leaseRepository.findFirstByTenantIdOrderByEndDateDesc(tenant.getId()))
@@ -110,6 +109,7 @@ public class LeaseService {
         lease.setPrepaymentMonths(request.getPrepaymentMonths());
         lease.setDueDay(request.getDueDay());
         lease.setStatus(LeaseStatus.ACTIVE);
+        lease.setCreatedAt(LocalDate.now());
 
         Lease saved = leaseRepository.save(lease);
 
@@ -141,6 +141,7 @@ public class LeaseService {
         lease.setDeposit(request.getDeposit());
         lease.setPrepaymentMonths(request.getPrepaymentMonths());
         lease.setDueDay(request.getDueDay());
+        lease.setUpdatedAt(LocalDate.now());
 
         return leaseRepository.save(lease);
     }
@@ -154,6 +155,7 @@ public class LeaseService {
         }
 
         lease.setStatus(LeaseStatus.TERMINATED);
+        lease.setUpdatedAt(LocalDate.now());
         leaseRepository.save(lease);
 
         Space space = lease.getSpace();
@@ -207,6 +209,7 @@ public class LeaseService {
         }
 
         lease.setStatus(LeaseStatus.EXPIRED);
+        lease.setUpdatedAt(LocalDate.now());
         leaseRepository.save(lease);
 
         Space space = lease.getSpace();
@@ -215,6 +218,32 @@ public class LeaseService {
         notifyLeaseExpired(lease);
 
         return lease;
+    }
+
+    public long getDaysUntilDue(Lease lease) {
+        LocalDate today = LocalDate.now();
+        int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 1;
+        LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
+
+        if (dueDate.isBefore(today)) {
+            dueDate = dueDate.plusMonths(1);
+            dueDate = dueDate.withDayOfMonth(Math.min(dueDay, dueDate.lengthOfMonth()));
+        }
+
+        return ChronoUnit.DAYS.between(today, dueDate);
+    }
+
+    public LocalDate getNextDueDate(Lease lease) {
+        LocalDate today = LocalDate.now();
+        int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 1;
+        LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
+
+        if (dueDate.isBefore(today)) {
+            dueDate = dueDate.plusMonths(1);
+            dueDate = dueDate.withDayOfMonth(Math.min(dueDay, dueDate.lengthOfMonth()));
+        }
+
+        return dueDate;
     }
 
     private void notifyLeaseExpired(Lease lease) {
@@ -237,6 +266,7 @@ public class LeaseService {
         }
 
         lease.setStatus(LeaseStatus.EXPIRED);
+        lease.setUpdatedAt(LocalDate.now());
 
         Space space = lease.getSpace();
         space.setStatus(SpaceStatus.VACANT);

@@ -106,45 +106,23 @@ export default function TenantDashboard() {
     setStats(statsData);
   };
 
-  const handlePay = async (invoice) => {
-    setPayError('');
-    setPayingId(invoice.id);
-    try {
-      const res = await chapaApi.initialize(invoice.id, {
-        firstName: user?.name?.split(' ')[0] || 'Tenant',
-        lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
-        email: lease?.tenant?.email || user?.email || 'tenant@example.com',
-        phoneNumber: lease?.tenant?.phone || '0900000000',
-      });
-      const url = res?.checkoutUrl || res?.checkout_url || res?.data?.checkout_url;
-      if (url) {
-        window.location.href = url;
-      } else {
-        setPayError('Payment started but no checkout link was returned. Contact admin.');
-        setPayingId(null);
-      }
-    } catch (err) {
-      setPayError(err.message || 'Could not start payment. Please try again.');
-      setPayingId(null);
-    }
-  };
-
   const handleReceiptUpload = async (invoice, file) => {
     if (!file) return;
     setPayError('');
     setUploadingId(invoice.id);
     try {
-      const today = new Date().toISOString().split('T')[0];
-      await tenantApi.submitReceipt(invoice.id, today, file);
-      await refresh();
+        const today = new Date().toISOString().split('T')[0];
+        await tenantApi.submitReceipt(invoice.id, today, file);
+        await refresh();
+        alert('✅ Receipt uploaded successfully! Waiting for admin approval.');
     } catch (err) {
-      setPayError(err.message || 'Could not upload receipt. Please try again.');
+        setPayError(err.message || 'Could not upload receipt. Please try again.');
     } finally {
-      setUploadingId(null);
+        setUploadingId(null);
     }
-  };
+};
+ 
 
-  // ✅ NEW: Load documents for tenant
   const loadDocuments = async () => {
     setLoadingDocs(true);
     try {

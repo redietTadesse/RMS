@@ -1,5 +1,6 @@
 package com.rms.controller;
 
+import com.rms.dto.InvoiceResponse;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.service.InvoiceService;
@@ -8,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/invoices")
@@ -20,38 +22,38 @@ public class InvoiceController {
         this.invoiceService = invoiceService;
     }
 
-    
     @GetMapping
-    public List<Invoice> getAllInvoices() {
-        return invoiceService.getAllInvoices();
+    public List<InvoiceResponse> getAllInvoices() {
+        return invoiceService.getAllInvoices().stream()
+                .map(InvoiceResponse::from)
+                .collect(Collectors.toList());
     }
 
-    
     @GetMapping("/{id}")
-    public Invoice getInvoiceById(@PathVariable Long id) {
-        return invoiceService.getInvoiceById(id);
+    public InvoiceResponse getInvoiceById(@PathVariable Long id) {
+        return InvoiceResponse.from(invoiceService.getInvoiceById(id));
     }
 
-    
     @GetMapping("/status/{status}")
-    public List<Invoice> getInvoicesByStatus(@PathVariable InvoiceStatus status) {
-        return invoiceService.getInvoicesByStatus(status);
+    public List<InvoiceResponse> getInvoicesByStatus(@PathVariable InvoiceStatus status) {
+        return invoiceService.getInvoicesByStatus(status).stream()
+                .map(InvoiceResponse::from)
+                .collect(Collectors.toList());
     }
 
-    
     @GetMapping("/tenant/{tenantId}")
-    public List<Invoice> getInvoicesByTenant(@PathVariable Long tenantId) {
-        return invoiceService.getInvoicesByTenant(tenantId);
+    public List<InvoiceResponse> getInvoicesByTenant(@PathVariable Long tenantId) {
+        return invoiceService.getInvoicesByTenant(tenantId).stream()
+                .map(InvoiceResponse::from)
+                .collect(Collectors.toList());
     }
 
-    
     @PostMapping("/generate/{leaseId}")
     @ResponseStatus(HttpStatus.CREATED)
-    public Invoice generateInvoice(@PathVariable Long leaseId) {
-        return invoiceService.generateInvoice(leaseId);
+    public InvoiceResponse generateInvoice(@PathVariable Long leaseId) {
+        return InvoiceResponse.from(invoiceService.generateInvoice(leaseId));
     }
 
-    
     @PostMapping("/test/mark-overdue")
     @ResponseStatus(HttpStatus.OK)
     public String testMarkOverdue() {
@@ -71,15 +73,14 @@ public class InvoiceController {
         return count + " invoices marked as OVERDUE";
     }
 
-    
     @PostMapping("/test/{id}/force-overdue")
     @ResponseStatus(HttpStatus.OK)
-    public Invoice forceOverdue(@PathVariable Long id) {
+    public InvoiceResponse forceOverdue(@PathVariable Long id) {
         Invoice invoice = invoiceService.getInvoiceById(id);
         invoice.setDueDate(LocalDate.now().minusDays(5));
         invoice.setStatus(InvoiceStatus.OVERDUE);
         Invoice saved = invoiceService.saveInvoice(invoice);
         invoiceService.notifyInvoiceOverdue(saved);
-        return saved;
+        return InvoiceResponse.from(saved);
     }
 }

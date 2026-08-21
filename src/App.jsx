@@ -1,4 +1,4 @@
-
+// src/App.jsx
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './Pages/LandingPage';
@@ -28,7 +28,6 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route
@@ -64,7 +63,6 @@ function AppRoutes() {
         }
       />
       
-      {}
       <Route 
         path="/dashboard" 
         element={
@@ -106,7 +104,6 @@ function AppRoutes() {
         } 
       />
 
-      {}
       <Route 
         path="/tenant-dashboard" 
         element={

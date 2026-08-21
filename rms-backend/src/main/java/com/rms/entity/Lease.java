@@ -42,7 +42,12 @@ public class Lease {
     @Column(nullable = false)
     private LeaseStatus status = LeaseStatus.ACTIVE;
 
-    
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDate createdAt = LocalDate.now();
+
+    @Column(name = "updated_at")
+    private LocalDate updatedAt;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -72,4 +77,10 @@ public class Lease {
 
     public LeaseStatus getStatus() { return status; }
     public void setStatus(LeaseStatus status) { this.status = status; }
+
+    public LocalDate getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDate createdAt) { this.createdAt = createdAt; }
+
+    public LocalDate getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDate updatedAt) { this.updatedAt = updatedAt; }
 }

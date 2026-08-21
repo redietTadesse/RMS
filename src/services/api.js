@@ -140,6 +140,8 @@ export const invoicesApi = {
     request(`/invoices/generate/${leaseId}`, { method: 'POST' }),
   markOverdue: () =>
     request('/invoices/test/mark-overdue', { method: 'POST' }),
+  forceOverdue: (id) =>
+    request(`/invoices/test/${id}/force-overdue`, { method: 'POST' }),
   downloadPdf: (id) => {
     const token = getToken();
     return fetch(`${API_BASE}/invoices/${id}/pdf`, {
