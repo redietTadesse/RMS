@@ -9,7 +9,6 @@ import {
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { tenantApi, chapaApi, documentsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
   const colors = {
     indigo: 'bg-indigo-100 text-indigo-600',
