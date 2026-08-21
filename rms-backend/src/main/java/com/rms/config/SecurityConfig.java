@@ -30,19 +30,26 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        System.out.println("🔐 SecurityConfig: Configuring security...");
+
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/refresh").permitAll()
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/payments/chapa/webhook").permitAll()
-                        .requestMatchers("/h2-console/**").permitAll()
+
+                        .requestMatchers("/api/tenant/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/notifications/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/invoices/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/payments/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/documents/my-documents").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/documents/download/**").hasAnyRole("ADMIN", "TENANT")
+
+                        .requestMatchers("/api/users/me").authenticated()
+                        .requestMatchers("/api/users/me/**").authenticated()
 
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
@@ -51,23 +58,19 @@ public class SecurityConfig {
                         .requestMatchers("/api/leases/**").hasRole("ADMIN")
                         .requestMatchers("/api/dashboard/**").hasRole("ADMIN")
                         .requestMatchers("/api/reports/**").hasRole("ADMIN")
-                        .requestMatchers("/api/settings/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/upload/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/tenant/**").hasRole("ADMIN")
-
-                        .requestMatchers("/api/tenant/**").hasAnyRole("ADMIN", "TENANT")
-                        .requestMatchers("/api/invoices/**").hasAnyRole("ADMIN", "TENANT")
-                        .requestMatchers("/api/payments/**").hasAnyRole("ADMIN", "TENANT")
-                        .requestMatchers("/api/notifications/**").hasAnyRole("ADMIN", "TENANT")
-                        .requestMatchers("/api/documents/my-documents").hasAnyRole("ADMIN", "TENANT")
-                        .requestMatchers("/api/documents/download/**").hasAnyRole("ADMIN", "TENANT")
-
-                        .requestMatchers("/api/users/me").authenticated()
+                        .requestMatchers("/api/documents/delete/**").hasRole("ADMIN")
+                        .requestMatchers("/api/settings/**").hasRole("ADMIN")
 
                         .anyRequest().authenticated()
                 )
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
+        System.out.println("🔐 SecurityConfig: Configuration complete!");
         return http.build();
     }
 }

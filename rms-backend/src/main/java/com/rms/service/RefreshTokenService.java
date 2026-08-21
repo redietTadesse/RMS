@@ -23,13 +23,16 @@ public class RefreshTokenService {
         this.refreshTokenRepository = refreshTokenRepository;
     }
 
+    @Transactional
     public String createRefreshToken(User user) {
         refreshTokenRepository.deleteByUser(user);
+
         RefreshToken token = new RefreshToken();
         token.setToken(UUID.randomUUID().toString());
         token.setUser(user);
         token.setExpiryDate(LocalDateTime.now().plus(Duration.ofMillis(refreshExpiration)));
         token.setRevoked(false);
+
         refreshTokenRepository.save(token);
         return token.getToken();
     }
@@ -37,12 +40,15 @@ public class RefreshTokenService {
     public User validateAndGetUser(String refreshToken) {
         RefreshToken token = refreshTokenRepository.findByToken(refreshToken)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
+
         if (token.isRevoked()) {
             throw new IllegalArgumentException("Refresh token revoked");
         }
+
         if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Refresh token expired");
         }
+
         return token.getUser();
     }
 

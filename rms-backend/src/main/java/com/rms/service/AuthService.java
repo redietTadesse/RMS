@@ -56,6 +56,7 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    @Transactional
     public AuthResponse login(AuthRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
