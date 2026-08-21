@@ -26,6 +26,9 @@ public class InvoiceResponse {
     private String leaseEndDate;
 
     public static InvoiceResponse from(Invoice invoice) {
+        if (invoice == null) {
+            return null;
+        }
         InvoiceResponse response = new InvoiceResponse();
         response.setId(invoice.getId());
         response.setInvoiceNumber(invoice.getInvoiceNumber());
@@ -54,7 +57,6 @@ public class InvoiceResponse {
 
         return response;
     }
-
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

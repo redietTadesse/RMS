@@ -5,6 +5,7 @@ import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.service.InvoiceService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -50,8 +51,12 @@ public class InvoiceController {
 
     @PostMapping("/generate/{leaseId}")
     @ResponseStatus(HttpStatus.CREATED)
-    public InvoiceResponse generateInvoice(@PathVariable Long leaseId) {
-        return InvoiceResponse.from(invoiceService.generateInvoice(leaseId));
+    public ResponseEntity<InvoiceResponse> generateInvoice(@PathVariable Long leaseId) {
+        Invoice invoice = invoiceService.generateInvoice(leaseId);
+        if (invoice == null) {
+            return ResponseEntity.badRequest().body(null);
+        }
+        return ResponseEntity.ok(InvoiceResponse.from(invoice));
     }
 
     @PostMapping("/test/mark-overdue")

@@ -1,4 +1,3 @@
-// src/pages/Leases.jsx
 import { useState, useEffect } from 'react';
 import { leasesApi, tenantsApi, spacesApi } from '../services/api';
 import { FaEdit, FaTrash, FaPlus, FaFileInvoice } from 'react-icons/fa';
@@ -84,6 +83,22 @@ export default function Leases() {
     resetForm();
     setShowForm(true);
   };
+  const handleGenerateInvoice = async (leaseId) => {
+  const lease = leases.find(l => l.id === leaseId);
+  if (!window.confirm(`Generate invoice for ${lease?.tenant?.name || 'tenant'}?`)) return;
+  
+  try {
+    const invoice = await invoicesApi.generate(leaseId);
+    if (!invoice) {
+      alert('ℹ️ Invoice already exists for this month');
+    } else {
+      alert('✅ Invoice generated successfully!');
+    }
+    await loadData();
+  } catch (err) {
+    alert('❌ Failed to generate invoice: ' + err.message);
+  }
+};
 
   const handleEdit = (lease) => {
     setEditingId(lease.id);

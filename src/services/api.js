@@ -136,8 +136,17 @@ export const invoicesApi = {
   getById: (id) => request(`/invoices/${id}`),
   getByStatus: (status) => request(`/invoices/status/${status}`),
   getByTenant: (tenantId) => request(`/invoices/tenant/${tenantId}`),
-  generate: (leaseId) =>
-    request(`/invoices/generate/${leaseId}`, { method: 'POST' }),
+  generate: async (leaseId) => {
+    try {
+      const response = await request(`/invoices/generate/${leaseId}`, { method: 'POST' });
+      return response;
+    } catch (err) {
+      if (err.message?.includes('400')) {
+        return null;
+      }
+      throw err;
+    }
+  },
   markOverdue: () =>
     request('/invoices/test/mark-overdue', { method: 'POST' }),
   forceOverdue: (id) =>
