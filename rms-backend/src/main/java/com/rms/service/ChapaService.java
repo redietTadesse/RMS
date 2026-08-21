@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rms.dto.ChapaPaymentResponse;
 import com.rms.entity.Invoice;
+import com.rms.entity.InvoiceStatus;
 import com.rms.entity.Tenant;
 import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
@@ -12,12 +13,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -30,6 +30,7 @@ public class ChapaService {
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final CurrentUserService currentUserService;
+    private final EmailService emailService;
 
     @Value("${chapa.secret-key}")
     private String secretKey;
@@ -43,11 +44,13 @@ public class ChapaService {
     public ChapaService(InvoiceRepository invoiceRepository,
                         UserRepository userRepository,
                         ObjectMapper objectMapper,
-                        CurrentUserService currentUserService) {
+                        CurrentUserService currentUserService,
+                        EmailService emailService) {
         this.invoiceRepository = invoiceRepository;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
         this.currentUserService = currentUserService;
+        this.emailService = emailService;
         this.webClient = WebClient.builder()
                 .baseUrl("https://api.chapa.co/v1")
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -157,11 +160,8 @@ public class ChapaService {
         }
     }
 
-    /**
-     * Process Chapa webhook
-     */
+    @Transactional
     public void processWebhook(Map<String, Object> payload, String signature) {
-        // Verify webhook signature
         if (!verifyWebhookSignature(payload, signature)) {
             throw new IllegalArgumentException("Invalid webhook signature");
         }
@@ -169,12 +169,28 @@ public class ChapaService {
         String event = (String) payload.get("event");
         if (event != null && event.equals("charge.success")) {
             String txRef = (String) payload.get("tx_ref");
-            String invoiceNumber = (String) ((Map) payload.get("meta")).get("invoice_number");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> meta = (Map<String, Object>) payload.get("meta");
+            String invoiceNumber = (String) meta.get("invoice_number");
 
-            System.out.println("Payment successful for tx_ref: " + txRef);
-            System.out.println("   Invoice: " + invoiceNumber);
+            if (invoiceNumber == null) {
+                throw new IllegalArgumentException("Invoice number missing in webhook");
+            }
 
-            // TODO: Mark invoice as PAID — see note below. This is why status never flips.
+            Invoice invoice = invoiceRepository.findByInvoiceNumber(invoiceNumber)
+                    .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + invoiceNumber));
+
+            invoice.setStatus(InvoiceStatus.PAID);
+            invoice.setPaymentDate(LocalDate.now());
+            invoice.setPaymentMethod("CHAPA");
+            invoiceRepository.save(invoice);
+
+            User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+            if (user != null && user.getEmail() != null) {
+                emailService.sendPaymentConfirmationEmail(user, invoice);
+            }
+
+            System.out.println("✅ Payment recorded via webhook: " + txRef + " for invoice " + invoiceNumber);
         }
     }
 

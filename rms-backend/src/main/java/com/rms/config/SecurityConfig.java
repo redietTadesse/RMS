@@ -33,45 +33,38 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
                 .authorizeHttpRequests(auth -> auth
-
-                        // ✅ ADD THIS LINE - Public login
                         .requestMatchers("/api/auth/login").permitAll()
-                        .requestMatchers("/api/test/email-test").permitAll()
-
-                        // Register - ADMIN only
+                        .requestMatchers("/api/auth/refresh").permitAll()
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
+                        .requestMatchers("/api/test/**").permitAll()
+                        .requestMatchers("/api/payments/chapa/webhook").permitAll()
+                        .requestMatchers("/h2-console/**").permitAll()
 
-                        // User profile - authenticated
-                        .requestMatchers("/api/users/me", "/api/users/me/**").authenticated()
-                        .requestMatchers("/api/notifications/**").authenticated()
-
-                        // ADMIN only
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
-
-                        // ADMIN + TENANT
-                        .requestMatchers("/api/tenant/**").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/spaces/**").hasRole("ADMIN")
                         .requestMatchers("/api/tenants/**").hasRole("ADMIN")
                         .requestMatchers("/api/leases/**").hasRole("ADMIN")
-                        .requestMatchers("/api/invoices/**").hasAnyRole("ADMIN", "TENANT")
-                        .requestMatchers("/api/payments/**").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/dashboard/**").hasRole("ADMIN")
-
-                        // 🔒 ADMIN only - Documents
+                        .requestMatchers("/api/reports/**").hasRole("ADMIN")
+                        .requestMatchers("/api/settings/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/upload/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/tenant/**").hasRole("ADMIN")
-                        .requestMatchers("/api/documents/delete/**").hasRole("ADMIN")
 
-                        // 🔒 ADMIN + TENANT - View/Download
+                        .requestMatchers("/api/tenant/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/invoices/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/payments/**").hasAnyRole("ADMIN", "TENANT")
+                        .requestMatchers("/api/notifications/**").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/documents/my-documents").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/documents/download/**").hasAnyRole("ADMIN", "TENANT")
 
+                        .requestMatchers("/api/users/me").authenticated()
+
                         .anyRequest().authenticated()
-                )
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

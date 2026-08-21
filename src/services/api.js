@@ -1,6 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-const getToken = () => localStorage.getItem('token');
+const getToken = () =>
+  localStorage.getItem('access_token') || localStorage.getItem('token');
 
 const getHeaders = (options = {}) => {
   const headers = options.body instanceof FormData
@@ -224,12 +225,15 @@ export const adminApi = {
 
 // ─── USER PROFILE ───
 export const userApi = {
-  getProfile: () => request('/users/me'),
+  getProfile: () =>
+    request('/users/me'),
+
   updateProfile: (userData) =>
     request('/users/me', {
       method: 'PUT',
       body: JSON.stringify(userData),
     }),
+
   changePassword: (payload) =>
     request('/users/me/password', {
       method: 'PUT',

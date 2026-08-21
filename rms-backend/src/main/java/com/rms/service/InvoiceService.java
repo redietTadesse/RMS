@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -27,16 +28,19 @@ public class InvoiceService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
+    private final SettingsService settingsService;
 
     public InvoiceService(InvoiceRepository invoiceRepository, LeaseRepository leaseRepository,
                           TenantRepository tenantRepository, UserRepository userRepository,
-                          NotificationService notificationService, EmailService emailService) {
+                          NotificationService notificationService, EmailService emailService,
+                          SettingsService settingsService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.emailService = emailService;
+        this.settingsService = settingsService;
     }
 
     
@@ -118,11 +122,29 @@ public class InvoiceService {
         LocalDate today = LocalDate.now();
         List<Invoice> pendingInvoices = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
 
+        int penaltyRate = settingsService.getIntSetting("penalty_rate", 20);
+
         for (Invoice invoice : pendingInvoices) {
             if (invoice.getDueDate().isBefore(today)) {
                 invoice.setStatus(InvoiceStatus.OVERDUE);
+
+                // Apply penalty if not already applied
+                if (invoice.getPenaltyAmount().compareTo(BigDecimal.ZERO) == 0) {
+                    BigDecimal penalty = invoice.getRentAmount()
+                            .multiply(BigDecimal.valueOf(penaltyRate))
+                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                    invoice.setPenaltyAmount(penalty);
+                    invoice.setTotalAmount(invoice.getRentAmount().add(penalty));
+                }
+
                 invoiceRepository.save(invoice);
                 notifyInvoiceOverdue(invoice);
+
+                // Send email notification
+                User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+                if (user != null && user.getEmail() != null) {
+                    emailService.sendOverdueEmail(user, invoice);
+                }
             }
         }
     }

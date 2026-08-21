@@ -6,7 +6,6 @@ import com.rms.entity.InvoiceStatus;
 import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
 import com.rms.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,22 +20,19 @@ public class PaymentService {
     private final InvoiceRepository invoiceRepository;
     private final FileStorageService fileStorageService;
     private final UserRepository userRepository;
-    private final EmailService emailService;  // ← ADD final + inject
-
-    @Value("${app.penalty-rate:20}")
-    private int penaltyRate;
-
-    @Value("${app.payment-window-end:10}")
-    private int paymentWindowEnd;
+    private final EmailService emailService;
+    private final SettingsService settingsService;
 
     public PaymentService(InvoiceRepository invoiceRepository,
                           FileStorageService fileStorageService,
                           UserRepository userRepository,
-                          EmailService emailService) {  // ← ADD emailService to constructor
+                          EmailService emailService,
+                          SettingsService settingsService) {
         this.invoiceRepository = invoiceRepository;
         this.fileStorageService = fileStorageService;
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.settingsService = settingsService;
     }
 
     @Transactional
@@ -120,10 +116,12 @@ public class PaymentService {
         return saved;
     }
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
+        int paymentWindowEnd = settingsService.getIntSetting("payment_window_end", 10);
         if (paymentDate.getDayOfMonth() <= paymentWindowEnd) {
             return BigDecimal.ZERO;
         }
 
+        int penaltyRate = settingsService.getIntSetting("penalty_rate", 20);
         BigDecimal penalty = invoice.getRentAmount()
                 .multiply(BigDecimal.valueOf(penaltyRate))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
