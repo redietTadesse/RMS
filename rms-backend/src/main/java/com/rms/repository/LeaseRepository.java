@@ -9,7 +9,11 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;   // add this import
+<<<<<<< HEAD
 @Repository
+=======
+
+>>>>>>> abc52cb (Resolve merge conflicts)
 public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
     long countByStatus(LeaseStatus status);

@@ -42,6 +42,7 @@ public class Lease {
     @Column(nullable = false)
     private LeaseStatus status = LeaseStatus.ACTIVE;
 
+<<<<<<< HEAD
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDate createdAt = LocalDate.now();
 
@@ -68,6 +69,9 @@ public class Lease {
     public Boolean getFirstInvoiceProrated() { return firstInvoiceProrated; }
     public void setFirstInvoiceProrated(Boolean firstInvoiceProrated) { this.firstInvoiceProrated = firstInvoiceProrated; }
 
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

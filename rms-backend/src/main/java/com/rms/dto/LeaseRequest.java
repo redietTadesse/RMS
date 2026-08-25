@@ -34,7 +34,13 @@ public class LeaseRequest {
     @Max(value = 31, message = "Due day must be between 1 and 31")
     private Integer dueDay = 1;
 
+<<<<<<< HEAD
     private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
+=======
+    
+    public Long getTenantId() { return tenantId; }
+    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+>>>>>>> abc52cb (Resolve merge conflicts)
 
 
     // Getters and Setters

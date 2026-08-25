@@ -23,6 +23,10 @@ public class InvoiceController {
         this.invoiceService = invoiceService;
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @GetMapping
     public List<InvoiceResponse> getAllInvoices() {
         return invoiceService.getAllInvoices().stream()
@@ -30,11 +34,19 @@ public class InvoiceController {
                 .collect(Collectors.toList());
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @GetMapping("/{id}")
     public InvoiceResponse getInvoiceById(@PathVariable Long id) {
         return InvoiceResponse.from(invoiceService.getInvoiceById(id));
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @GetMapping("/status/{status}")
     public List<InvoiceResponse> getInvoicesByStatus(@PathVariable InvoiceStatus status) {
         return invoiceService.getInvoicesByStatus(status).stream()
@@ -42,6 +54,10 @@ public class InvoiceController {
                 .collect(Collectors.toList());
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @GetMapping("/tenant/{tenantId}")
     public List<InvoiceResponse> getInvoicesByTenant(@PathVariable Long tenantId) {
         return invoiceService.getInvoicesByTenant(tenantId).stream()
@@ -49,6 +65,10 @@ public class InvoiceController {
                 .collect(Collectors.toList());
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @PostMapping("/generate/{leaseId}")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<InvoiceResponse> generateInvoice(@PathVariable Long leaseId) {
@@ -87,5 +107,37 @@ public class InvoiceController {
         Invoice saved = invoiceService.saveInvoice(invoice);
         invoiceService.notifyInvoiceOverdue(saved);
         return InvoiceResponse.from(saved);
+    }
+
+    
+    @PostMapping("/test/mark-overdue")
+    @ResponseStatus(HttpStatus.OK)
+    public String testMarkOverdue() {
+        LocalDate today = LocalDate.now();
+        List<Invoice> pendingInvoices = invoiceService.getInvoicesByStatus(InvoiceStatus.PENDING);
+        int count = 0;
+
+        for (Invoice invoice : pendingInvoices) {
+            if (invoice.getDueDate().isBefore(today)) {
+                invoice.setStatus(InvoiceStatus.OVERDUE);
+                invoiceService.saveInvoice(invoice);
+                invoiceService.notifyInvoiceOverdue(invoice);
+                count++;
+            }
+        }
+
+        return count + " invoices marked as OVERDUE";
+    }
+
+    
+    @PostMapping("/test/{id}/force-overdue")
+    @ResponseStatus(HttpStatus.OK)
+    public Invoice forceOverdue(@PathVariable Long id) {
+        Invoice invoice = invoiceService.getInvoiceById(id);
+        invoice.setDueDate(LocalDate.now().minusDays(5));
+        invoice.setStatus(InvoiceStatus.OVERDUE);
+        Invoice saved = invoiceService.saveInvoice(invoice);
+        invoiceService.notifyInvoiceOverdue(saved);
+        return saved;
     }
 }

@@ -11,10 +11,16 @@ public class PaymentRequest {
     private LocalDate paymentDate;
 
     @NotBlank(message = "Payment method is required")
+<<<<<<< HEAD
     private String paymentMethod;
 
     private BigDecimal amount;
 
+=======
+    private String paymentMethod; 
+
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public LocalDate getPaymentDate() { return paymentDate; }
     public void setPaymentDate(LocalDate paymentDate) { this.paymentDate = paymentDate; }
 

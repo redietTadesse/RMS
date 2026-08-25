@@ -92,7 +92,11 @@ public class TenantController {
     }
 
     @PostMapping("/invoices/{invoiceId}/receipt")
+<<<<<<< HEAD
     public ResponseEntity<InvoiceResponse> submitReceipt(
+=======
+    public ResponseEntity<Invoice> submitReceipt(
+>>>>>>> abc52cb (Resolve merge conflicts)
             @PathVariable Long invoiceId,
             @RequestParam("paymentDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate paymentDate,
             @RequestParam(value = "paymentMethod", required = false, defaultValue = "receipt") String paymentMethod,
@@ -102,11 +106,16 @@ public class TenantController {
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         currentUserService.requireOwnership(invoice);
 
+<<<<<<< HEAD
         com.rms.dto.PaymentRequest request = new com.rms.dto.PaymentRequest();
         request.setPaymentDate(paymentDate);
         request.setPaymentMethod(paymentMethod);
 
         Invoice updated = paymentService.recordPayment(invoiceId, request, receipt);
         return ResponseEntity.ok(InvoiceResponse.from(updated));
+=======
+        Invoice updated = paymentService.submitReceipt(invoiceId, paymentDate, paymentMethod, receipt);
+        return ResponseEntity.ok(updated);
+>>>>>>> abc52cb (Resolve merge conflicts)
     }
 }

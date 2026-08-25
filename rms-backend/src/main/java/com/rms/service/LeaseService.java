@@ -12,7 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+<<<<<<< HEAD
 import java.time.temporal.ChronoUnit;
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
 import java.util.List;
 
 @Service
@@ -61,6 +64,10 @@ public class LeaseService {
         return leaseRepository.findByTenantId(tenantId);
     }
 
+<<<<<<< HEAD
+=======
+    // ✅ CORRECTED METHOD – fixes the .or() error
+>>>>>>> abc52cb (Resolve merge conflicts)
     @Transactional
     public Lease getLeaseByTenantUsername(String username) {
         syncExpiredLeases();
@@ -70,6 +77,10 @@ public class LeaseService {
         Tenant tenant = tenantRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("No tenant found for user: " + username));
 
+<<<<<<< HEAD
+=======
+        // Convert List<Lease> to Optional<Lease> using stream().findFirst()
+>>>>>>> abc52cb (Resolve merge conflicts)
         return leaseRepository.findByTenantIdAndStatus(tenant.getId(), LeaseStatus.ACTIVE)
                 .stream().findFirst()
                 .or(() -> leaseRepository.findFirstByTenantIdOrderByEndDateDesc(tenant.getId()))
@@ -265,7 +276,10 @@ public class LeaseService {
         }
 
         lease.setStatus(LeaseStatus.EXPIRED);
+<<<<<<< HEAD
         lease.setUpdatedAt(LocalDate.now());
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
         leaseRepository.save(lease);
 
         Space space = lease.getSpace();
@@ -276,6 +290,7 @@ public class LeaseService {
         return lease;
     }
 
+<<<<<<< HEAD
 
     public LocalDate getNextDueDate(Lease lease) {
         if (lease == null || lease.getStatus() != LeaseStatus.ACTIVE) {
@@ -313,6 +328,8 @@ public class LeaseService {
         return today.isBefore(prepaymentEnd) || today.isEqual(prepaymentEnd);
     }
 
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
     private void notifyLeaseExpired(Lease lease) {
         Tenant tenant = lease.getTenant();
         notificationService.createForUserOnce(
@@ -332,6 +349,7 @@ public class LeaseService {
             return false;
         }
 
+<<<<<<< HEAD
         // Validate status transition
         if (!isValidLeaseStatusTransition(lease.getStatus(), LeaseStatus.EXPIRED)) {
             System.err.println("Invalid status transition from " + lease.getStatus() + " to EXPIRED");
@@ -340,6 +358,9 @@ public class LeaseService {
 
         lease.setStatus(LeaseStatus.EXPIRED);
         lease.setUpdatedAt(LocalDate.now());
+=======
+        lease.setStatus(LeaseStatus.EXPIRED);
+>>>>>>> abc52cb (Resolve merge conflicts)
 
         Space space = lease.getSpace();
         space.setStatus(SpaceStatus.VACANT);
@@ -348,6 +369,7 @@ public class LeaseService {
         notifyLeaseExpired(lease);
         return true;
     }
+<<<<<<< HEAD
 
     private boolean isValidLeaseStatusTransition(LeaseStatus from, LeaseStatus to) {
         // Valid transitions:
@@ -356,4 +378,6 @@ public class LeaseService {
         // No other transitions are valid
         return (from == LeaseStatus.ACTIVE && (to == LeaseStatus.TERMINATED || to == LeaseStatus.EXPIRED));
     }
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
 }

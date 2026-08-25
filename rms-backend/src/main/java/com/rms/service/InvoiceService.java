@@ -17,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+<<<<<<< HEAD
 import java.time.temporal.ChronoUnit;
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
 import java.util.List;
 
 @Service
@@ -29,21 +32,34 @@ public class InvoiceService {
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
+<<<<<<< HEAD
     private final SettingsService settingsService;
 
     public InvoiceService(InvoiceRepository invoiceRepository, LeaseRepository leaseRepository,
                           TenantRepository tenantRepository, UserRepository userRepository,
                           NotificationService notificationService, EmailService emailService,
                           SettingsService settingsService) {
+=======
+
+    public InvoiceService(InvoiceRepository invoiceRepository, LeaseRepository leaseRepository,
+                          TenantRepository tenantRepository, UserRepository userRepository,
+                          NotificationService notificationService, EmailService emailService) {
+>>>>>>> abc52cb (Resolve merge conflicts)
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.emailService = emailService;
+<<<<<<< HEAD
         this.settingsService = settingsService;
     }
 
+=======
+    }
+
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @Scheduled(cron = "0 0 0 1 * ?")
     @Transactional
     public void generateMonthlyInvoices() {
@@ -65,6 +81,10 @@ public class InvoiceService {
         }
     }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> abc52cb (Resolve merge conflicts)
     @Transactional
     public Invoice generateInvoiceForLease(Lease lease) {
         LocalDate today = LocalDate.now();
@@ -78,14 +98,22 @@ public class InvoiceService {
         LocalDate monthStart = today.withDayOfMonth(1);
         LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
+<<<<<<< HEAD
+=======
+        // CHECK FIRST: Does invoice already exist for this month?
+>>>>>>> abc52cb (Resolve merge conflicts)
         if (invoiceRepository.existsByLeaseAndIssueDateBetween(lease, monthStart, monthEnd)) {
             System.out.println("Invoice already exists for lease " + lease.getId() + " this month");
             return null;
         }
 
+<<<<<<< HEAD
         int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 10;
         LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
 
+=======
+        // Generate invoice number
+>>>>>>> abc52cb (Resolve merge conflicts)
         String invoiceNumber = generateInvoiceNumber();
 
         // Calculate rent amount - prorate if this is first invoice and lease started after 15th
@@ -100,6 +128,7 @@ public class InvoiceService {
             leaseRepository.save(lease);
         }
 
+        // Create invoice
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumber);
         invoice.setLease(lease);
@@ -111,6 +140,7 @@ public class InvoiceService {
         invoice.setStatus(InvoiceStatus.PENDING);
         invoice.setCreatedAt(today);
 
+<<<<<<< HEAD
         Invoice saved = invoiceRepository.save(invoice);
 
         // Update nextBillingDate based on billing frequency
@@ -133,6 +163,30 @@ public class InvoiceService {
         return saved;
     }
 
+=======
+        // Save
+        Invoice saved = invoiceRepository.save(invoice);
+
+        // Send notifications
+        User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
+        if (user != null) {
+            // In-app notification
+            notificationService.createForUserOnce(
+                    user.getId(),
+                    "INVOICE_GENERATED",
+                    saved.getId(),
+                    "New Invoice Generated",
+                    "Invoice " + saved.getInvoiceNumber() + " for ETB " + saved.getTotalAmount() + " is due on " + saved.getDueDate(),
+                    "/payments"
+            );
+            // Email notification
+            emailService.sendInvoiceGeneratedEmail(user, saved, lease);
+        }
+
+        return saved;
+    }
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @Transactional
     public Invoice generateInvoice(Long leaseId) {
         Lease lease = leaseRepository.findById(leaseId)
@@ -145,6 +199,10 @@ public class InvoiceService {
         return generateInvoiceForLease(lease);
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional
     public void markOverdueInvoices() {
@@ -173,15 +231,19 @@ public class InvoiceService {
 
                 invoiceRepository.save(invoice);
                 notifyInvoiceOverdue(invoice);
+<<<<<<< HEAD
 
                 User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
                 if (user != null && user.getEmail() != null) {
                     emailService.sendOverdueEmail(user, invoice);
                 }
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
             }
         }
     }
 
+<<<<<<< HEAD
     @Scheduled(cron = "0 0 8 * * ?")  // Runs at 8:00 AM every day
     @Transactional
     public void sendRentDueReminders() {
@@ -226,6 +288,9 @@ public class InvoiceService {
         return date.isBefore(prepaymentEnd) || date.isEqual(prepaymentEnd);
     }
 
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public void notifyInvoiceOverdue(Invoice invoice) {
         Tenant tenant = invoice.getLease().getTenant();
         notificationService.createForUserOnce(
@@ -238,10 +303,18 @@ public class InvoiceService {
         );
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public List<Invoice> getInvoicesByTenant(Long tenantId) {
         return invoiceRepository.findByLeaseTenantId(tenantId);
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public List<Invoice> getInvoicesByTenantUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
@@ -252,23 +325,40 @@ public class InvoiceService {
         return invoiceRepository.findByLeaseTenantId(tenant.getId());
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public List<Invoice> getInvoicesByStatus(InvoiceStatus status) {
         return invoiceRepository.findByStatus(status);
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public List<Invoice> getAllInvoices() {
         return invoiceRepository.findAll();
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public Invoice getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
     }
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public Invoice saveInvoice(Invoice invoice) {
         return invoiceRepository.save(invoice);
     }
 
+<<<<<<< HEAD
     public long getDaysOverdue(Invoice invoice) {
         if (invoice.getStatus() != InvoiceStatus.OVERDUE) {
             return 0;
@@ -281,12 +371,16 @@ public class InvoiceService {
                 (invoice.getStatus() == InvoiceStatus.PENDING && invoice.getDueDate().isBefore(LocalDate.now()));
     }
 
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     private String generateInvoiceNumber() {
         String year = String.valueOf(LocalDate.now().getYear());
         long count = invoiceRepository.count() + 1;
         String seq = String.format("%04d", count);
         return "INV-" + year + "-" + seq;
     }
+<<<<<<< HEAD
 
     private void initializeNextBillingDate(Lease lease) {
         LocalDate start = lease.getStartDate();
@@ -359,3 +453,6 @@ public class InvoiceService {
         }
     }
 }
+=======
+}
+>>>>>>> abc52cb (Resolve merge conflicts)

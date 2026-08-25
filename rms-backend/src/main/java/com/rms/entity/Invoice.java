@@ -47,9 +47,13 @@ public class Invoice {
     @Column(name = "receipt_path")
     private String receiptPath;
 
+<<<<<<< HEAD
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDate createdAt = LocalDate.now();
 
+=======
+    
+>>>>>>> abc52cb (Resolve merge conflicts)
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
