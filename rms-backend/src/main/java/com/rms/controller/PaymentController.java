@@ -6,9 +6,10 @@ import com.rms.service.PaymentService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.security.access.prepost.PreAuthorize;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -24,7 +25,7 @@ public class PaymentController {
     }
 
     @PostMapping("/{invoiceId}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     @ResponseStatus(HttpStatus.OK)
     public Invoice recordPayment(
             @PathVariable Long invoiceId,
@@ -38,7 +39,7 @@ public class PaymentController {
     public Invoice approvePayment(@PathVariable Long invoiceId) {
         return paymentService.approvePayment(invoiceId);
     }
-    
+
     @GetMapping("/preview")
     public ResponseEntity<BigDecimal> previewPenalty(
             @RequestParam Long invoiceId,

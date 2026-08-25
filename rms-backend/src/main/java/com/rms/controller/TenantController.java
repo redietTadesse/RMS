@@ -1,5 +1,6 @@
 package com.rms.controller;
 
+import com.rms.dto.InvoiceResponse;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.entity.Lease;
@@ -20,9 +21,11 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/tenant")
+@CrossOrigin(origins = "http://localhost:5173")
 public class TenantController {
 
     private final LeaseService leaseService;
@@ -49,21 +52,17 @@ public class TenantController {
     @GetMapping("/my-lease")
     public ResponseEntity<Lease> getMyLease(Authentication authentication) {
         String username = authentication.getName();
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
         Lease lease = leaseService.getLeaseByTenantUsername(username);
         return ResponseEntity.ok(lease);
     }
 
     @GetMapping("/my-invoices")
-    public ResponseEntity<List<Invoice>> getMyInvoices(Authentication authentication) {
+    public ResponseEntity<List<InvoiceResponse>> getMyInvoices(Authentication authentication) {
         String username = authentication.getName();
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-
         List<Invoice> invoices = invoiceService.getInvoicesByTenantUsername(username);
-        return ResponseEntity.ok(invoices);
+        return ResponseEntity.ok(invoices.stream()
+                .map(InvoiceResponse::from)
+                .collect(Collectors.toList()));
     }
 
     @GetMapping("/stats")
@@ -80,14 +79,20 @@ public class TenantController {
         stats.put("leaseStatus", lease != null ? lease.getStatus().name() : "NONE");
         stats.put("totalInvoices", invoices.size());
         stats.put("pendingInvoices", invoices.stream().filter(i -> i.getStatus() == InvoiceStatus.PENDING).count());
+        stats.put("submittedInvoices", invoices.stream().filter(i -> i.getStatus() == InvoiceStatus.SUBMITTED).count());
         stats.put("paidInvoices", invoices.stream().filter(i -> i.getStatus() == InvoiceStatus.PAID).count());
         stats.put("overdueInvoices", invoices.stream().filter(i -> i.getStatus() == InvoiceStatus.OVERDUE).count());
+
+        if (lease != null) {
+            stats.put("nextDueDate", leaseService.getNextDueDate(lease));
+            stats.put("daysUntilDue", leaseService.getDaysUntilDue(lease));
+        }
 
         return ResponseEntity.ok(stats);
     }
 
     @PostMapping("/invoices/{invoiceId}/receipt")
-    public ResponseEntity<Invoice> submitReceipt(
+    public ResponseEntity<InvoiceResponse> submitReceipt(
             @PathVariable Long invoiceId,
             @RequestParam("paymentDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate paymentDate,
             @RequestParam(value = "paymentMethod", required = false, defaultValue = "receipt") String paymentMethod,
@@ -97,7 +102,11 @@ public class TenantController {
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         currentUserService.requireOwnership(invoice);
 
-        Invoice updated = paymentService.submitReceipt(invoiceId, paymentDate, paymentMethod, receipt);
-        return ResponseEntity.ok(updated);
+        com.rms.dto.PaymentRequest request = new com.rms.dto.PaymentRequest();
+        request.setPaymentDate(paymentDate);
+        request.setPaymentMethod(paymentMethod);
+
+        Invoice updated = paymentService.recordPayment(invoiceId, request, receipt);
+        return ResponseEntity.ok(InvoiceResponse.from(updated));
     }
 }

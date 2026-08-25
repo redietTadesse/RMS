@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
@@ -20,9 +21,13 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     List<Invoice> findByLease(Lease lease);
 
+    long countByLease(Lease lease);
+
     List<Invoice> findByLeaseIdAndStatus(Long leaseId, InvoiceStatus status);
 
     List<Invoice> findByLeaseTenantId(Long tenantId);
+
+    Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
 
     boolean existsByLeaseAndIssueDateBetween(
             Lease lease,

@@ -1,39 +1,28 @@
-// src/components/auth/ProtectedRoute.jsx
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ProtectedRoute({ children, requiredRole }) {
-  const { user, loading } = useAuth();
-  const location = useLocation();
+    const { user, loading, isAuthenticated } = useAuth();
+    const location = useLocation();
 
-  console.log('🔒 ProtectedRoute - loading:', loading, 'user:', !!user, 'role:', user?.role);
-
-  // Show loading spinner while checking auth
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-      </div>
-    );
-  }
-
-  // ✅ CHECK: If no user, redirect to login
-  if (!user) {
-    console.log('🔒 No user, redirecting to login');
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // ✅ CHECK: If role is required and doesn't match
-  if (requiredRole && user.role !== requiredRole) {
-    console.log(`🔒 Role mismatch: required ${requiredRole}, got ${user.role}`);
-    if (user.role === 'ADMIN') {
-      return <Navigate to="/dashboard" replace />;
-    } else if (user.role === 'TENANT') {
-      return <Navigate to="/tenant-dashboard" replace />;
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            </div>
+        );
     }
-    return <Navigate to="/login" replace />;
-  }
 
-  console.log('🔒 User authenticated, rendering children');
-  return children;
+    if (!isAuthenticated || !user) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    if (requiredRole && user.role !== requiredRole) {
+        if (user.role === 'ADMIN') {
+            return <Navigate to="/dashboard" replace />;
+        }
+        return <Navigate to="/tenant-dashboard" replace />;
+    }
+
+    return children;
 }

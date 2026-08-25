@@ -1,5 +1,6 @@
 package com.rms.dto;
 
+import com.rms.entity.BillingFrequency;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,28 +34,80 @@ public class LeaseRequest {
     @Max(value = 31, message = "Due day must be between 1 and 31")
     private Integer dueDay = 1;
 
-    
-    public Long getTenantId() { return tenantId; }
-    public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
+    private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
 
-    public Long getSpaceId() { return spaceId; }
-    public void setSpaceId(Long spaceId) { this.spaceId = spaceId; }
 
-    public LocalDate getStartDate() { return startDate; }
-    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+    // Getters and Setters
 
-    public LocalDate getEndDate() { return endDate; }
-    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+    public Long getTenantId() {
+        return tenantId;
+    }
 
-    public BigDecimal getMonthlyRent() { return monthlyRent; }
-    public void setMonthlyRent(BigDecimal monthlyRent) { this.monthlyRent = monthlyRent; }
+    public void setTenantId(Long tenantId) {
+        this.tenantId = tenantId;
+    }
 
-    public BigDecimal getDeposit() { return deposit; }
-    public void setDeposit(BigDecimal deposit) { this.deposit = deposit; }
+    public Long getSpaceId() {
+        return spaceId;
+    }
 
-    public Integer getPrepaymentMonths() { return prepaymentMonths; }
-    public void setPrepaymentMonths(Integer prepaymentMonths) { this.prepaymentMonths = prepaymentMonths; }
+    public void setSpaceId(Long spaceId) {
+        this.spaceId = spaceId;
+    }
 
-    public Integer getDueDay() { return dueDay; }
-    public void setDueDay(Integer dueDay) { this.dueDay = dueDay; }
+    public LocalDate getStartDate() {
+        return startDate;
+    }
+
+    public void setStartDate(LocalDate startDate) {
+        this.startDate = startDate;
+    }
+
+    public LocalDate getEndDate() {
+        return endDate;
+    }
+
+    public void setEndDate(LocalDate endDate) {
+        this.endDate = endDate;
+    }
+
+    public BigDecimal getMonthlyRent() {
+        return monthlyRent;
+    }
+
+    public void setMonthlyRent(BigDecimal monthlyRent) {
+        this.monthlyRent = monthlyRent;
+    }
+
+    public BigDecimal getDeposit() {
+        return deposit;
+    }
+
+    public void setDeposit(BigDecimal deposit) {
+        this.deposit = deposit;
+    }
+
+    public Integer getPrepaymentMonths() {
+        return prepaymentMonths;
+    }
+
+    public void setPrepaymentMonths(Integer prepaymentMonths) {
+        this.prepaymentMonths = prepaymentMonths;
+    }
+
+    public Integer getDueDay() {
+        return dueDay;
+    }
+
+    public void setDueDay(Integer dueDay) {
+        this.dueDay = dueDay;
+    }
+
+    public BillingFrequency getBillingFrequency() {
+        return billingFrequency;
+    }
+
+    public void setBillingFrequency(BillingFrequency billingFrequency) {
+        this.billingFrequency = billingFrequency;
+    }
 }

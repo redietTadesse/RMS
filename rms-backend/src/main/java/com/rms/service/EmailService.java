@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 @Service
@@ -31,9 +32,6 @@ public class EmailService {
         this.templateEngine = templateEngine;
     }
 
-    /**
-     * Send invoice generated email
-     */
     public void sendInvoiceGeneratedEmail(User tenant, Invoice invoice, Lease lease) {
         try {
             Context context = new Context();
@@ -60,59 +58,73 @@ public class EmailService {
         }
     }
 
-
-    /**
-     * Send a test email (for testing purposes)
-     */
-    public void sendTestEmail() {
+    public void sendRentDueEmail(User tenant, Lease lease) {
         try {
-            String testEmail = "eyobyaregal1111@gmail.com";
+            int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 1;
+            LocalDate dueDate = LocalDate.now().withDayOfMonth(Math.min(dueDay, LocalDate.now().lengthOfMonth()));
 
             Context context = new Context();
-            context.setVariable("message", "This is a test email from RMS!");
+            context.setVariable("tenantName", tenant.getName());
+            context.setVariable("spaceUnit", lease.getSpace().getUnitNumber());
+            context.setVariable("amount", lease.getMonthlyRent());
+            context.setVariable("dueDate", dueDate.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("paymentUrl", baseUrl + "/payments");
             context.setVariable("year", java.time.Year.now().getValue());
 
-            String htmlContent = templateEngine.process("email/test", context);
+            String htmlContent = templateEngine.process("email/rent-due", context);
             sendHtmlEmail(
-                    testEmail,
-                    "🧪 Test Email from RMS",
+                    tenant.getEmail(),
+                    "🚨 Rent Due Today: " + lease.getSpace().getUnitNumber(),
                     htmlContent
             );
-            System.out.println("✅ Test email sent to: " + testEmail);
+            System.out.println("✅ Rent due email sent to: " + tenant.getEmail());
         } catch (Exception e) {
-            System.err.println("❌ Test email failed: " + e.getMessage());
-            throw e;
+            System.err.println("Failed to send rent due email: " + e.getMessage());
         }
     }
 
-    /**
-     * Send payment reminder (3 days before due date)
-     */
-    public void sendPaymentReminderEmail(User tenant, Invoice invoice) {
+    public void sendPaymentApprovedEmail(User tenant, Invoice invoice) {
         try {
             Context context = new Context();
             context.setVariable("tenantName", tenant.getName());
             context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
             context.setVariable("amount", invoice.getTotalAmount());
-            context.setVariable("dueDate", invoice.getDueDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
-            context.setVariable("daysLeft", 3);
-            context.setVariable("invoiceUrl", baseUrl + "/payments");
+            context.setVariable("paymentDate", invoice.getPaymentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("paymentMethod", invoice.getPaymentMethod());
             context.setVariable("year", java.time.Year.now().getValue());
 
-            String htmlContent = templateEngine.process("email/payment-reminder", context);
+            String htmlContent = templateEngine.process("email/payment-approved", context);
             sendHtmlEmail(
                     tenant.getEmail(),
-                    "🔔 Payment Reminder: " + invoice.getInvoiceNumber(),
+                    "✅ Payment Approved: " + invoice.getInvoiceNumber(),
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send reminder email: " + e.getMessage());
+            System.err.println("Failed to send payment approved email: " + e.getMessage());
         }
     }
 
-    /**
-     * Send overdue notification
-     */
+    public void sendPaymentConfirmationEmail(User tenant, Invoice invoice) {
+        try {
+            Context context = new Context();
+            context.setVariable("tenantName", tenant.getName());
+            context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
+            context.setVariable("amount", invoice.getTotalAmount());
+            context.setVariable("paymentDate", invoice.getPaymentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("paymentMethod", invoice.getPaymentMethod());
+            context.setVariable("year", java.time.Year.now().getValue());
+
+            String htmlContent = templateEngine.process("email/payment-confirmed", context);
+            sendHtmlEmail(
+                    tenant.getEmail(),
+                    "📄 Payment Submitted: " + invoice.getInvoiceNumber(),
+                    htmlContent
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to send payment confirmation email: " + e.getMessage());
+        }
+    }
+
     public void sendOverdueEmail(User tenant, Invoice invoice) {
         try {
             long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(
@@ -141,33 +153,49 @@ public class EmailService {
         }
     }
 
-    /**
-     * Send payment confirmation
-     */
-    public void sendPaymentConfirmationEmail(User tenant, Invoice invoice) {
+    public void sendTestEmail() {
+        try {
+            String testEmail = "eyobyaregal1111@gmail.com";
+
+            Context context = new Context();
+            context.setVariable("message", "This is a test email from RMS!");
+            context.setVariable("year", java.time.Year.now().getValue());
+
+            String htmlContent = templateEngine.process("email/test", context);
+            sendHtmlEmail(
+                    testEmail,
+                    "🧪 Test Email from RMS",
+                    htmlContent
+            );
+            System.out.println("✅ Test email sent to: " + testEmail);
+        } catch (Exception e) {
+            System.err.println("❌ Test email failed: " + e.getMessage());
+            throw e;
+        }
+    }
+
+    public void sendPaymentReminderEmail(User tenant, Invoice invoice) {
         try {
             Context context = new Context();
             context.setVariable("tenantName", tenant.getName());
             context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
             context.setVariable("amount", invoice.getTotalAmount());
-            context.setVariable("paymentDate", invoice.getPaymentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
-            context.setVariable("paymentMethod", invoice.getPaymentMethod());
+            context.setVariable("dueDate", invoice.getDueDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("daysLeft", 3);
+            context.setVariable("invoiceUrl", baseUrl + "/payments");
             context.setVariable("year", java.time.Year.now().getValue());
 
-            String htmlContent = templateEngine.process("email/payment-confirmed", context);
+            String htmlContent = templateEngine.process("email/payment-reminder", context);
             sendHtmlEmail(
                     tenant.getEmail(),
-                    "✅ Payment Confirmed: " + invoice.getInvoiceNumber(),
+                    "🔔 Payment Reminder: " + invoice.getInvoiceNumber(),
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send payment confirmation: " + e.getMessage());
+            System.err.println("Failed to send reminder email: " + e.getMessage());
         }
     }
 
-    /**
-     * Send welcome email with login credentials
-     */
     public void sendWelcomeEmail(User tenant, String username, String password) {
         try {
             Context context = new Context();
@@ -188,9 +216,6 @@ public class EmailService {
         }
     }
 
-    /**
-     * Send HTML email
-     */
     private void sendHtmlEmail(String to, String subject, String htmlContent) {
         if (to == null || to.isEmpty()) {
             System.err.println("No email address provided");

@@ -47,7 +47,9 @@ public class Invoice {
     @Column(name = "receipt_path")
     private String receiptPath;
 
-    
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDate createdAt = LocalDate.now();
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -83,4 +85,7 @@ public class Invoice {
 
     public String getReceiptPath() { return receiptPath; }
     public void setReceiptPath(String receiptPath) { this.receiptPath = receiptPath; }
+
+    public LocalDate getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDate createdAt) { this.createdAt = createdAt; }
 }

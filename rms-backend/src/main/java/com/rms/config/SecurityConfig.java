@@ -39,9 +39,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/test/email-test").permitAll()
 
-                        // ✅ NEW - Verification demo (TIN + Fayda). Public for now.
-                        .requestMatchers("/api/verification/**").permitAll()
-
                         // Register - ADMIN only
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
 

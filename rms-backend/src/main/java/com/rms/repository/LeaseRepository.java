@@ -4,11 +4,12 @@ import com.rms.entity.Lease;
 import com.rms.entity.LeaseStatus;
 import com.rms.entity.Space;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;   // add this import
-
+@Repository
 public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
     long countByStatus(LeaseStatus status);

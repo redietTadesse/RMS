@@ -1,6 +1,7 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
-const getToken = () => localStorage.getItem('token');
+const getToken = () =>
+  localStorage.getItem('access_token') || localStorage.getItem('token');
 
 const getHeaders = (options = {}) => {
   const headers = options.body instanceof FormData
@@ -135,10 +136,21 @@ export const invoicesApi = {
   getById: (id) => request(`/invoices/${id}`),
   getByStatus: (status) => request(`/invoices/status/${status}`),
   getByTenant: (tenantId) => request(`/invoices/tenant/${tenantId}`),
-  generate: (leaseId) =>
-    request(`/invoices/generate/${leaseId}`, { method: 'POST' }),
+  generate: async (leaseId) => {
+    try {
+      const response = await request(`/invoices/generate/${leaseId}`, { method: 'POST' });
+      return response;
+    } catch (err) {
+      if (err.message?.includes('400')) {
+        return null;
+      }
+      throw err;
+    }
+  },
   markOverdue: () =>
     request('/invoices/test/mark-overdue', { method: 'POST' }),
+  forceOverdue: (id) =>
+    request(`/invoices/test/${id}/force-overdue`, { method: 'POST' }),
   downloadPdf: (id) => {
     const token = getToken();
     return fetch(`${API_BASE}/invoices/${id}/pdf`, {
@@ -224,12 +236,15 @@ export const adminApi = {
 
 // ─── USER PROFILE ───
 export const userApi = {
-  getProfile: () => request('/users/me'),
+  getProfile: () =>
+    request('/users/me'),
+
   updateProfile: (userData) =>
     request('/users/me', {
       method: 'PUT',
       body: JSON.stringify(userData),
     }),
+
   changePassword: (payload) =>
     request('/users/me/password', {
       method: 'PUT',

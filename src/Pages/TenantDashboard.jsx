@@ -1,10 +1,10 @@
-// src/pages/TenantDashboard.jsx - UPDATED WITH DOCUMENTS
-import { useEffect, useState } from 'react';
+// src/pages/TenantDashboard.jsx
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, FileText, CreditCard, AlertCircle, Upload,
   CheckCircle, Clock, Loader2, Calendar, Home,
-  DollarSign
+  DollarSign, Info, TrendingUp, TrendingDown
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { tenantApi, chapaApi, documentsApi } from '../services/api';
@@ -17,6 +17,7 @@ function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
     rose: 'bg-rose-100 text-rose-600',
     blue: 'bg-blue-100 text-blue-600',
     purple: 'bg-purple-100 text-purple-600',
+    slate: 'bg-slate-100 text-slate-600',
   };
 
   return (
@@ -25,6 +26,7 @@ function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
         <div>
           <p className="text-sm text-slate-500 font-medium">{label}</p>
           <p className="text-2xl font-bold text-slate-800 mt-2">{value}</p>
+          {subtext && <p className="text-xs text-slate-400 mt-1">{subtext}</p>}
         </div>
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${colors[color]}`}>
           <Icon className="w-5 h-5" />
@@ -51,6 +53,219 @@ function StatusBadge({ status }) {
   );
 }
 
+function InvoiceCard({ invoice, onPay, onUpload, paying, uploading }) {
+  const isPayable = invoice.status === 'PENDING' || invoice.status === 'OVERDUE';
+  const isSubmitted = invoice.status === 'SUBMITTED';
+  const isPaid = invoice.status === 'PAID';
+  const hasPenalty = invoice.penaltyAmount > 0;
+
+  return (
+    <div className={`border rounded-lg p-4 transition ${
+      invoice.isOverdue ? 'border-rose-200 bg-rose-50/30' :
+      isPaid ? 'border-emerald-200 bg-emerald-50/30' :
+      'border-slate-100 hover:bg-slate-50/60'
+    }`}>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className="font-semibold text-slate-800">{invoice.invoiceNumber}</p>
+            <StatusBadge status={invoice.status} />
+            {invoice.isOverdue && (
+              <span className="text-xs text-rose-600 font-medium bg-rose-100 px-2 py-0.5 rounded-full">
+                {invoice.daysOverdue} days overdue
+              </span>
+            )}
+            {isPaid && invoice.paymentDate && (
+              <span className="text-xs text-emerald-600 font-medium bg-emerald-100 px-2 py-0.5 rounded-full">
+                Paid on {new Date(invoice.paymentDate).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+            <div>
+              <p className="text-slate-500">Amount</p>
+              <p className="font-medium text-slate-800">ETB {Number(invoice.totalAmount).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Due Date</p>
+              <p className={`font-medium ${invoice.isOverdue ? 'text-rose-600' : 'text-slate-800'}`}>
+                {invoice.dueDate}
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-500">Lease Start</p>
+              <p className="text-slate-800">{invoice.leaseStartDate}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Last Payment</p>
+              <p className="text-slate-800">{invoice.lastPaymentDate || 'Never'}</p>
+            </div>
+          </div>
+
+          {hasPenalty && (
+            <div className="mt-2 text-sm bg-rose-50 border border-rose-200 rounded-lg px-3 py-1.5 inline-block">
+              <span className="text-rose-700">⚠️ Penalty: ETB {Number(invoice.penaltyAmount).toLocaleString()}</span>
+              <span className="text-rose-500 text-xs ml-2">
+                ({Math.round((invoice.penaltyAmount / invoice.rentAmount) * 100)}% late fee)
+              </span>
+            </div>
+          )}
+
+          {isPaid && invoice.paymentMethod && (
+            <div className="mt-2 text-sm text-emerald-700">
+              ✅ Paid via {invoice.paymentMethod} on {new Date(invoice.paymentDate).toLocaleDateString()}
+            </div>
+          )}
+
+          {isSubmitted && (
+            <div className="mt-2 text-sm text-blue-600 flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Awaiting admin approval - you'll be notified once confirmed
+            </div>
+          )}
+
+          {invoice.status === 'PENDING' && !invoice.isOverdue && (
+            <div className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-1.5">
+              💡 This invoice is due on {invoice.dueDate}. You can pay online or upload a receipt.
+            </div>
+          )}
+
+          {invoice.isOverdue && (
+            <div className="mt-3 text-xs text-rose-700 bg-rose-100 rounded-lg px-3 py-1.5">
+              ⚠️ This invoice is {invoice.daysOverdue} days overdue. Late fees have been applied. Please pay immediately.
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isSubmitted ? (
+            <span className="text-sm text-blue-600 font-medium whitespace-nowrap">Awaiting approval</span>
+          ) : isPaid ? (
+            <span className="text-sm text-emerald-600 font-medium whitespace-nowrap">Paid ✓</span>
+          ) : isPayable ? (
+            <>
+              <button
+                onClick={() => onPay(invoice)}
+                disabled={paying === invoice.id}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition inline-flex items-center gap-2"
+              >
+                {paying === invoice.id ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Processing</>
+                ) : (
+                  <><CreditCard className="w-4 h-4" /> Pay</>
+                )}
+              </button>
+              <label className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-medium rounded-lg transition inline-flex items-center gap-2 cursor-pointer">
+                {uploading === invoice.id ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Uploading</>
+                ) : (
+                  <><Upload className="w-4 h-4" /> Receipt</>
+                )}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  disabled={uploading === invoice.id}
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) onUpload(invoice, file);
+                  }}
+                />
+              </label>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentHistory({ invoices }) {
+  const paidInvoices = invoices.filter(i => i.status === 'PAID');
+
+  if (paidInvoices.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <Clock className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-lg font-semibold text-slate-800">Payment History</h2>
+        </div>
+        <div className="p-6 text-center">
+          <p className="text-sm text-slate-500">No payments recorded yet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Clock className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-lg font-semibold text-slate-800">Payment History</h2>
+        </div>
+        <span className="text-sm text-slate-500">{paidInvoices.length} payments</span>
+      </div>
+      <div className="p-4 space-y-2">
+        {paidInvoices
+          .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))
+          .map(inv => (
+            <div key={inv.id} className="flex items-center justify-between border-b border-slate-100 pb-2 last:border-0">
+              <div>
+                <p className="text-sm font-medium text-slate-800">{inv.invoiceNumber}</p>
+                <p className="text-xs text-slate-500">
+                  {inv.paymentDate ? new Date(inv.paymentDate).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-semibold text-emerald-600">
+                  ETB {Number(inv.totalAmount).toLocaleString()}
+                </p>
+                <p className="text-xs text-slate-400">{inv.paymentMethod || 'receipt'}</p>
+              </div>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function PaymentSummary({ stats }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <DollarSign className="w-5 h-5 text-emerald-600" />
+        <h2 className="text-lg font-semibold text-slate-800">Payment Summary</h2>
+      </div>
+      <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-slate-50 rounded-lg p-3 text-center">
+          <p className="text-2xl font-bold text-slate-800">{stats?.paidInvoices || 0}</p>
+          <p className="text-xs text-slate-500">Paid</p>
+        </div>
+        <div className="bg-slate-50 rounded-lg p-3 text-center">
+          <p className={`text-2xl font-bold ${(stats?.pendingInvoices || 0) > 0 ? 'text-amber-600' : 'text-slate-800'}`}>
+            {stats?.pendingInvoices || 0}
+          </p>
+          <p className="text-xs text-slate-500">Pending</p>
+        </div>
+        <div className="bg-slate-50 rounded-lg p-3 text-center">
+          <p className={`text-2xl font-bold ${(stats?.submittedInvoices || 0) > 0 ? 'text-blue-600' : 'text-slate-800'}`}>
+            {stats?.submittedInvoices || 0}
+          </p>
+          <p className="text-xs text-slate-500">Awaiting Approval</p>
+        </div>
+        <div className="bg-slate-50 rounded-lg p-3 text-center">
+          <p className={`text-2xl font-bold ${(stats?.overdueInvoices || 0) > 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+            {stats?.overdueInvoices || 0}
+          </p>
+          <p className="text-xs text-slate-500">Overdue</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TenantDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -60,10 +275,8 @@ export default function TenantDashboard() {
   const [invoices, setInvoices] = useState([]);
   const [stats, setStats] = useState(null);
   const [payingId, setPayingId] = useState(null);
-  const [payError, setPayError] = useState('');
   const [uploadingId, setUploadingId] = useState(null);
-
-  // ✅ NEW: Documents state
+  const [payError, setPayError] = useState('');
   const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
 
@@ -97,33 +310,37 @@ export default function TenantDashboard() {
   }, [user, navigate]);
 
   const refresh = async () => {
-    const [invoicesData, statsData] = await Promise.all([
-      tenantApi.getMyInvoices(),
-      tenantApi.getStats(),
-    ]);
-    setInvoices(invoicesData || []);
-    setStats(statsData);
+    try {
+      const [invoicesData, statsData] = await Promise.all([
+        tenantApi.getMyInvoices(),
+        tenantApi.getStats(),
+      ]);
+      setInvoices(invoicesData || []);
+      setStats(statsData);
+    } catch (err) {
+      console.error('Refresh failed:', err);
+    }
   };
 
   const handlePay = async (invoice) => {
     setPayError('');
     setPayingId(invoice.id);
     try {
-      const res = await chapaApi.initialize(invoice.id, {
-        firstName: user?.name?.split(' ')[0] || 'Tenant',
-        lastName: user?.name?.split(' ').slice(1).join(' ') || 'User',
-        email: lease?.tenant?.email || user?.email || 'tenant@example.com',
-        phoneNumber: lease?.tenant?.phone || '0900000000',
-      });
+      const phone = prompt('Enter your phone number (e.g., 0912345678):');
+      if (!phone) {
+        setPayingId(null);
+        return;
+      }
+      const res = await chapaApi.initialize(invoice.id, phone);
       const url = res?.checkoutUrl || res?.checkout_url || res?.data?.checkout_url;
       if (url) {
         window.location.href = url;
       } else {
-        setPayError('Payment started but no checkout link was returned. Contact admin.');
+        setPayError('Payment link not received. Contact admin.');
         setPayingId(null);
       }
     } catch (err) {
-      setPayError(err.message || 'Could not start payment. Please try again.');
+      setPayError(err.message || 'Could not start payment.');
       setPayingId(null);
     }
   };
@@ -136,14 +353,21 @@ export default function TenantDashboard() {
       const today = new Date().toISOString().split('T')[0];
       await tenantApi.submitReceipt(invoice.id, today, file);
       await refresh();
+      alert('✅ Receipt uploaded successfully! Waiting for admin approval.');
     } catch (err) {
-      setPayError(err.message || 'Could not upload receipt. Please try again.');
+      // Handle validation errors from backend
+      if (err.message && err.message.includes('less than expected')) {
+        setPayError('Payment amount validation failed: ' + err.message);
+      } else if (err.message && err.message.includes('exceeds expected')) {
+        setPayError('Payment amount validation failed: ' + err.message);
+      } else {
+        setPayError(err.message || 'Could not upload receipt.');
+      }
     } finally {
       setUploadingId(null);
     }
   };
 
-  // ✅ NEW: Load documents for tenant
   const loadDocuments = async () => {
     setLoadingDocs(true);
     try {
@@ -162,20 +386,13 @@ export default function TenantDashboard() {
     }
   }, [user]);
 
-  // ✅ NEW: Handle document download
   const handleDownload = async (doc) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:8080/api/documents/download/${doc.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -185,7 +402,6 @@ export default function TenantDashboard() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-
     } catch (error) {
       console.error('Download failed:', error);
       alert('Failed to download document. Please try again.');
@@ -219,14 +435,16 @@ export default function TenantDashboard() {
   const hasLease = lease && lease.status === 'ACTIVE';
   const totalInvoices = stats?.totalInvoices || 0;
   const pendingInvoices = stats?.pendingInvoices || 0;
+  const submittedInvoices = stats?.submittedInvoices || 0;
   const paidInvoices = stats?.paidInvoices || 0;
   const overdueInvoices = stats?.overdueInvoices || 0;
   const leaseExpired = lease?.endDate && new Date(lease.endDate) < new Date();
+  const nextDueDate = stats?.nextDueDate;
+  const daysUntilDue = stats?.daysUntilDue;
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
             Welcome back, {user?.name || 'Tenant'} 👋
@@ -234,13 +452,75 @@ export default function TenantDashboard() {
           <p className="text-sm text-slate-500">Here's your rental summary</p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {stats?.nextDueDate && (
+          <div className={`rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
+            daysUntilDue === 0 ? 'bg-rose-50 border border-rose-200' :
+            daysUntilDue <= 3 ? 'bg-amber-50 border border-amber-200' :
+            'bg-indigo-50 border border-indigo-200'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                daysUntilDue === 0 ? 'bg-rose-100' :
+                daysUntilDue <= 3 ? 'bg-amber-100' :
+                'bg-indigo-100'
+              }`}>
+                <Calendar className={`w-5 h-5 ${
+                  daysUntilDue === 0 ? 'text-rose-600' :
+                  daysUntilDue <= 3 ? 'text-amber-600' :
+                  'text-indigo-600'
+                }`} />
+              </div>
+              <div>
+                <p className={`text-sm font-medium ${
+                  daysUntilDue === 0 ? 'text-rose-800' :
+                  daysUntilDue <= 3 ? 'text-amber-800' :
+                  'text-indigo-800'
+                }`}>
+                  {daysUntilDue === 0 ? '🚨 Rent Due Today!' :
+                   daysUntilDue <= 3 ? `⚠️ Rent Due in ${daysUntilDue} Days` :
+                   'Next Rent Due'}
+                </p>
+                <p className={`text-xs ${
+                  daysUntilDue === 0 ? 'text-rose-600' :
+                  daysUntilDue <= 3 ? 'text-amber-600' :
+                  'text-indigo-600'
+                }`}>
+                  {daysUntilDue === 0 ? 'Please make your payment today' :
+                   daysUntilDue <= 3 ? `Due on ${nextDueDate}` :
+                   `Due on ${nextDueDate} (${daysUntilDue} days from now)`}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/tenant-payments"
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition text-center"
+            >
+              View Payments
+            </Link>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <StatCard label="Total Invoices" value={totalInvoices} icon={FileText} color="indigo" />
           <StatCard label="Pending" value={pendingInvoices} icon={Clock} color="amber" />
+          <StatCard label="Awaiting Approval" value={submittedInvoices} icon={Info} color="blue" />
           <StatCard label="Paid" value={paidInvoices} icon={CheckCircle} color="emerald" />
           <StatCard label="Overdue" value={overdueInvoices} icon={AlertCircle} color="rose" />
+          <StatCard 
+            label="Next Rent Due" 
+            value={daysUntilDue !== undefined && daysUntilDue >= 0 ? `${daysUntilDue}d` : 'N/A'} 
+            icon={Calendar} 
+            color="purple"
+            subtext={nextDueDate ? `Due on ${nextDueDate}` : ''}
+          />
         </div>
+
+        {payError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            {payError}
+          </div>
+        )}
 
         {overdueInvoices > 0 && (
           <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -251,7 +531,7 @@ export default function TenantDashboard() {
               <div>
                 <p className="text-sm font-medium text-rose-800">Overdue Invoices</p>
                 <p className="text-xs text-rose-600">
-                  You have {overdueInvoices} overdue invoice(s). Please pay immediately to avoid penalties.
+                  You have {overdueInvoices} overdue invoice(s). Please pay immediately to avoid additional penalties.
                 </p>
               </div>
             </div>
@@ -271,16 +551,12 @@ export default function TenantDashboard() {
                 </p>
               </div>
             </div>
-            <Link
-              to="/profile"
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition text-center"
-            >
+            <Link to="/profile" className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition text-center">
               Contact Admin
             </Link>
           </div>
         )}
 
-        {/* Lease Card */}
         <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Home className="w-5 h-5 text-indigo-600" />
@@ -296,7 +572,7 @@ export default function TenantDashboard() {
               <p className="text-sm text-slate-400">Contact your administrator for assistance.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-slate-50 rounded-lg p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Space</p>
                 <p className="text-lg font-bold text-slate-800 mt-1">
@@ -314,6 +590,26 @@ export default function TenantDashboard() {
                 </p>
               </div>
               <div className="bg-slate-50 rounded-lg p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lease Period</p>
+                <p className="text-sm font-medium text-slate-800 mt-1">
+                  {lease.startDate} → {lease.endDate}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Started: {new Date(lease.startDate).toLocaleDateString()}
+                </p>
+                {daysUntilDue !== undefined && daysUntilDue >= 0 && (
+                  <p className={`text-xs mt-1 ${
+                    daysUntilDue === 0 ? 'text-rose-600 font-medium' :
+                    daysUntilDue <= 3 ? 'text-amber-600' :
+                    'text-slate-500'
+                  }`}>
+                    {daysUntilDue === 0 ? '🚨 Rent due today!' :
+                     daysUntilDue <= 3 ? `⚠️ Rent due in ${daysUntilDue} days` :
+                     `Next rent due: ${daysUntilDue} days`}
+                  </p>
+                )}
+              </div>
+              <div className="bg-slate-50 rounded-lg p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Deposit</p>
                 <p className="text-lg font-bold text-slate-800 mt-1">
                   ETB {Number(lease.deposit || 0).toLocaleString()}
@@ -325,22 +621,18 @@ export default function TenantDashboard() {
                 <div className="mt-1">
                   <StatusBadge status={lease.status} />
                 </div>
-                <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
-                  <Calendar className="w-3 h-3" />
-                  <span>{lease.startDate} → {lease.endDate}</span>
-                </div>
+                {daysUntilDue !== undefined && daysUntilDue >= 0 && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    {daysUntilDue === 0 ? 'Rent due today!' : `${daysUntilDue} days until next rent due`}
+                  </p>
+                )}
               </div>
             </div>
           )}
         </div>
 
-        {payError && (
-          <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-sm text-rose-700 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" /> {payError}
-          </div>
-        )}
+        <PaymentSummary stats={stats} />
 
-        {/* My Invoices */}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -355,77 +647,23 @@ export default function TenantDashboard() {
               <p className="text-slate-500">No invoices yet.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50">
-                  <tr className="text-left text-slate-500">
-                    <th className="px-6 py-3 font-medium">Invoice #</th>
-                    <th className="px-6 py-3 font-medium">Amount</th>
-                    <th className="px-6 py-3 font-medium">Due Date</th>
-                    <th className="px-6 py-3 font-medium">Status</th>
-                    <th className="px-6 py-3 font-medium text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {invoices.slice(0, 10).map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/60 transition">
-                      <td className="px-6 py-3 font-medium text-slate-800">{inv.invoiceNumber}</td>
-                      <td className="px-6 py-3 font-semibold text-slate-800">
-                        ETB {Number(inv.totalAmount).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-3 text-slate-600">{inv.dueDate}</td>
-                      <td className="px-6 py-3">
-                        <StatusBadge status={inv.status} />
-                      </td>
-                      <td className="px-6 py-3 text-right">
-                        {inv.status === 'PAID' ? (
-                          <span className="text-xs text-emerald-600 font-medium">Paid</span>
-                        ) : inv.status === 'SUBMITTED' ? (
-                          <span className="text-xs text-blue-600 font-medium">Awaiting approval</span>
-                        ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => handlePay(inv)}
-                              disabled={payingId === inv.id}
-                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition inline-flex items-center gap-1.5"
-                            >
-                              {payingId === inv.id ? (
-                                <><Loader2 className="w-3 h-3 animate-spin" /> Starting…</>
-                              ) : (
-                                <><CreditCard className="w-3 h-3" /> Pay online</>
-                              )}
-                            </button>
-                            <label className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer">
-                              {uploadingId === inv.id ? (
-                                <><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</>
-                              ) : (
-                                <><Upload className="w-3 h-3" /> Upload receipt</>
-                              )}
-                              <input
-                                type="file"
-                                accept="image/*,.pdf"
-                                className="hidden"
-                                disabled={uploadingId === inv.id}
-                                onChange={(e) => handleReceiptUpload(inv, e.target.files[0])}
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {invoices.length > 10 && (
-                <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 text-sm text-slate-500">
-                  Showing 10 of {invoices.length} invoices
-                </div>
-              )}
+            <div className="p-4 space-y-3">
+              {invoices.map((inv) => (
+                <InvoiceCard
+                  key={inv.id}
+                  invoice={inv}
+                  onPay={handlePay}
+                  onUpload={handleReceiptUpload}
+                  paying={payingId}
+                  uploading={uploadingId}
+                />
+              ))}
             </div>
           )}
         </div>
 
-        {/* ✅ NEW: My Documents */}
+        <PaymentHistory invoices={invoices} />
+
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -453,9 +691,7 @@ export default function TenantDashboard() {
                       <span className="text-slate-300">·</span>
                       <span className="text-sm text-slate-500">{doc.fileName}</span>
                     </div>
-                    {doc.description && (
-                      <p className="text-sm text-slate-500">{doc.description}</p>
-                    )}
+                    {doc.description && <p className="text-sm text-slate-500">{doc.description}</p>}
                     <p className="text-xs text-slate-400 mt-1">
                       Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
                     </p>

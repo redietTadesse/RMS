@@ -1,93 +1,175 @@
-
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
+import tokenManager from '../services/TokenManager';
 import { authApi } from '../services/api';
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const refreshTimeoutRef = useRef(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    
-    console.log('🔍 Auth check - token:', !!token, 'userData:', !!userData);
-    
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-        console.log('✅ User restored from localStorage:', parsedUser.username, 'Role:', parsedUser.role);
-      } catch (err) {
-        console.error('❌ Failed to parse user data:', err);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
-    } else {
-      console.log('❌ No token or user data found');
-    }
-    setLoading(false);
-  }, []);
+    const scheduleTokenRefresh = useCallback((expiry) => {
+        if (refreshTimeoutRef.current) {
+            clearTimeout(refreshTimeoutRef.current);
+        }
 
-  const login = async (username, password) => {
-    setError(null);
-    try {
-      const data = await authApi.login(username, password);
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data));
-      setUser(data);
-      console.log('✅ Login successful:', data.username, 'Role:', data.role);
-      return data;
-    } catch (err) {
-      setError(err.message || 'Login failed');
-      throw err;
-    }
-  };
+        if (!expiry) return;
 
-  const register = async (userData) => {
-    setError(null);
-    try {
-      const data = await authApi.register(userData);
-      console.log('✅ Registration successful:', data.username);
-      return data;
-    } catch (err) {
-      setError(err.message || 'Registration failed');
-      throw err;
-    }
-  };
+        const now = Date.now();
+        const timeUntilExpiry = expiry.getTime() - now;
+        const refreshTime = Math.max(timeUntilExpiry - 5 * 60 * 1000, 60000);
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    console.log('👋 Logged out');
-  };
+        if (refreshTime > 0) {
+            refreshTimeoutRef.current = setTimeout(() => {
+                refreshAccessToken();
+            }, refreshTime);
+        }
+    }, []);
 
-  const value = {
-    user,
-    loading,
-    error,
-    login,
-    register,
-    logout,
-    isAuthenticated: !!user,
-    isAdmin: user?.role === 'ADMIN',
-    isTenant: user?.role === 'TENANT',
-  };
+    const refreshAccessToken = useCallback(async () => {
+        try {
+            const refreshToken = tokenManager.getRefreshToken();
+            if (!refreshToken) {
+                logout();
+                return false;
+            }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+            const response = await authApi.refreshToken(refreshToken);
+
+            if (response?.token) {
+                tokenManager.setTokens(response.token, response.refreshToken || refreshToken);
+
+                if (response.id && response.username) {
+                    tokenManager.setUser({
+                        id: response.id,
+                        username: response.username,
+                        name: response.name,
+                        email: response.email,
+                        role: response.role,
+                    });
+                    setUser({
+                        id: response.id,
+                        username: response.username,
+                        name: response.name,
+                        email: response.email,
+                        role: response.role,
+                    });
+                }
+
+                const expiry = tokenManager.getTokenExpiry();
+                scheduleTokenRefresh(expiry);
+                return true;
+            }
+            return false;
+        } catch (err) {
+            logout();
+            return false;
+        }
+    }, [scheduleTokenRefresh]);
+
+    useEffect(() => {
+        const initAuth = async () => {
+            const token = tokenManager.getAccessToken();
+            const storedUser = tokenManager.getUser();
+
+            if (token && tokenManager.isTokenValid(token)) {
+                setUser(storedUser);
+                const expiry = tokenManager.getTokenExpiry();
+                scheduleTokenRefresh(expiry);
+            } else if (token) {
+                await refreshAccessToken();
+            }
+            setLoading(false);
+        };
+
+        initAuth();
+
+        return () => {
+            if (refreshTimeoutRef.current) {
+                clearTimeout(refreshTimeoutRef.current);
+            }
+        };
+    }, [refreshAccessToken, scheduleTokenRefresh]);
+
+    const login = useCallback(async (username, password) => {
+        setError(null);
+        try {
+            const response = await authApi.login(username, password);
+
+            if (!response?.token) {
+                throw new Error('Invalid login response');
+            }
+
+            tokenManager.setTokens(response.token, response.refreshToken);
+
+            const userData = {
+                id: response.id,
+                username: response.username,
+                name: response.name,
+                email: response.email,
+                role: response.role,
+            };
+
+            tokenManager.setUser(userData);
+            setUser(userData);
+
+            const expiry = tokenManager.getTokenExpiry();
+            scheduleTokenRefresh(expiry);
+
+            return userData;
+        } catch (err) {
+            setError(err.message || 'Login failed');
+            throw err;
+        }
+    }, [scheduleTokenRefresh]);
+
+    const logout = useCallback(async () => {
+        try {
+            const token = tokenManager.getAccessToken();
+            if (token) {
+                await authApi.logout().catch(() => {});
+            }
+        } catch (_) {}
+        finally {
+            tokenManager.clearAll();
+            setUser(null);
+            if (refreshTimeoutRef.current) {
+                clearTimeout(refreshTimeoutRef.current);
+                refreshTimeoutRef.current = null;
+            }
+        }
+    }, []);
+
+    const updateUser = useCallback((userData) => {
+        const updated = { ...user, ...userData };
+        tokenManager.setUser(updated);
+        setUser(updated);
+    }, [user]);
+
+    const value = {
+        user,
+        loading,
+        error,
+        isAuthenticated: !!user,
+        isAdmin: user?.role === 'ADMIN',
+        isTenant: user?.role === 'TENANT',
+        login,
+        logout,
+        updateUser,
+        refreshAccessToken,
+    };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth must be used within AuthProvider');
+    }
+    return context;
 };
+
+export default AuthContext;

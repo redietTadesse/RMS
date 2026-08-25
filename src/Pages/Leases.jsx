@@ -1,6 +1,5 @@
-// src/pages/Leases.jsx
 import { useState, useEffect } from 'react';
-import { leasesApi, tenantsApi, spacesApi } from '../services/api';
+import { leasesApi, tenantsApi, spacesApi, invoicesApi } from '../services/api';
 import { FaEdit, FaTrash, FaPlus, FaFileInvoice } from 'react-icons/fa';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { Loader2, X, CheckCircle, AlertCircle } from 'lucide-react';
@@ -41,6 +40,7 @@ export default function Leases() {
     deposit: '',
     prepaymentMonths: '3',
     dueDay: '1',
+    billingFrequency: 'MONTHLY',
   });
 
   const loadData = async () => {
@@ -76,6 +76,7 @@ export default function Leases() {
       deposit: '',
       prepaymentMonths: '3',
       dueDay: '1',
+      billingFrequency: 'MONTHLY',
     });
     setEditingId(null);
   };
@@ -84,6 +85,22 @@ export default function Leases() {
     resetForm();
     setShowForm(true);
   };
+  const handleGenerateInvoice = async (leaseId) => {
+  const lease = leases.find(l => l.id === leaseId);
+  if (!window.confirm(`Generate invoice for ${lease?.tenant?.name || 'tenant'}?`)) return;
+  
+  try {
+    const invoice = await invoicesApi.generate(leaseId);
+    if (!invoice) {
+      alert('ℹ️ Invoice already exists for this month');
+    } else {
+      alert('✅ Invoice generated successfully!');
+    }
+    await loadData();
+  } catch (err) {
+    alert('❌ Failed to generate invoice: ' + err.message);
+  }
+};
 
   const handleEdit = (lease) => {
     setEditingId(lease.id);
@@ -96,6 +113,7 @@ export default function Leases() {
       deposit: lease.deposit?.toString() || '',
       prepaymentMonths: lease.prepaymentMonths?.toString() || '3',
       dueDay: lease.dueDay?.toString() || '1',
+      billingFrequency: lease.billingFrequency || 'MONTHLY',
     });
     setShowForm(true);
   };
@@ -131,6 +149,7 @@ export default function Leases() {
       deposit: parseFloat(formData.deposit) || 0,
       prepaymentMonths: parseInt(formData.prepaymentMonths),
       dueDay: parseInt(formData.dueDay),
+      billingFrequency: formData.billingFrequency,
     };
 
     try {
@@ -286,6 +305,13 @@ export default function Leases() {
                     className={inputClass}
                     required
                   />
+                  {formData.startDate && (
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      {new Date(formData.startDate).getDate() <= 15 
+                        ? '✅ Full month payment (1st-15th start)' 
+                        : '📊 Prorated payment (after 15th start)'}
+                    </p>
+                  )}
                 </div>
 
                 {/* End Date */}
@@ -358,6 +384,21 @@ export default function Leases() {
                     ))}
                   </select>
                 </div>
+
+                {/* Billing Frequency */}
+                <div>
+                  <label className={labelClass}>Billing Frequency</label>
+                  <select
+                    name="billingFrequency"
+                    value={formData.billingFrequency}
+                    onChange={handleChange}
+                    className={inputClass}
+                  >
+                    <option value="MONTHLY">Monthly</option>
+                    <option value="QUARTERLY">Quarterly</option>
+                    <option value="ANNUALLY">Annually</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -388,7 +429,7 @@ export default function Leases() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {['Tenant', 'Space', 'Start', 'End', 'Rent', 'Status', 'Actions'].map((h) => (
+                {['Tenant', 'Space', 'Start', 'End', 'Rent', 'Billing', 'Status', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     {h}
                   </th>
@@ -420,6 +461,11 @@ export default function Leases() {
                     <td className="px-4 py-3 font-semibold text-slate-800">
                       ETB {Number(lease.monthlyRent).toLocaleString()}
                     </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      <span className="px-2 py-1 bg-slate-100 rounded text-xs font-medium">
+                        {lease.billingFrequency || 'MONTHLY'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3"><StatusBadge status={lease.status} /></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
@@ -447,6 +493,7 @@ export default function Leases() {
                           <FaTrash className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => handleGenerateInvoice(lease.id)}
                           className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
                           title="Generate Invoice"
                         >

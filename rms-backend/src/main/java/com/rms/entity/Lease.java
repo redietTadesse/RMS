@@ -42,7 +42,32 @@ public class Lease {
     @Column(nullable = false)
     private LeaseStatus status = LeaseStatus.ACTIVE;
 
-    
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDate createdAt = LocalDate.now();
+
+    @Column(name = "updated_at")
+    private LocalDate updatedAt;
+
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_frequency")
+    private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
+
+    @Column(name = "next_billing_date")
+    private LocalDate nextBillingDate;
+
+    @Column(name = "first_invoice_prorated")
+    private Boolean firstInvoiceProrated = false;
+
+    // Getters and Setters
+    public BillingFrequency getBillingFrequency() { return billingFrequency; }
+    public void setBillingFrequency(BillingFrequency billingFrequency) { this.billingFrequency = billingFrequency; }
+    public LocalDate getNextBillingDate() { return nextBillingDate; }
+    public void setNextBillingDate(LocalDate nextBillingDate) { this.nextBillingDate = nextBillingDate; }
+
+    public Boolean getFirstInvoiceProrated() { return firstInvoiceProrated; }
+    public void setFirstInvoiceProrated(Boolean firstInvoiceProrated) { this.firstInvoiceProrated = firstInvoiceProrated; }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -72,4 +97,11 @@ public class Lease {
 
     public LeaseStatus getStatus() { return status; }
     public void setStatus(LeaseStatus status) { this.status = status; }
+
+    public LocalDate getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDate createdAt) { this.createdAt = createdAt; }
+
+    public LocalDate getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDate updatedAt) { this.updatedAt = updatedAt; }
 }
+
