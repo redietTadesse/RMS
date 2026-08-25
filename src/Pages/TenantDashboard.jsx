@@ -355,7 +355,14 @@ export default function TenantDashboard() {
       await refresh();
       alert('✅ Receipt uploaded successfully! Waiting for admin approval.');
     } catch (err) {
-      setPayError(err.message || 'Could not upload receipt.');
+      // Handle validation errors from backend
+      if (err.message && err.message.includes('less than expected')) {
+        setPayError('Payment amount validation failed: ' + err.message);
+      } else if (err.message && err.message.includes('exceeds expected')) {
+        setPayError('Payment amount validation failed: ' + err.message);
+      } else {
+        setPayError(err.message || 'Could not upload receipt.');
+      }
     } finally {
       setUploadingId(null);
     }

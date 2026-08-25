@@ -76,7 +76,14 @@ export default function TenantPayments() {
       await loadInvoices();
       alert('✅ Receipt uploaded! Admin will review it.');
     } catch (err) {
-      setPayError(err.message || 'Could not upload receipt.');
+      // Handle validation errors from backend
+      if (err.message && err.message.includes('less than expected')) {
+        setPayError('Payment amount validation failed: ' + err.message);
+      } else if (err.message && err.message.includes('exceeds expected')) {
+        setPayError('Payment amount validation failed: ' + err.message);
+      } else {
+        setPayError(err.message || 'Could not upload receipt.');
+      }
     } finally {
       setUploadingId(null);
     }
