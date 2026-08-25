@@ -47,8 +47,33 @@ public class PaymentService {
             throw new IllegalArgumentException("Invoice already paid");
         }
 
+        // Validate status transition
+        if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.SUBMITTED)) {
+            throw new IllegalArgumentException("Invalid status transition from " + 
+                invoice.getStatus() + " to SUBMITTED");
+        }
+
         BigDecimal penalty = calculatePenalty(invoice, request.getPaymentDate());
-        BigDecimal totalAmount = invoice.getRentAmount().add(penalty);
+        BigDecimal expectedTotal = invoice.getRentAmount().add(penalty);
+
+        // Validate payment amount if provided (for manual payments)
+        // Chapa payments don't include amount in request, so we skip validation for those
+        if (request.getAmount() != null && !"CHAPA".equalsIgnoreCase(request.getPaymentMethod())) {
+            BigDecimal paymentAmount = request.getAmount();
+            BigDecimal tolerance = expectedTotal.multiply(BigDecimal.valueOf(0.01)); // 1% tolerance
+            
+            if (paymentAmount.compareTo(expectedTotal.subtract(tolerance)) < 0) {
+                throw new IllegalArgumentException("Payment amount " + paymentAmount + 
+                    " is less than expected total " + expectedTotal + 
+                    " (minimum allowed: " + expectedTotal.subtract(tolerance) + ")");
+            }
+            
+            if (paymentAmount.compareTo(expectedTotal.add(tolerance)) > 0) {
+                throw new IllegalArgumentException("Payment amount " + paymentAmount + 
+                    " exceeds expected total " + expectedTotal + 
+                    " (maximum allowed: " + expectedTotal.add(tolerance) + ")");
+            }
+        }
 
         String receiptPath = null;
         if (receipt != null && !receipt.isEmpty()) {
@@ -56,7 +81,7 @@ public class PaymentService {
         }
 
         invoice.setPenaltyAmount(penalty);
-        invoice.setTotalAmount(totalAmount);
+        invoice.setTotalAmount(expectedTotal);
         invoice.setStatus(InvoiceStatus.SUBMITTED);
         invoice.setPaymentMethod(request.getPaymentMethod());
         invoice.setPaymentDate(request.getPaymentDate());
@@ -81,6 +106,12 @@ public class PaymentService {
 
         if (invoice.getStatus() != InvoiceStatus.SUBMITTED) {
             throw new IllegalArgumentException("Only submitted payments can be approved");
+        }
+
+        // Validate status transition
+        if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.PAID)) {
+            throw new IllegalArgumentException("Invalid status transition from " + 
+                invoice.getStatus() + " to PAID");
         }
 
         invoice.setStatus(InvoiceStatus.PAID);
@@ -134,5 +165,27 @@ public class PaymentService {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         return calculatePenalty(invoice, paymentDate);
+    }
+
+    private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
+        // Valid transitions:
+        // PENDING -> SUBMITTED (tenant submits payment)
+        // PENDING -> OVERDUE (scheduled task marks overdue)
+        // SUBMITTED -> PAID (admin approves payment)
+        // OVERDUE -> SUBMITTED (tenant submits late payment)
+        // OVERDUE -> PAID (admin approves late payment)
+        // No other transitions are valid
+        switch (from) {
+            case PENDING:
+                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE;
+            case SUBMITTED:
+                return to == InvoiceStatus.PAID;
+            case OVERDUE:
+                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
+            case PAID:
+                return false; // Already paid, no further transitions
+            default:
+                return false;
+        }
     }
 }

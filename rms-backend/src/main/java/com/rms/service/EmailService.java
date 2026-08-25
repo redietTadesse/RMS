@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 @Service
@@ -54,6 +55,31 @@ public class EmailService {
             );
         } catch (Exception e) {
             System.err.println("Failed to send invoice email: " + e.getMessage());
+        }
+    }
+
+    public void sendRentDueEmail(User tenant, Lease lease) {
+        try {
+            int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 1;
+            LocalDate dueDate = LocalDate.now().withDayOfMonth(Math.min(dueDay, LocalDate.now().lengthOfMonth()));
+
+            Context context = new Context();
+            context.setVariable("tenantName", tenant.getName());
+            context.setVariable("spaceUnit", lease.getSpace().getUnitNumber());
+            context.setVariable("amount", lease.getMonthlyRent());
+            context.setVariable("dueDate", dueDate.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("paymentUrl", baseUrl + "/payments");
+            context.setVariable("year", java.time.Year.now().getValue());
+
+            String htmlContent = templateEngine.process("email/rent-due", context);
+            sendHtmlEmail(
+                    tenant.getEmail(),
+                    "🚨 Rent Due Today: " + lease.getSpace().getUnitNumber(),
+                    htmlContent
+            );
+            System.out.println("✅ Rent due email sent to: " + tenant.getEmail());
+        } catch (Exception e) {
+            System.err.println("Failed to send rent due email: " + e.getMessage());
         }
     }
 

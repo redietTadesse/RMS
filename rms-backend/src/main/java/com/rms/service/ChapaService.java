@@ -17,7 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -90,6 +96,15 @@ public class ChapaService {
         payload.put("phone_number", phoneNumber);
         payload.put("callback_url", redirectUrl + "?status=success&tx_ref=" + txRef);
         payload.put("return_url", redirectUrl + "?status=return&tx_ref=" + txRef);
+        
+        // Add metadata for webhook processing
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("invoice_number", invoice.getInvoiceNumber());
+        metadata.put("invoice_id", invoice.getId());
+        metadata.put("tenant_id", tenant.getId());
+        metadata.put("lease_id", invoice.getLease().getId());
+        payload.put("meta", metadata);
+        
         payload.put("customization", Map.of(
                 "title", "RMS Payment",
                 "description", "Payment for Invoice " + invoice.getInvoiceNumber()
@@ -163,22 +178,45 @@ public class ChapaService {
     @Transactional
     public void processWebhook(Map<String, Object> payload, String signature) {
         if (!verifyWebhookSignature(payload, signature)) {
+            System.err.println("❌ Invalid webhook signature");
             throw new IllegalArgumentException("Invalid webhook signature");
         }
 
         String event = (String) payload.get("event");
         if (event != null && event.equals("charge.success")) {
             String txRef = (String) payload.get("tx_ref");
+            
             @SuppressWarnings("unchecked")
             Map<String, Object> meta = (Map<String, Object>) payload.get("meta");
+            
+            if (meta == null) {
+                System.err.println("❌ Metadata missing in webhook payload");
+                throw new IllegalArgumentException("Metadata missing in webhook payload");
+            }
+            
             String invoiceNumber = (String) meta.get("invoice_number");
 
             if (invoiceNumber == null) {
-                throw new IllegalArgumentException("Invoice number missing in webhook");
+                System.err.println("❌ Invoice number missing in webhook metadata");
+                throw new IllegalArgumentException("Invoice number missing in webhook metadata");
             }
 
             Invoice invoice = invoiceRepository.findByInvoiceNumber(invoiceNumber)
-                    .orElseThrow(() -> new IllegalArgumentException("Invoice not found: " + invoiceNumber));
+                    .orElseThrow(() -> {
+                        System.err.println("❌ Invoice not found: " + invoiceNumber);
+                        return new IllegalArgumentException("Invoice not found: " + invoiceNumber);
+                    });
+
+            if (invoice.getStatus() == InvoiceStatus.PAID) {
+                System.out.println("⚠️ Invoice " + invoiceNumber + " already paid, skipping duplicate webhook");
+                return;
+            }
+
+            // Validate status transition for Chapa payments
+            if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.PAID)) {
+                System.err.println("❌ Invalid status transition from " + invoice.getStatus() + " to PAID for Chapa payment");
+                throw new IllegalArgumentException("Invalid status transition for invoice " + invoiceNumber);
+            }
 
             invoice.setStatus(InvoiceStatus.PAID);
             invoice.setPaymentDate(LocalDate.now());
@@ -191,14 +229,70 @@ public class ChapaService {
             }
 
             System.out.println("✅ Payment recorded via webhook: " + txRef + " for invoice " + invoiceNumber);
+        } else {
+            System.out.println("ℹ️ Webhook event not processed: " + event);
         }
     }
 
     /**
-     * Verify webhook signature
+     * Verify webhook signature using HMAC SHA256
      */
     private boolean verifyWebhookSignature(Map<String, Object> payload, String signature) {
-        // HMAC SHA256 verification — see https://developer.chapa.co/integrations/webhooks
-        return true; // Simplified for now
+        try {
+            if (webhookSecret == null || webhookSecret.isEmpty()) {
+                System.err.println("Webhook secret not configured");
+                return false;
+            }
+
+            // Convert payload to JSON string for signature calculation
+            ObjectMapper mapper = new ObjectMapper();
+            String payloadJson = mapper.writeValueAsString(payload);
+
+            // Calculate HMAC SHA256
+            Mac mac = Mac.getInstance("HmacSHA256");
+            SecretKeySpec secretKeySpec = new SecretKeySpec(
+                webhookSecret.getBytes(StandardCharsets.UTF_8), 
+                "HmacSHA256"
+            );
+            mac.init(secretKeySpec);
+            byte[] signatureBytes = mac.doFinal(payloadJson.getBytes(StandardCharsets.UTF_8));
+            
+            // Convert to Base64 for comparison
+            String calculatedSignature = Base64.getEncoder().encodeToString(signatureBytes);
+            
+            // Compare signatures
+            return calculatedSignature.equals(signature);
+            
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            System.err.println("Error calculating webhook signature: " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            System.err.println("Error verifying webhook signature: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
+        // Valid transitions:
+        // PENDING -> SUBMITTED (tenant submits payment)
+        // PENDING -> OVERDUE (scheduled task marks overdue)
+        // SUBMITTED -> PAID (admin approves payment)
+        // OVERDUE -> SUBMITTED (tenant submits late payment)
+        // OVERDUE -> PAID (admin approves late payment)
+        // PENDING -> PAID (Chapa direct payment)
+        // OVERDUE -> PAID (Chapa direct payment for overdue invoices)
+        // No other transitions are valid
+        switch (from) {
+            case PENDING:
+                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE || to == InvoiceStatus.PAID;
+            case SUBMITTED:
+                return to == InvoiceStatus.PAID;
+            case OVERDUE:
+                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
+            case PAID:
+                return false; // Already paid, no further transitions
+            default:
+                return false;
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.rms.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class PaymentRequest {
@@ -10,12 +11,16 @@ public class PaymentRequest {
     private LocalDate paymentDate;
 
     @NotBlank(message = "Payment method is required")
-    private String paymentMethod; 
+    private String paymentMethod;
 
-    
+    private BigDecimal amount;
+
     public LocalDate getPaymentDate() { return paymentDate; }
     public void setPaymentDate(LocalDate paymentDate) { this.paymentDate = paymentDate; }
 
     public String getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+
+    public BigDecimal getAmount() { return amount; }
+    public void setAmount(BigDecimal amount) { this.amount = amount; }
 }

@@ -48,6 +48,26 @@ public class Lease {
     @Column(name = "updated_at")
     private LocalDate updatedAt;
 
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "billing_frequency")
+    private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
+
+    @Column(name = "next_billing_date")
+    private LocalDate nextBillingDate;
+
+    @Column(name = "first_invoice_prorated")
+    private Boolean firstInvoiceProrated = false;
+
+    // Getters and Setters
+    public BillingFrequency getBillingFrequency() { return billingFrequency; }
+    public void setBillingFrequency(BillingFrequency billingFrequency) { this.billingFrequency = billingFrequency; }
+    public LocalDate getNextBillingDate() { return nextBillingDate; }
+    public void setNextBillingDate(LocalDate nextBillingDate) { this.nextBillingDate = nextBillingDate; }
+
+    public Boolean getFirstInvoiceProrated() { return firstInvoiceProrated; }
+    public void setFirstInvoiceProrated(Boolean firstInvoiceProrated) { this.firstInvoiceProrated = firstInvoiceProrated; }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -84,3 +104,4 @@ public class Lease {
     public LocalDate getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDate updatedAt) { this.updatedAt = updatedAt; }
 }
+
