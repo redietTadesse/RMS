@@ -9,7 +9,6 @@ import com.rms.repository.UserRepository;
 import com.rms.util.JwtUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -19,16 +18,13 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final RefreshTokenService refreshTokenService;  // ✅ ADD THIS
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil,
-                       RefreshTokenService refreshTokenService) {  // ✅ ADD
+                       JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
-        this.refreshTokenService = refreshTokenService;
     }
 
     public User register(CreateUserRequest request) {
@@ -40,7 +36,7 @@ public class AuthService {
         user.setUsername(request.getUsername());
         user.setName(request.getName());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setEmail(request.getEmail());
+        user.setEmail(request.getEmail());  // ← ADD THIS
 
         Role role = Role.TENANT;
         if (request.getRole() != null && !request.getRole().isBlank()) {
@@ -56,7 +52,6 @@ public class AuthService {
         return userRepository.save(user);
     }
 
-    @Transactional
     public AuthResponse login(AuthRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
@@ -72,57 +67,16 @@ public class AuthService {
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
-        String accessToken = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
-        String refreshToken = refreshTokenService.createRefreshToken(user);
+        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
 
-        AuthResponse response = new AuthResponse();
-        response.setToken(accessToken);
-        response.setRefreshToken(refreshToken);
-        response.setId(user.getId());
-        response.setUsername(user.getUsername());
-        response.setName(user.getName());
-        response.setEmail(user.getEmail());
-        response.setRole(user.getRole().name());
-        return response;
-    }
-
-    public AuthResponse refreshToken(String refreshToken) {
-        User user = refreshTokenService.validateAndGetUser(refreshToken);
-        String newAccessToken = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
-
-        // Optionally rotate refresh token:
-        // String newRefreshToken = refreshTokenService.createRefreshToken(user);
-        // Then revoke the old one automatically via deleteByUser in createRefreshToken.
-
-        AuthResponse response = new AuthResponse();
-        response.setToken(newAccessToken);
-        // If you rotate refresh token, set it here:
-        // response.setRefreshToken(newRefreshToken);
-        // Otherwise, keep the same one or set to null:
-        // response.setRefreshToken(refreshToken); // or null if not rotating
-        response.setId(user.getId());
-        response.setUsername(user.getUsername());
-        response.setName(user.getName());
-        response.setEmail(user.getEmail());
-        response.setRole(user.getRole().name());
-        return response;
-    }
-
-    @Transactional
-    public void logout(String username) {
-        User user = getCurrentUser(username);
-        refreshTokenService.revokeAllUserTokens(user);
+        return new AuthResponse(token, user.getUsername(), user.getName(), user.getRole().name());
     }
 
     public User getCurrentUser(String username) {
-        if (username == null || username.isBlank()) {
-            throw new IllegalArgumentException("Username cannot be null or empty");
-        }
         return userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 
-    @Transactional
     public void changePassword(String username, String currentPassword, String newPassword, String confirmPassword) {
         User user = getCurrentUser(username);
 
@@ -138,10 +92,5 @@ public class AuthService {
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-    }
-
-    @Transactional
-    public User updateUser(User user) {
-        return userRepository.save(user);
     }
 }

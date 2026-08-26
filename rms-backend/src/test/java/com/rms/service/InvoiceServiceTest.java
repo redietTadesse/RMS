@@ -1,0 +1,154 @@
+package com.rms.service;
+
+import com.rms.entity.Invoice;
+import com.rms.entity.InvoiceStatus;
+import com.rms.entity.Lease;
+import com.rms.repository.InvoiceRepository;
+import com.rms.repository.LeaseRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class InvoiceServiceTest {
+
+    @Mock
+    private InvoiceRepository invoiceRepository;
+
+    @Mock
+    private LeaseRepository leaseRepository;
+
+    @Mock
+    private SettingsService settingsService;
+
+    @Mock
+    private NotificationService notificationService;
+
+    @Mock
+    private EmailService emailService;
+
+    @InjectMocks
+    private InvoiceService invoiceService;
+
+    private Lease testLease;
+    private Invoice testInvoice;
+
+    @BeforeEach
+    void setUp() {
+        testLease = new Lease();
+        testLease.setId(1L);
+        testLease.setMonthlyRent(new BigDecimal("60000"));
+        testLease.setDueDay(10);
+
+        testInvoice = new Invoice();
+        testInvoice.setId(1L);
+        testInvoice.setInvoiceNumber("INV-2026-0001");
+        testInvoice.setLease(testLease);
+        testInvoice.setRentAmount(new BigDecimal("60000"));
+        testInvoice.setTotalAmount(new BigDecimal("60000"));
+        testInvoice.setStatus(InvoiceStatus.PENDING);
+        testInvoice.setDueDate(LocalDate.of(2026, 8, 10));
+    }
+
+    // ✅ TEST 1: Generate invoice success
+    @Test
+    void generateInvoice_ShouldCreateInvoice_WhenLeaseIsActive() {
+        when(leaseRepository.findById(1L)).thenReturn(Optional.of(testLease));
+        when(invoiceRepository.existsByLeaseAndIssueDateBetween(any(), any(), any())).thenReturn(false);
+        when(invoiceRepository.save(any(Invoice.class))).thenReturn(testInvoice);
+
+        Invoice result = invoiceService.generateInvoice(1L);
+
+        assertNotNull(result);
+        assertEquals("INV-2026-0001", result.getInvoiceNumber());
+        assertEquals(new BigDecimal("60000"), result.getRentAmount());
+        assertEquals(InvoiceStatus.PENDING, result.getStatus());
+        verify(invoiceRepository).save(any(Invoice.class));
+    }
+
+    // ✅ TEST 2: Skip duplicate invoice
+    @Test
+    void generateInvoice_ShouldReturnNull_WhenInvoiceAlreadyExists() {
+        when(leaseRepository.findById(1L)).thenReturn(Optional.of(testLease));
+        when(invoiceRepository.existsByLeaseAndIssueDateBetween(any(), any(), any())).thenReturn(true);
+
+        Invoice result = invoiceService.generateInvoice(1L);
+
+        assertNull(result);
+        verify(invoiceRepository, never()).save(any(Invoice.class));
+    }
+
+    // ✅ TEST 3: Mark overdue invoices
+    @Test
+    void markOverdueInvoices_ShouldMarkOverdue_WhenDueDatePassed() {
+        List<Invoice> pendingInvoices = new ArrayList<>();
+        Invoice pastDueInvoice = new Invoice();
+        pastDueInvoice.setId(1L);
+        pastDueInvoice.setDueDate(LocalDate.now().minusDays(5));
+        pastDueInvoice.setStatus(InvoiceStatus.PENDING);
+        pastDueInvoice.setRentAmount(new BigDecimal("60000"));
+        pastDueInvoice.setPenaltyAmount(BigDecimal.ZERO);
+        pendingInvoices.add(pastDueInvoice);
+
+        when(invoiceRepository.findByStatus(InvoiceStatus.PENDING)).thenReturn(pendingInvoices);
+        when(settingsService.getIntSetting("penalty_rate", 20)).thenReturn(20);
+
+        invoiceService.markOverdueInvoices();
+
+        assertEquals(InvoiceStatus.OVERDUE, pastDueInvoice.getStatus());
+        assertEquals(new BigDecimal("12000"), pastDueInvoice.getPenaltyAmount());
+        verify(invoiceRepository).save(pastDueInvoice);
+    }
+
+    // ✅ TEST 4: Don't mark non-overdue invoices
+    @Test
+    void markOverdueInvoices_ShouldNotChange_WhenDueDateNotPassed() {
+        List<Invoice> pendingInvoices = new ArrayList<>();
+        Invoice futureInvoice = new Invoice();
+        futureInvoice.setId(1L);
+        futureInvoice.setDueDate(LocalDate.now().plusDays(5));
+        futureInvoice.setStatus(InvoiceStatus.PENDING);
+        pendingInvoices.add(futureInvoice);
+
+        when(invoiceRepository.findByStatus(InvoiceStatus.PENDING)).thenReturn(pendingInvoices);
+
+        invoiceService.markOverdueInvoices();
+
+        assertEquals(InvoiceStatus.PENDING, futureInvoice.getStatus());
+        verify(invoiceRepository, never()).save(any(Invoice.class));
+    }
+
+    // ✅ TEST 5: Get invoice by ID
+    @Test
+    void getInvoiceById_ShouldReturnInvoice_WhenFound() {
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
+
+        Invoice result = invoiceService.getInvoiceById(1L);
+
+        assertNotNull(result);
+        assertEquals(1L, result.getId());
+        assertEquals("INV-2026-0001", result.getInvoiceNumber());
+    }
+
+    // ✅ TEST 6: Get invoice by ID - not found
+    @Test
+    void getInvoiceById_ShouldThrowException_WhenNotFound() {
+        when(invoiceRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> invoiceService.getInvoiceById(99L));
+    }
+}
