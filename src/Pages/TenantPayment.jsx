@@ -1,3 +1,4 @@
+// src/Pages/TenantPayments.jsx
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { tenantApi, chapaApi } from '../services/api';
@@ -76,14 +77,7 @@ export default function TenantPayments() {
       await loadInvoices();
       alert('✅ Receipt uploaded! Admin will review it.');
     } catch (err) {
-      // Handle validation errors from backend
-      if (err.message && err.message.includes('less than expected')) {
-        setPayError('Payment amount validation failed: ' + err.message);
-      } else if (err.message && err.message.includes('exceeds expected')) {
-        setPayError('Payment amount validation failed: ' + err.message);
-      } else {
-        setPayError(err.message || 'Could not upload receipt.');
-      }
+      setPayError(err.message || 'Could not upload receipt.');
     } finally {
       setUploadingId(null);
     }
@@ -100,6 +94,10 @@ export default function TenantPayments() {
     );
   }
 
+  const totalPending = invoices
+    .filter(i => i.status === 'PENDING' || i.status === 'OVERDUE')
+    .reduce((sum, i) => sum + (i.totalAmount || 0), 0);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -107,6 +105,19 @@ export default function TenantPayments() {
           <h1 className="text-2xl font-bold text-slate-800">My Payments</h1>
           <p className="text-sm text-slate-500">View and pay your invoices</p>
         </div>
+
+        {totalPending > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">Outstanding Balance</p>
+              <p className="text-xs text-amber-600">
+                ETB {totalPending.toLocaleString()} due across{' '}
+                {invoices.filter(i => i.status === 'PENDING' || i.status === 'OVERDUE').length} invoice(s)
+              </p>
+            </div>
+          </div>
+        )}
 
         {payError && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-center gap-2">
@@ -137,7 +148,7 @@ export default function TenantPayments() {
                     <th className="px-6 py-3 font-medium">Amount</th>
                     <th className="px-6 py-3 font-medium">Due Date</th>
                     <th className="px-6 py-3 font-medium">Status</th>
-                    <th className="px-6 py-3 font-medium text-right">Action</th>
+                    <th className="px-6 py-3 text-right font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">

@@ -3,9 +3,11 @@ package com.rms.service;
 import com.rms.dto.PaymentRequest;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
+import com.rms.entity.LeaseStatus;
 import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
 import com.rms.repository.UserRepository;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -47,31 +49,29 @@ public class PaymentService {
             throw new IllegalArgumentException("Invoice already paid");
         }
 
-        // Validate status transition
+        if (invoice.getLease().getStatus() != LeaseStatus.ACTIVE) {
+            throw new IllegalArgumentException("Lease is no longer active. Cannot process payment.");
+        }
+
         if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.SUBMITTED)) {
-            throw new IllegalArgumentException("Invalid status transition from " + 
-                invoice.getStatus() + " to SUBMITTED");
+            throw new IllegalArgumentException("Invalid status transition from " +
+                    invoice.getStatus() + " to SUBMITTED");
         }
 
         BigDecimal penalty = calculatePenalty(invoice, request.getPaymentDate());
         BigDecimal expectedTotal = invoice.getRentAmount().add(penalty);
 
-        // Validate payment amount if provided (for manual payments)
-        // Chapa payments don't include amount in request, so we skip validation for those
         if (request.getAmount() != null && !"CHAPA".equalsIgnoreCase(request.getPaymentMethod())) {
-            BigDecimal paymentAmount = request.getAmount();
-            BigDecimal tolerance = expectedTotal.multiply(BigDecimal.valueOf(0.01)); // 1% tolerance
-            
-            if (paymentAmount.compareTo(expectedTotal.subtract(tolerance)) < 0) {
-                throw new IllegalArgumentException("Payment amount " + paymentAmount + 
-                    " is less than expected total " + expectedTotal + 
-                    " (minimum allowed: " + expectedTotal.subtract(tolerance) + ")");
+            BigDecimal tolerance = expectedTotal.multiply(BigDecimal.valueOf(0.01));
+
+            if (request.getAmount().compareTo(expectedTotal.subtract(tolerance)) < 0) {
+                throw new IllegalArgumentException("Payment amount " + request.getAmount() +
+                        " is less than expected total " + expectedTotal);
             }
-            
-            if (paymentAmount.compareTo(expectedTotal.add(tolerance)) > 0) {
-                throw new IllegalArgumentException("Payment amount " + paymentAmount + 
-                    " exceeds expected total " + expectedTotal + 
-                    " (maximum allowed: " + expectedTotal.add(tolerance) + ")");
+
+            if (request.getAmount().compareTo(expectedTotal.add(tolerance)) > 0) {
+                throw new IllegalArgumentException("Payment amount " + request.getAmount() +
+                        " exceeds expected total " + expectedTotal);
             }
         }
 
@@ -80,23 +80,27 @@ public class PaymentService {
             receiptPath = fileStorageService.storeReceipt(receipt, invoiceId);
         }
 
-        invoice.setPenaltyAmount(penalty);
-        invoice.setTotalAmount(expectedTotal);
-        invoice.setStatus(InvoiceStatus.SUBMITTED);
-        invoice.setPaymentMethod(request.getPaymentMethod());
-        invoice.setPaymentDate(request.getPaymentDate());
-        invoice.setReceiptPath(receiptPath);
+        try {
+            invoice.setPenaltyAmount(penalty);
+            invoice.setTotalAmount(expectedTotal);
+            invoice.setStatus(InvoiceStatus.SUBMITTED);
+            invoice.setPaymentMethod(request.getPaymentMethod());
+            invoice.setPaymentDate(request.getPaymentDate());
+            invoice.setReceiptPath(receiptPath);
 
-        Invoice saved = invoiceRepository.save(invoice);
+            Invoice saved = invoiceRepository.save(invoice);
 
-        notifyAdminOfSubmittedPayment(saved);
+            notifyAdminOfSubmittedPayment(saved);
 
-        User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
-        if (user != null && user.getEmail() != null) {
-            emailService.sendPaymentConfirmationEmail(user, saved);
+            User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+            if (user != null && user.getEmail() != null) {
+                emailService.sendPaymentConfirmationEmail(user, saved);
+            }
+
+            return saved;
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Invoice was updated by another process. Please try again.");
         }
-
-        return saved;
     }
 
     @Transactional
@@ -108,44 +112,79 @@ public class PaymentService {
             throw new IllegalArgumentException("Only submitted payments can be approved");
         }
 
-        // Validate status transition
+        if (invoice.getLease().getStatus() != LeaseStatus.ACTIVE) {
+            throw new IllegalArgumentException("Lease is no longer active. Cannot approve payment.");
+        }
+
         if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.PAID)) {
-            throw new IllegalArgumentException("Invalid status transition from " + 
-                invoice.getStatus() + " to PAID");
+            throw new IllegalArgumentException("Invalid status transition from " +
+                    invoice.getStatus() + " to PAID");
         }
 
-        invoice.setStatus(InvoiceStatus.PAID);
-        Invoice saved = invoiceRepository.save(invoice);
+        try {
+            invoice.setStatus(InvoiceStatus.PAID);
+            Invoice saved = invoiceRepository.save(invoice);
 
-        User tenant = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
-        if (tenant != null) {
-            if (tenant.getEmail() != null) {
-                emailService.sendPaymentApprovedEmail(tenant, saved);
+            User tenant = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+            if (tenant != null) {
+                if (tenant.getEmail() != null) {
+                    emailService.sendPaymentApprovedEmail(tenant, saved);
+                }
+                notificationService.createForUser(
+                        tenant.getId(),
+                        "PAYMENT_APPROVED",
+                        "Payment Approved",
+                        "Your payment for invoice " + saved.getInvoiceNumber() + " has been approved.",
+                        "/payments"
+                );
             }
-            notificationService.createForUser(
-                    tenant.getId(),
-                    "PAYMENT_APPROVED",
-                    "Payment Approved",
-                    "Your payment for invoice " + saved.getInvoiceNumber() + " has been approved.",
-                    "/payments"
-            );
-        }
 
-        return saved;
+            return saved;
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Invoice was updated by another process. Please try again.");
+        }
     }
 
-    private void notifyAdminOfSubmittedPayment(Invoice invoice) {
-        User admin = userRepository.findByUsername("admin").orElse(null);
-        if (admin != null) {
-            notificationService.createForUser(
-                    admin.getId(),
-                    "PAYMENT_SUBMITTED",
-                    "Payment Submitted",
-                    "Tenant " + invoice.getLease().getTenant().getName() +
-                            " has submitted payment for invoice " + invoice.getInvoiceNumber() +
-                            ". Please review and approve.",
-                    "/payments"
-            );
+    @Transactional
+    public Invoice submitReceipt(Long invoiceId, LocalDate paymentDate,
+                                 String paymentMethod, MultipartFile receipt) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            throw new IllegalArgumentException("Invoice already paid");
+        }
+
+        if (invoice.getLease().getStatus() != LeaseStatus.ACTIVE) {
+            throw new IllegalArgumentException("Lease is no longer active. Cannot process payment.");
+        }
+
+        if (receipt == null || receipt.isEmpty()) {
+            throw new IllegalArgumentException("A receipt file is required");
+        }
+
+        BigDecimal penalty = calculatePenalty(invoice, paymentDate);
+
+        try {
+            invoice.setPenaltyAmount(penalty);
+            invoice.setTotalAmount(invoice.getRentAmount().add(penalty));
+            invoice.setStatus(InvoiceStatus.SUBMITTED);
+            invoice.setPaymentMethod(paymentMethod);
+            invoice.setPaymentDate(paymentDate);
+            invoice.setReceiptPath(fileStorageService.storeReceipt(receipt, invoiceId));
+
+            Invoice saved = invoiceRepository.save(invoice);
+
+            notifyAdminOfSubmittedPayment(saved);
+
+            User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+            if (user != null && user.getEmail() != null) {
+                emailService.sendPaymentConfirmationEmail(user, saved);
+            }
+
+            return saved;
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Invoice was updated by another process. Please try again.");
         }
     }
 
@@ -167,14 +206,22 @@ public class PaymentService {
         return calculatePenalty(invoice, paymentDate);
     }
 
+    private void notifyAdminOfSubmittedPayment(Invoice invoice) {
+        User admin = userRepository.findByUsername("admin").orElse(null);
+        if (admin != null) {
+            notificationService.createForUser(
+                    admin.getId(),
+                    "PAYMENT_SUBMITTED",
+                    "Payment Submitted",
+                    "Tenant " + invoice.getLease().getTenant().getName() +
+                            " has submitted payment for invoice " + invoice.getInvoiceNumber() +
+                            ". Please review and approve.",
+                    "/payments"
+            );
+        }
+    }
+
     private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
-        // Valid transitions:
-        // PENDING -> SUBMITTED (tenant submits payment)
-        // PENDING -> OVERDUE (scheduled task marks overdue)
-        // SUBMITTED -> PAID (admin approves payment)
-        // OVERDUE -> SUBMITTED (tenant submits late payment)
-        // OVERDUE -> PAID (admin approves late payment)
-        // No other transitions are valid
         switch (from) {
             case PENDING:
                 return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE;
@@ -183,7 +230,7 @@ public class PaymentService {
             case OVERDUE:
                 return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
             case PAID:
-                return false; // Already paid, no further transitions
+                return false;
             default:
                 return false;
         }

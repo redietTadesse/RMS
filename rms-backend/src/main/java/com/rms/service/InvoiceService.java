@@ -10,6 +10,7 @@ import com.rms.repository.InvoiceRepository;
 import com.rms.repository.LeaseRepository;
 import com.rms.repository.TenantRepository;
 import com.rms.repository.UserRepository;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -48,19 +50,22 @@ public class InvoiceService {
     @Transactional
     public void generateMonthlyInvoices() {
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
+        LocalDate today = LocalDate.now();
+
         for (Lease lease : activeLeases) {
-            // Only generate invoice if nextBillingDate is today or null (initialize)
-            LocalDate today = LocalDate.now();
             LocalDate nextBilling = lease.getNextBillingDate();
-            
+
             if (nextBilling == null) {
-                // Initialize nextBillingDate based on lease start date and billing frequency
                 initializeNextBillingDate(lease);
                 nextBilling = lease.getNextBillingDate();
             }
-            
+
             if (nextBilling != null && (nextBilling.isEqual(today) || nextBilling.isBefore(today))) {
-                generateInvoiceForLease(lease);
+                try {
+                    generateInvoiceForLease(lease);
+                } catch (OptimisticLockingFailureException e) {
+                    System.err.println("Failed to generate invoice for lease " + lease.getId() + ": " + e.getMessage());
+                }
             }
         }
     }
@@ -68,10 +73,8 @@ public class InvoiceService {
     @Transactional
     public Invoice generateInvoiceForLease(Lease lease) {
         LocalDate today = LocalDate.now();
-        
-        // Check if covered by prepayment period
+
         if (isCoveredByPrepayment(lease, today)) {
-            System.out.println("Lease " + lease.getId() + " is in prepayment period, skipping invoice generation");
             return null;
         }
 
@@ -79,7 +82,6 @@ public class InvoiceService {
         LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
         if (invoiceRepository.existsByLeaseAndIssueDateBetween(lease, monthStart, monthEnd)) {
-            System.out.println("Invoice already exists for lease " + lease.getId() + " this month");
             return null;
         }
 
@@ -88,14 +90,11 @@ public class InvoiceService {
 
         String invoiceNumber = generateInvoiceNumber();
 
-        // Calculate rent amount - prorate if this is first invoice and lease started after 15th
         BigDecimal rentAmount = lease.getMonthlyRent();
         if (Boolean.TRUE.equals(lease.getFirstInvoiceProrated()) && !hasFirstInvoiceBeenGenerated(lease)) {
-            // Check if lease started after 15th - if so, prorate; otherwise charge full month
             if (shouldProrateFirstInvoice(lease)) {
                 rentAmount = calculateProratedRent(lease, today);
             }
-            // Mark that first invoice (prorated or full) has been generated
             lease.setFirstInvoiceProrated(false);
             leaseRepository.save(lease);
         }
@@ -111,26 +110,28 @@ public class InvoiceService {
         invoice.setStatus(InvoiceStatus.PENDING);
         invoice.setCreatedAt(today);
 
-        Invoice saved = invoiceRepository.save(invoice);
+        try {
+            Invoice saved = invoiceRepository.save(invoice);
+            updateNextBillingDate(lease);
 
-        // Update nextBillingDate based on billing frequency
-        updateNextBillingDate(lease);
+            User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
+            if (user != null) {
+                notificationService.createForUserOnce(
+                        user.getId(),
+                        "INVOICE_GENERATED",
+                        saved.getId(),
+                        "New Invoice Generated",
+                        "Invoice " + saved.getInvoiceNumber() + " for ETB " + saved.getTotalAmount() +
+                                " is due on " + saved.getDueDate(),
+                        "/payments"
+                );
+                emailService.sendInvoiceGeneratedEmail(user, saved, lease);
+            }
 
-        User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
-        if (user != null) {
-            notificationService.createForUserOnce(
-                    user.getId(),
-                    "INVOICE_GENERATED",
-                    saved.getId(),
-                    "New Invoice Generated",
-                    "Invoice " + saved.getInvoiceNumber() + " for ETB " + saved.getTotalAmount() +
-                            " is due on " + saved.getDueDate(),
-                    "/payments"
-            );
-            emailService.sendInvoiceGeneratedEmail(user, saved, lease);
+            return saved;
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Invoice generation failed due to concurrent update. Please try again.");
         }
-
-        return saved;
     }
 
     @Transactional
@@ -150,66 +151,62 @@ public class InvoiceService {
     public void markOverdueInvoices() {
         LocalDate today = LocalDate.now();
         List<Invoice> pendingInvoices = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
-
         int penaltyRate = settingsService.getIntSetting("penalty_rate", 20);
 
         for (Invoice invoice : pendingInvoices) {
             if (invoice.getDueDate().isBefore(today)) {
-                // Validate status transition
                 if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.OVERDUE)) {
-                    System.err.println("Invalid status transition from " + invoice.getStatus() + " to OVERDUE for invoice " + invoice.getInvoiceNumber());
                     continue;
                 }
 
-                invoice.setStatus(InvoiceStatus.OVERDUE);
+                try {
+                    invoice.setStatus(InvoiceStatus.OVERDUE);
 
-                if (invoice.getPenaltyAmount().compareTo(BigDecimal.ZERO) == 0) {
-                    BigDecimal penalty = invoice.getRentAmount()
-                            .multiply(BigDecimal.valueOf(penaltyRate))
-                            .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                    invoice.setPenaltyAmount(penalty);
-                    invoice.setTotalAmount(invoice.getRentAmount().add(penalty));
-                }
+                    if (invoice.getPenaltyAmount().compareTo(BigDecimal.ZERO) == 0) {
+                        BigDecimal penalty = invoice.getRentAmount()
+                                .multiply(BigDecimal.valueOf(penaltyRate))
+                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+                        invoice.setPenaltyAmount(penalty);
+                        invoice.setTotalAmount(invoice.getRentAmount().add(penalty));
+                    }
 
-                invoiceRepository.save(invoice);
-                notifyInvoiceOverdue(invoice);
+                    invoiceRepository.save(invoice);
+                    notifyInvoiceOverdue(invoice);
 
-                User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
-                if (user != null && user.getEmail() != null) {
-                    emailService.sendOverdueEmail(user, invoice);
+                    User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
+                    if (user != null && user.getEmail() != null) {
+                        emailService.sendOverdueEmail(user, invoice);
+                    }
+                } catch (OptimisticLockingFailureException e) {
+                    System.err.println("Failed to mark invoice " + invoice.getId() + " as overdue: " + e.getMessage());
                 }
             }
         }
     }
 
-    @Scheduled(cron = "0 0 8 * * ?")  // Runs at 8:00 AM every day
+    @Scheduled(cron = "0 0 8 * * ?")
     @Transactional
     public void sendRentDueReminders() {
         LocalDate today = LocalDate.now();
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
 
         for (Lease lease : activeLeases) {
-            // Check if this lease is NOT in prepayment period
             if (!isCoveredByPrepayment(lease, today)) {
-                // Check if rent is due today based on nextBillingDate
                 LocalDate nextBilling = lease.getNextBillingDate();
                 if (nextBilling == null) {
                     initializeNextBillingDate(lease);
                     nextBilling = lease.getNextBillingDate();
                 }
-                
-                // Only send if today is the billing date
+
                 if (nextBilling != null && today.equals(nextBilling)) {
                     User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
                     if (user != null && user.getEmail() != null) {
                         emailService.sendRentDueEmail(user, lease);
-
-                        // Also send in-app notification
                         notificationService.createForUserOnce(
                                 user.getId(),
                                 "RENT_DUE_TODAY",
                                 lease.getId(),
-                                "🚨 Rent Due Today",
+                                "Rent Due Today",
                                 "Rent for " + lease.getSpace().getUnitNumber() +
                                         " (ETB " + lease.getMonthlyRent() + ") is due today. Please pay to avoid penalties.",
                                 "/payments"
@@ -282,7 +279,7 @@ public class InvoiceService {
     }
 
     private String generateInvoiceNumber() {
-        String year = String.valueOf(LocalDate.now().getYear());
+        String year = String.valueOf(Year.now().getValue());
         long count = invoiceRepository.count() + 1;
         String seq = String.format("%04d", count);
         return "INV-" + year + "-" + seq;
@@ -291,9 +288,7 @@ public class InvoiceService {
     private void initializeNextBillingDate(Lease lease) {
         LocalDate start = lease.getStartDate();
         LocalDate prepaymentEnd = start.plusMonths(lease.getPrepaymentMonths());
-        LocalDate nextBilling = prepaymentEnd;
-        
-        lease.setNextBillingDate(nextBilling);
+        lease.setNextBillingDate(prepaymentEnd);
         leaseRepository.save(lease);
     }
 
@@ -303,23 +298,20 @@ public class InvoiceService {
             initializeNextBillingDate(lease);
             return;
         }
-        
+
         int monthsToAdd = lease.getBillingFrequency().getMonths();
         LocalDate nextBilling = currentNext.plusMonths(monthsToAdd);
-        
+
         lease.setNextBillingDate(nextBilling);
         leaseRepository.save(lease);
     }
 
     private boolean hasFirstInvoiceBeenGenerated(Lease lease) {
-        // Check if any invoice exists for this lease
         return invoiceRepository.countByLease(lease) > 0;
     }
 
     private boolean shouldProrateFirstInvoice(Lease lease) {
         LocalDate startDate = lease.getStartDate();
-        // If lease starts on or before the 15th, treat as full month (no proration)
-        // If lease starts after the 15th, prorate for remaining days
         return startDate.getDayOfMonth() > 15;
     }
 
@@ -327,24 +319,15 @@ public class InvoiceService {
         LocalDate startDate = lease.getStartDate();
         int daysInMonth = billingDate.lengthOfMonth();
         int daysRemaining = daysInMonth - startDate.getDayOfMonth() + 1;
-        
-        // Calculate daily rate based on actual days in the month
+
         BigDecimal dailyRate = lease.getMonthlyRent()
                 .divide(BigDecimal.valueOf(daysInMonth), 2, RoundingMode.HALF_UP);
-        
-        // Calculate prorated amount for remaining days
+
         return dailyRate.multiply(BigDecimal.valueOf(daysRemaining))
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
     private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
-        // Valid transitions:
-        // PENDING -> SUBMITTED (tenant submits payment)
-        // PENDING -> OVERDUE (scheduled task marks overdue)
-        // SUBMITTED -> PAID (admin approves payment)
-        // OVERDUE -> SUBMITTED (tenant submits late payment)
-        // OVERDUE -> PAID (admin approves late payment)
-        // No other transitions are valid
         switch (from) {
             case PENDING:
                 return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE;
@@ -353,7 +336,7 @@ public class InvoiceService {
             case OVERDUE:
                 return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
             case PAID:
-                return false; // Already paid, no further transitions
+                return false;
             default:
                 return false;
         }

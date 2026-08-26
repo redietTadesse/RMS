@@ -13,31 +13,31 @@ public class Tenant {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Name is required")
+    @NotBlank
     @Column(nullable = false)
     private String name;
 
-    @NotNull(message = "Tenant type is required")
+    @NotNull
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TenantType type = TenantType.INDIVIDUAL;
 
-    private String contact; 
+    private String contact;
 
-    @NotBlank(message = "Phone is required")
+    @NotBlank
     private String phone;
 
-    @Email(message = "Invalid email address")
+    @Email
     private String email;
 
-    @Column(name = "user_id")
+    @Column(name = "user_id", unique = true)
     private Long userId;
 
     @Column(name = "tin_number")
     private String tinNumber;
 
     @Column(name = "business_license")
-    private String businessLicense; 
+    private String businessLicense;
 
     @Column(name = "has_id_card", nullable = false)
     private boolean hasIdCard = false;
@@ -45,7 +45,6 @@ public class Tenant {
     @Column(name = "has_business_license", nullable = false)
     private boolean hasBusinessLicense = false;
 
-    
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

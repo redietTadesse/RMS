@@ -50,6 +50,10 @@ public class Invoice {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDate createdAt = LocalDate.now();
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -88,4 +92,7 @@ public class Invoice {
 
     public LocalDate getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDate createdAt) { this.createdAt = createdAt; }
+
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

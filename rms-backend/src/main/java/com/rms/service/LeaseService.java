@@ -7,6 +7,7 @@ import com.rms.repository.LeaseRepository;
 import com.rms.repository.SpaceRepository;
 import com.rms.repository.TenantRepository;
 import com.rms.repository.UserRepository;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +47,8 @@ public class LeaseService {
     public Lease getById(Long id) {
         Lease lease = leaseRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Lease not found with id " + id));
-        return expireLeaseIfNeeded(lease) ? leaseRepository.save(lease) : lease;
+        expireLeaseIfNeeded(lease);
+        return lease;
     }
 
     @Transactional
@@ -86,9 +88,12 @@ public class LeaseService {
         Space space = spaceRepository.findById(request.getSpaceId())
                 .orElseThrow(() -> new IllegalArgumentException("Space not found with id " + request.getSpaceId()));
 
-        if (space.getStatus() != SpaceStatus.VACANT
-                || leaseRepository.existsBySpaceAndStatus(space, LeaseStatus.ACTIVE)) {
+        if (space.getStatus() != SpaceStatus.VACANT) {
             throw new IllegalArgumentException("Space " + space.getUnitNumber() + " is not vacant");
+        }
+
+        if (leaseRepository.existsBySpaceAndStatus(space, LeaseStatus.ACTIVE)) {
+            throw new IllegalArgumentException("Space " + space.getUnitNumber() + " already has an active lease");
         }
 
         if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
@@ -97,6 +102,10 @@ public class LeaseService {
 
         if (request.getStartDate().isAfter(request.getEndDate())) {
             throw new IllegalArgumentException("Start date cannot be after end date");
+        }
+
+        if (request.getStartDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Start date cannot be in the past");
         }
 
         Lease lease = new Lease();
@@ -109,23 +118,9 @@ public class LeaseService {
         lease.setPrepaymentMonths(request.getPrepaymentMonths());
         lease.setDueDay(request.getDueDay());
         lease.setStatus(LeaseStatus.ACTIVE);
-        lease.setCreatedAt(LocalDate.now());
-        
-        // Initialize nextBillingDate based on prepayment period
-        LocalDate start = request.getStartDate();
-        LocalDate prepaymentEnd = start.plusMonths(request.getPrepaymentMonths());
-        lease.setNextBillingDate(prepaymentEnd);
-        
-        // Set billing frequency from request
         lease.setBillingFrequency(request.getBillingFrequency());
-        
-        // Check if lease starts after 15th - only then prorate first invoice
-        // If start date is 1st-15th, treat as full month payment
-        if (start.getDayOfMonth() > 15) {
-            lease.setFirstInvoiceProrated(true);
-        } else {
-            lease.setFirstInvoiceProrated(false);
-        }
+        lease.setNextBillingDate(request.getStartDate().plusMonths(request.getPrepaymentMonths()));
+        lease.setFirstInvoiceProrated(request.getStartDate().getDayOfMonth() > 15);
 
         Lease saved = leaseRepository.save(lease);
 
@@ -151,49 +146,33 @@ public class LeaseService {
             throw new IllegalArgumentException("Start date cannot be after end date");
         }
 
-        // Store original values for comparison
-        LocalDate originalStartDate = lease.getStartDate();
-        Integer originalPrepaymentMonths = lease.getPrepaymentMonths();
-        LocalDate originalNextBillingDate = lease.getNextBillingDate();
-
-        lease.setStartDate(request.getStartDate());
-        lease.setEndDate(request.getEndDate());
-        lease.setMonthlyRent(request.getMonthlyRent());
-        lease.setDeposit(request.getDeposit());
-        lease.setPrepaymentMonths(request.getPrepaymentMonths());
-        lease.setDueDay(request.getDueDay());
-        lease.setUpdatedAt(LocalDate.now());
-        
-        // Update billing frequency if changed
-        if (request.getBillingFrequency() != null) {
-            lease.setBillingFrequency(request.getBillingFrequency());
+        LocalDate today = LocalDate.now();
+        if (request.getStartDate().isBefore(today) && !request.getStartDate().equals(lease.getStartDate())) {
+            throw new IllegalArgumentException("Cannot change start date to a past date");
         }
-        
-        // Recalculate nextBillingDate based on current state, not just start date
-        if (!originalPrepaymentMonths.equals(request.getPrepaymentMonths()) || 
-            !originalStartDate.equals(request.getStartDate())) {
-            
-            LocalDate today = LocalDate.now();
-            LocalDate newStart = request.getStartDate();
-            LocalDate newPrepaymentEnd = newStart.plusMonths(request.getPrepaymentMonths());
-            
-            // If we're still in the original prepayment period, adjust from today
-            if (originalNextBillingDate != null && today.isBefore(originalNextBillingDate)) {
-                // We're in prepayment, so calculate new prepayment end from today
-                LocalDate monthsRemaining = newPrepaymentEnd.minusMonths(
-                    ChronoUnit.MONTHS.between(newStart, today)
-                );
-                lease.setNextBillingDate(monthsRemaining.isAfter(today) ? monthsRemaining : newPrepaymentEnd);
-            } else if (originalNextBillingDate != null && !today.isBefore(originalNextBillingDate)) {
-                // We're past original prepayment, keep current billing cycle but adjust for new prepayment
-                lease.setNextBillingDate(newPrepaymentEnd.isAfter(today) ? newPrepaymentEnd : originalNextBillingDate);
-            } else {
-                // No original billing date, initialize from new prepayment
+
+        try {
+            lease.setStartDate(request.getStartDate());
+            lease.setEndDate(request.getEndDate());
+            lease.setMonthlyRent(request.getMonthlyRent());
+            lease.setDeposit(request.getDeposit());
+            lease.setPrepaymentMonths(request.getPrepaymentMonths());
+            lease.setDueDay(request.getDueDay());
+            lease.setUpdatedAt(today);
+
+            if (request.getBillingFrequency() != null) {
+                lease.setBillingFrequency(request.getBillingFrequency());
+            }
+
+            LocalDate newPrepaymentEnd = request.getStartDate().plusMonths(request.getPrepaymentMonths());
+            if (lease.getNextBillingDate() != null && today.isBefore(lease.getNextBillingDate())) {
                 lease.setNextBillingDate(newPrepaymentEnd);
             }
-        }
 
-        return leaseRepository.save(lease);
+            return leaseRepository.save(lease);
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Lease was updated by another user. Please refresh and try again.");
+        }
     }
 
     @Transactional
@@ -204,21 +183,23 @@ public class LeaseService {
             throw new IllegalArgumentException("Lease is not active");
         }
 
-        // Validate status transition
         if (!isValidLeaseStatusTransition(lease.getStatus(), LeaseStatus.TERMINATED)) {
-            throw new IllegalArgumentException("Invalid status transition from " + 
-                lease.getStatus() + " to " + LeaseStatus.TERMINATED);
+            throw new IllegalArgumentException("Invalid status transition from " + lease.getStatus() + " to " + LeaseStatus.TERMINATED);
         }
 
-        lease.setStatus(LeaseStatus.TERMINATED);
-        lease.setUpdatedAt(LocalDate.now());
-        leaseRepository.save(lease);
+        try {
+            lease.setStatus(LeaseStatus.TERMINATED);
+            lease.setUpdatedAt(LocalDate.now());
+            leaseRepository.save(lease);
 
-        Space space = lease.getSpace();
-        space.setStatus(SpaceStatus.VACANT);
-        spaceRepository.save(space);
+            Space space = lease.getSpace();
+            space.setStatus(SpaceStatus.VACANT);
+            spaceRepository.save(space);
 
-        return lease;
+            return lease;
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Lease was updated by another user. Please refresh and try again.");
+        }
     }
 
     @Scheduled(cron = "0 0 2 * * ?")
@@ -237,10 +218,7 @@ public class LeaseService {
 
         for (Lease lease : activeLeases) {
             if (expireLeaseIfNeeded(lease)) {
-                leaseRepository.save(lease);
                 expiredCount++;
-                System.out.println("Lease #" + lease.getId() + " expired. Space "
-                        + lease.getSpace().getUnitNumber() + " is now VACANT.");
             }
         }
 
@@ -264,34 +242,33 @@ public class LeaseService {
             throw new IllegalArgumentException("Only active leases can be expired");
         }
 
-        lease.setStatus(LeaseStatus.EXPIRED);
-        lease.setUpdatedAt(LocalDate.now());
-        leaseRepository.save(lease);
+        try {
+            lease.setStatus(LeaseStatus.EXPIRED);
+            lease.setUpdatedAt(LocalDate.now());
+            leaseRepository.save(lease);
 
-        Space space = lease.getSpace();
-        space.setStatus(SpaceStatus.VACANT);
-        spaceRepository.save(space);
-        notifyLeaseExpired(lease);
+            Space space = lease.getSpace();
+            space.setStatus(SpaceStatus.VACANT);
+            spaceRepository.save(space);
 
-        return lease;
+            notifyLeaseExpired(lease);
+            return lease;
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Lease was updated by another user. Please refresh and try again.");
+        }
     }
-
 
     public LocalDate getNextDueDate(Lease lease) {
         if (lease == null || lease.getStatus() != LeaseStatus.ACTIVE) {
             return null;
         }
 
-        // Prepayment covers `prepaymentMonths` months from start date
         LocalDate prepaymentEnd = lease.getStartDate().plusMonths(lease.getPrepaymentMonths());
         LocalDate today = LocalDate.now();
         int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 1;
 
-        // First billing starts after prepayment ends
-        LocalDate firstBilling = prepaymentEnd;
-        LocalDate dueDate = firstBilling.withDayOfMonth(Math.min(dueDay, firstBilling.lengthOfMonth()));
+        LocalDate dueDate = prepaymentEnd.withDayOfMonth(Math.min(dueDay, prepaymentEnd.lengthOfMonth()));
 
-        // If due date is before today, move to next month
         while (dueDate.isBefore(today)) {
             dueDate = dueDate.plusMonths(1);
             dueDate = dueDate.withDayOfMonth(Math.min(dueDay, dueDate.lengthOfMonth()));
@@ -313,6 +290,10 @@ public class LeaseService {
         return today.isBefore(prepaymentEnd) || today.isEqual(prepaymentEnd);
     }
 
+    public boolean hasActiveLease(Long tenantId) {
+        return !leaseRepository.findByTenantIdAndStatus(tenantId, LeaseStatus.ACTIVE).isEmpty();
+    }
+
     private void notifyLeaseExpired(Lease lease) {
         Tenant tenant = lease.getTenant();
         notificationService.createForUserOnce(
@@ -327,33 +308,30 @@ public class LeaseService {
     }
 
     private boolean expireLeaseIfNeeded(Lease lease) {
-        if (lease.getStatus() != LeaseStatus.ACTIVE
-                || !lease.getEndDate().isBefore(LocalDate.now())) {
+        if (lease.getStatus() != LeaseStatus.ACTIVE || !lease.getEndDate().isBefore(LocalDate.now())) {
             return false;
         }
 
-        // Validate status transition
         if (!isValidLeaseStatusTransition(lease.getStatus(), LeaseStatus.EXPIRED)) {
-            System.err.println("Invalid status transition from " + lease.getStatus() + " to EXPIRED");
             return false;
         }
 
-        lease.setStatus(LeaseStatus.EXPIRED);
-        lease.setUpdatedAt(LocalDate.now());
+        try {
+            lease.setStatus(LeaseStatus.EXPIRED);
+            lease.setUpdatedAt(LocalDate.now());
 
-        Space space = lease.getSpace();
-        space.setStatus(SpaceStatus.VACANT);
-        spaceRepository.save(space);
+            Space space = lease.getSpace();
+            space.setStatus(SpaceStatus.VACANT);
+            spaceRepository.save(space);
 
-        notifyLeaseExpired(lease);
-        return true;
+            notifyLeaseExpired(lease);
+            return true;
+        } catch (OptimisticLockingFailureException e) {
+            return false;
+        }
     }
 
     private boolean isValidLeaseStatusTransition(LeaseStatus from, LeaseStatus to) {
-        // Valid transitions:
-        // ACTIVE -> TERMINATED (manual termination)
-        // ACTIVE -> EXPIRED (automatic expiration)
-        // No other transitions are valid
-        return (from == LeaseStatus.ACTIVE && (to == LeaseStatus.TERMINATED || to == LeaseStatus.EXPIRED));
+        return from == LeaseStatus.ACTIVE && (to == LeaseStatus.TERMINATED || to == LeaseStatus.EXPIRED);
     }
 }

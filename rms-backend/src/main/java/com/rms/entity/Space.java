@@ -14,25 +14,28 @@ public class Space {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Unit number is required")
+    @NotBlank
     @Column(name = "unit_number", nullable = false)
     private String unitNumber;
 
-    @NotNull(message = "Floor is required")
+    @NotNull
     private Integer floor;
 
-    @NotBlank(message = "Category is required")
-    private String category; 
+    @NotBlank
+    private String category;
 
-    @NotNull(message = "Size is required")
-    @Positive(message = "Size must be positive")
-    private BigDecimal size; 
+    @NotNull
+    @Positive
+    private BigDecimal size;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SpaceStatus status = SpaceStatus.VACANT;
 
-    
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -50,4 +53,7 @@ public class Space {
 
     public SpaceStatus getStatus() { return status; }
     public void setStatus(SpaceStatus status) { this.status = status; }
+
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

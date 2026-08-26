@@ -51,6 +51,7 @@
 
 
 
+
         <!-- Thymeleaf for email templates -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

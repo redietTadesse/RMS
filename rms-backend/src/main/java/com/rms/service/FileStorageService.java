@@ -18,6 +18,15 @@ public class FileStorageService {
 
     private final Path rootDir;
 
+    @Value("${app.upload.max-size:10485760}")
+    private long maxFileSize;
+
+    private static final String[] ALLOWED_CONTENT_TYPES = {
+            "image/jpeg", "image/png", "image/gif", "image/webp",
+            "application/pdf", "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    };
+
     public FileStorageService(@Value("${app.upload.dir:uploads}") String uploadDir) {
         this.rootDir = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
@@ -27,14 +36,8 @@ public class FileStorageService {
         }
     }
 
-    /**
-     * Store a receipt file
-     */
     public String storeReceipt(MultipartFile file, Long invoiceId) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("File is empty");
-        }
-
+        validateFile(file);
         String storedName = generateStoredName(file);
 
         try {
@@ -48,20 +51,13 @@ public class FileStorageService {
         }
     }
 
-    /**
-     * Store a tenant document
-     */
     public String storeDocument(MultipartFile file, Long tenantId, String type) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("File is empty");
-        }
+        validateFile(file);
 
         String original = file.getOriginalFilename();
         String extension = original != null && original.contains(".")
                 ? original.substring(original.lastIndexOf("."))
                 : "";
-
-        // Store in tenant-specific folder with type prefix
         String storedName = type + "_" + System.currentTimeMillis() + extension;
 
         try {
@@ -75,14 +71,8 @@ public class FileStorageService {
         }
     }
 
-    /**
-     * Generic store method (backward compatibility)
-     */
     public Path store(Long tenantId, MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("File is empty");
-        }
-
+        validateFile(file);
         String storedName = generateStoredName(file);
 
         try {
@@ -96,22 +86,42 @@ public class FileStorageService {
         }
     }
 
-    /**
-     * Delete a file
-     */
     public boolean deleteFile(String filePath) {
         try {
             Path path = Paths.get(filePath);
             return Files.deleteIfExists(path);
         } catch (IOException e) {
-            System.err.println("Failed to delete file: " + filePath);
             return false;
         }
     }
 
-    /**
-     * Generate a unique stored name
-     */
+    private void validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is empty");
+        }
+
+        if (file.getSize() > maxFileSize) {
+            throw new IllegalArgumentException("File size exceeds limit: " + (maxFileSize / 1048576) + "MB");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null) {
+            throw new IllegalArgumentException("Could not determine file type");
+        }
+
+        boolean allowed = false;
+        for (String allowedType : ALLOWED_CONTENT_TYPES) {
+            if (allowedType.equals(contentType)) {
+                allowed = true;
+                break;
+            }
+        }
+
+        if (!allowed) {
+            throw new IllegalArgumentException("File type not allowed: " + contentType);
+        }
+    }
+
     private String generateStoredName(MultipartFile file) {
         String original = file.getOriginalFilename();
         String safeName = original != null
