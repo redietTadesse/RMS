@@ -1,7 +1,6 @@
 package com.rms.dto;
 
 import com.rms.entity.User;
-import com.rms.entity.Role;
 import java.time.LocalDateTime;
 
 public class UserResponse {
