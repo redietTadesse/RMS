@@ -10,6 +10,7 @@ import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
 import com.rms.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class ChapaService {
     private final CurrentUserService currentUserService;
     private final EmailService emailService;
     private final Map<String, String> processedWebhooks = new ConcurrentHashMap<>();
+    private final Map<String, Long> txToInvoiceMap = new ConcurrentHashMap<>();
 
     @Value("${chapa.secret-key}")
     private String secretKey;
@@ -120,6 +122,7 @@ public class ChapaService {
             JsonNode jsonResponse = objectMapper.readTree(response);
             if (jsonResponse.has("status") && jsonResponse.get("status").asText().equals("success")) {
                 String checkoutUrl = jsonResponse.get("data").get("checkout_url").asText();
+                txToInvoiceMap.put(txRef, invoice.getId());
                 return new ChapaPaymentResponse(checkoutUrl, txRef, "Payment initialized successfully");
             } else {
                 String message = jsonResponse.has("message") ? jsonResponse.get("message").asText() : "Payment initialization failed";
@@ -158,6 +161,62 @@ public class ChapaService {
         } catch (Exception e) {
             System.err.println("Failed to verify payment: " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Confirm a Chapa payment directly (frontend callback path).
+     * Re-verifies with Chapa's API using the API secret key (NOT the webhook
+     * secret), then marks the linked invoice as PAID. Provides a reliable
+     * fallback so a paid order is recorded even if webhooks are misconfigured.
+     */
+    @Transactional
+    public Invoice confirmPayment(String txRef) {
+        if (txRef == null || txRef.isEmpty()) {
+            throw new IllegalArgumentException("Transaction reference is missing");
+        }
+
+        boolean verified = verifyPayment(txRef);
+        if (!verified) {
+            throw new IllegalArgumentException("Payment could not be verified with Chapa. Please contact admin.");
+        }
+
+        Long invoiceId = txToInvoiceMap.get(txRef);
+        if (invoiceId == null) {
+            throw new IllegalArgumentException("No invoice linked to transaction " + txRef + ". Please contact admin.");
+        }
+
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            return invoice;
+        }
+
+        if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.PAID)) {
+            throw new IllegalArgumentException("Invalid status transition from " + invoice.getStatus() + " to PAID");
+        }
+
+        try {
+            invoice.setStatus(InvoiceStatus.PAID);
+            invoice.setPaymentDate(LocalDate.now());
+            invoice.setPaymentMethod("CHAPA");
+            Invoice saved = invoiceRepository.save(invoice);
+
+            processedWebhooks.put(txRef, "processed");
+            // Keep the txRef→invoice mapping so an idempotent retry (e.g. React
+            // StrictMode double-invoke, webhook + callback overlap) short-circuits
+            // on the PAID check above instead of failing a lookup.
+
+            User user = userRepository.findById(saved.getLease().getTenant().getUserId()).orElse(null);
+            if (user != null && user.getEmail() != null) {
+                emailService.sendPaymentConfirmationEmail(user, saved);
+            }
+
+            System.out.println("Payment confirmed via callback: " + txRef + " for invoice " + saved.getInvoiceNumber());
+            return saved;
+        } catch (OptimisticLockingFailureException e) {
+            throw new IllegalArgumentException("Invoice was updated by another process. Please try again.");
         }
     }
 

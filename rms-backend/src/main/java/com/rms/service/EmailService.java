@@ -181,7 +181,8 @@ public class EmailService {
             context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
             context.setVariable("amount", invoice.getTotalAmount());
             context.setVariable("dueDate", invoice.getDueDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
-            context.setVariable("daysLeft", 3);
+            long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), invoice.getDueDate());
+            context.setVariable("daysLeft", Math.max(daysLeft, 0));
             context.setVariable("invoiceUrl", baseUrl + "/payments");
             context.setVariable("year", java.time.Year.now().getValue());
 
