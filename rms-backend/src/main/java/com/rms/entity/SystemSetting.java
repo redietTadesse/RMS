@@ -14,7 +14,7 @@ public class SystemSetting {
     @Column(name = "setting_key", unique = true, nullable = false, length = 100)
     private String settingKey;  // ← Rename from 'key' to 'settingKey'
 
-    @Column(name = "setting_value", nullable = false, length = 500)
+    @Column(name = "setting_value", length = 500)
     private String settingValue;  // ← Rename from 'value' to 'settingValue'
 
     @Column(name = "description", length = 500)
