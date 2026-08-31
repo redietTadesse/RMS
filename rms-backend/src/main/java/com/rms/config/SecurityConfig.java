@@ -38,6 +38,7 @@ public class SecurityConfig {
                         // ✅ ADD THIS LINE - Public login
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/test/email-test").permitAll()
+                        .requestMatchers("/api/test/sms-test").permitAll()
 
                         // Register - ADMIN only
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")
