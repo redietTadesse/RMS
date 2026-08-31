@@ -9,7 +9,6 @@ import com.rms.entity.User;
 import com.rms.repository.UserRepository;
 import com.rms.service.AuthService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;

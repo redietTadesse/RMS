@@ -2,11 +2,13 @@ package com.rms.controller;
 
 import com.rms.dto.ChapaPaymentRequest;
 import com.rms.dto.ChapaPaymentResponse;
+import com.rms.entity.Invoice;
 import com.rms.service.ChapaService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -64,6 +66,24 @@ public class ChapaController {
             return ResponseEntity.ok("Webhook received");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error processing webhook: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Confirm payment from the frontend callback (fallback to webhook)
+     * POST /api/payments/chapa/confirm?tx_ref=xxx
+     */
+    @PostMapping("/confirm")
+    public ResponseEntity<Map<String, Object>> confirmPayment(@RequestParam("tx_ref") String txRef) {
+        try {
+            Invoice invoice = chapaService.confirmPayment(txRef);
+            Map<String, Object> result = new HashMap<>();
+            result.put("verified", true);
+            result.put("invoiceNumber", invoice.getInvoiceNumber());
+            result.put("status", invoice.getStatus().toString());
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.ok(Map.of("verified", false, "message", e.getMessage()));
         }
     }
 }
