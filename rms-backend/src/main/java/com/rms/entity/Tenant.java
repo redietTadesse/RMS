@@ -1,9 +1,8 @@
 package com.rms.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
+import org.hibernate.validator.constraints.Length;
 
 @Entity
 @Table(name = "tenants")
@@ -13,29 +12,37 @@ public class Tenant {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
+    @NotBlank(message = "Tenant name is required")
+    @Size(min = 2, max = 100, message = "Name must be between 2 and 100 characters")
+    @Pattern(regexp = "^[a-zA-Z\\s.'-]+$", message = "Name can only contain letters, spaces, dots, apostrophes, and hyphens")
     @Column(nullable = false)
     private String name;
 
-    @NotNull
+    @NotNull(message = "Tenant type is required")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TenantType type = TenantType.INDIVIDUAL;
 
+    @Size(max = 100, message = "Contact must not exceed 100 characters")
     private String contact;
 
-    @NotBlank
+    @NotBlank(message = "Phone number is required")
+    @Pattern(regexp = "^(\\+?251|0)?[79]\\d{8}$", message = "Invalid Ethiopian phone number format. Expected: 09XXXXXXXX or 07XXXXXXXX")
     private String phone;
 
-    @Email
+    @Email(message = "Invalid email address format")
+    @Size(max = 100, message = "Email must not exceed 100 characters")
     private String email;
 
+    @Positive(message = "User ID must be a positive number")
     @Column(name = "user_id", unique = true)
     private Long userId;
 
+    @Pattern(regexp = "^\\d{10}$", message = "TIN must be exactly 10 digits")
     @Column(name = "tin_number")
     private String tinNumber;
 
+    @Size(max = 50, message = "Business license must not exceed 50 characters")
     @Column(name = "business_license")
     private String businessLicense;
 
@@ -45,6 +52,7 @@ public class Tenant {
     @Column(name = "has_business_license", nullable = false)
     private boolean hasBusinessLicense = false;
 
+    // Getters and Setters (existing)
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
