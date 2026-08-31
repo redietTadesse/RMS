@@ -18,19 +18,29 @@ public class SettingsService {
 
     @PostConstruct
     public void init() {
-        initializeDefault("penalty_rate", "20", "Penalty rate percentage");
-        initializeDefault("payment_window_end", "10", "Day of month after which penalties apply");
+        try {
+            initializeDefault("penalty_rate", "20", "Penalty rate percentage");
+            initializeDefault("payment_window_end", "10", "Day of month after which penalties apply");
+            initializeDefault("reminder_days_before", "3", "Days before the due date to send a payment reminder");
+        } catch (Exception e) {
+            System.err.println("Warning: Could not initialize default settings: " + e.getMessage());
+            // Continue anyway - system will use hardcoded defaults
+        }
     }
 
     private void initializeDefault(String key, String value, String description) {
-        if (settingsRepository.findBySettingKey(key).isEmpty()) {
-            SystemSetting setting = new SystemSetting();
-            setting.setSettingKey(key);
-            setting.setSettingValue(value);
-            setting.setDescription(description);
-            setting.setUpdatedAt(LocalDateTime.now());
-            setting.setUpdatedBy("system");
-            settingsRepository.save(setting);
+        try {
+            if (settingsRepository.findBySettingKey(key).isEmpty()) {
+                SystemSetting setting = new SystemSetting();
+                setting.setSettingKey(key);
+                setting.setSettingValue(value);
+                setting.setDescription(description);
+                setting.setUpdatedAt(LocalDateTime.now());
+                setting.setUpdatedBy("system");
+                settingsRepository.save(setting);
+            }
+        } catch (Exception e) {
+            System.err.println("Warning: Could not initialize setting '" + key + "': " + e.getMessage());
         }
     }
 
