@@ -64,6 +64,7 @@ public class InvoiceService {
     public Invoice generateInvoiceForLease(Lease lease) {
         LocalDate today = LocalDate.now();
 
+        // Skip if still in prepayment period
         if (isCoveredByPrepayment(lease, today)) {
             return null;
         }
@@ -71,6 +72,7 @@ public class InvoiceService {
         LocalDate monthStart = today.withDayOfMonth(1);
         LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
 
+        // Check if invoice already exists for this month
         if (invoiceRepository.existsByLeaseAndIssueDateBetween(lease, monthStart, monthEnd)) {
             return null;
         }
@@ -81,6 +83,8 @@ public class InvoiceService {
         String invoiceNumber = generateInvoiceNumber();
 
         BigDecimal rentAmount = lease.getMonthlyRent();
+        
+        // Handle prorated first invoice
         if (Boolean.TRUE.equals(lease.getFirstInvoiceProrated()) && !hasFirstInvoiceBeenGenerated(lease)) {
             if (shouldProrateFirstInvoice(lease)) {
                 rentAmount = calculateProratedRent(lease, today);
@@ -89,7 +93,6 @@ public class InvoiceService {
             leaseRepository.save(lease);
         }
 
-        // Create invoice
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumber);
         invoice.setLease(lease);
@@ -104,6 +107,7 @@ public class InvoiceService {
         Invoice saved = invoiceRepository.save(invoice);
         updateNextBillingDate(lease);
 
+        // Send notifications
         User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
         if (user != null) {
             notificationService.createForUserOnce(
@@ -121,16 +125,6 @@ public class InvoiceService {
         return saved;
     }
 
-    @Transactional
-    public Invoice generateInvoice(Long leaseId) {
-        Lease lease = leaseRepository.findById(leaseId)
-                .orElseThrow(() -> new IllegalArgumentException("Lease not found: " + leaseId));
-        if (lease.getStatus() != LeaseStatus.ACTIVE) {
-            throw new IllegalArgumentException("Lease is not active");
-        }
-        return generateInvoiceForLease(lease);
-    }
-
     // ─── SEND SMS ON 25TH ───
     @Scheduled(cron = "0 0 8 25 * ?")
     @Transactional
@@ -145,9 +139,8 @@ public class InvoiceService {
 
             LocalDate monthStart = today.withDayOfMonth(1);
             LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
-            List<Invoice> invoices = invoiceRepository.findByLease(lease);
-
-            Invoice currentInvoice = invoices.stream()
+            
+            Invoice currentInvoice = invoiceRepository.findByLease(lease).stream()
                     .filter(i -> i.getIssueDate().isAfter(monthStart.minusDays(1)) &&
                             i.getIssueDate().isBefore(monthEnd.plusDays(1)))
                     .filter(i -> i.getStatus() == InvoiceStatus.PENDING)
@@ -158,13 +151,13 @@ public class InvoiceService {
                 continue;
             }
 
-            // Send SMS reminder
             Tenant tenant = lease.getTenant();
             if (tenant.getPhone() != null && !tenant.getPhone().isEmpty()) {
                 int daysUntilDue = (int) ChronoUnit.DAYS.between(today, currentInvoice.getDueDate());
                 if (daysUntilDue > 0) {
                     smsService.sendRentReminderSms(tenant, currentInvoice, daysUntilDue);
-                    System.out.println("\uD83D\uDCF1 SMS reminder sent to " + tenant.getPhone() + " for " + currentInvoice.getInvoiceNumber());
+                    System.out.println("📱 SMS reminder sent to " + tenant.getPhone() + 
+                            " for " + currentInvoice.getInvoiceNumber());
                 }
             }
         }
@@ -175,8 +168,6 @@ public class InvoiceService {
     @Transactional
     public void calculateDailyPenalties() {
         LocalDate today = LocalDate.now();
-
-        // Get invoices that are PENDING and past due
         List<Invoice> pendingInvoices = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
 
         for (Invoice invoice : pendingInvoices) {
@@ -186,8 +177,6 @@ public class InvoiceService {
 
                 // Calculate daily penalty
                 BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
-
-                // Add daily penalty to existing penalty
                 BigDecimal newPenalty = invoice.getPenaltyAmount().add(dailyPenalty);
                 invoice.setPenaltyAmount(newPenalty);
                 invoice.setTotalAmount(invoice.getRentAmount().add(newPenalty));
@@ -218,7 +207,6 @@ public class InvoiceService {
     private void notifyOverdue(Invoice invoice) {
         Tenant tenant = invoice.getLease().getTenant();
 
-        // In-app notification
         notificationService.createForUserOnce(
                 tenant.getUserId(),
                 "INVOICE_OVERDUE",
@@ -228,26 +216,18 @@ public class InvoiceService {
                 "/payments"
         );
 
-        // Email
         User user = userRepository.findById(tenant.getUserId()).orElse(null);
         if (user != null && user.getEmail() != null) {
             emailService.sendOverdueEmail(user, invoice);
         }
 
-        // SMS
         if (tenant.getPhone() != null && !tenant.getPhone().isEmpty()) {
             BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
             smsService.sendOverdueSms(tenant, invoice, 1, dailyPenalty.doubleValue());
         }
     }
 
-    /** Notify a tenant their invoice is overdue (in-app + email + SMS). */
-    public void notifyInvoiceOverdue(Invoice invoice) {
-        notifyOverdue(invoice);
-    }
-
-    // ─── OTHER METHODS ───
-
+    // ─── UPCOMING PAYMENT REMINDERS ───
     @Scheduled(cron = "0 30 8 * * ?")
     @Transactional
     public void sendUpcomingPaymentReminders() {
@@ -278,6 +258,7 @@ public class InvoiceService {
         }
     }
 
+    // ─── HELPER METHODS ───
     private boolean isCoveredByPrepayment(Lease lease, LocalDate date) {
         LocalDate start = lease.getStartDate();
         LocalDate prepaymentEnd = start.plusMonths(lease.getPrepaymentMonths());
@@ -311,104 +292,18 @@ public class InvoiceService {
         return "INV-" + year + "-" + seq;
     }
 
-    private void initializeNextBillingDate(Lease lease) {
-        LocalDate start = lease.getStartDate();
-        LocalDate prepaymentEnd = start.plusMonths(lease.getPrepaymentMonths());
-
-        lease.setNextBillingDate(prepaymentEnd);
-        leaseRepository.save(lease);
-    }
-
     private void updateNextBillingDate(Lease lease) {
         LocalDate currentNext = lease.getNextBillingDate();
         if (currentNext == null) {
-            initializeNextBillingDate(lease);
-            return;
+            lease.setNextBillingDate(lease.getStartDate().plusMonths(lease.getPrepaymentMonths()));
+        } else {
+            int monthsToAdd = lease.getBillingFrequency().getMonths();
+            lease.setNextBillingDate(currentNext.plusMonths(monthsToAdd));
         }
-
-        int monthsToAdd = lease.getBillingFrequency().getMonths();
-        LocalDate nextBilling = currentNext.plusMonths(monthsToAdd);
-
-        lease.setNextBillingDate(nextBilling);
         leaseRepository.save(lease);
     }
 
-    // ─── GETTERS FOR FRONTEND STATUS ───
-
-    public String getInvoiceStatusDisplay(Invoice invoice) {
-        LocalDate today = LocalDate.now();
-        if (invoice.getStatus() == InvoiceStatus.PAID) {
-            return "PAID";
-        }
-        if (invoice.getStatus() == InvoiceStatus.OVERDUE) {
-            return "OVERDUE";
-        }
-        if (invoice.getStatus() == InvoiceStatus.SUBMITTED) {
-            return "SUBMITTED";
-        }
-        if (invoice.getStatus() == InvoiceStatus.PENDING) {
-            // 1st to 10th: PENDING (yellow)
-            if (today.getDayOfMonth() >= 1 && today.getDayOfMonth() <= 10) {
-                return "PENDING";
-            }
-            // 11th onwards: OVERDUE (red) – but already caught above
-        }
-        return invoice.getStatus().name();
-    }
-
-    public boolean isInvoiceOverdue(Invoice invoice) {
-        return invoice.getDueDate().isBefore(LocalDate.now()) &&
-                invoice.getStatus() != InvoiceStatus.PAID;
-    }
-
-    public boolean isOverdue(Invoice invoice) {
-        return invoice.getStatus() == InvoiceStatus.OVERDUE ||
-                (invoice.getStatus() == InvoiceStatus.PENDING && invoice.getDueDate().isBefore(LocalDate.now()));
-    }
-
-    public long getDaysOverdue(Invoice invoice) {
-        if (invoice.getStatus() != InvoiceStatus.OVERDUE) {
-            return 0;
-        }
-        return ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
-    }
-
-    public BigDecimal calculateTotalPenalty(Long invoiceId) {
-        Invoice invoice = getInvoiceById(invoiceId);
-        if (invoice.getStatus() == InvoiceStatus.PAID) {
-            return invoice.getPenaltyAmount();
-        }
-        // Calculate up to today
-        long daysOverdue = ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
-        if (daysOverdue <= 0) {
-            return invoice.getPenaltyAmount();
-        }
-        BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
-        return invoice.getPenaltyAmount().add(dailyPenalty.multiply(BigDecimal.valueOf(daysOverdue)));
-    }
-
-    private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
-        // Valid transitions:
-        // PENDING -> SUBMITTED (tenant submits payment)
-        // PENDING -> OVERDUE (scheduled task marks overdue)
-        // SUBMITTED -> PAID (admin approves payment)
-        // OVERDUE -> SUBMITTED (tenant submits late payment)
-        // OVERDUE -> PAID (admin approves late payment)
-        switch (from) {
-            case PENDING:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE;
-            case SUBMITTED:
-                return to == InvoiceStatus.PAID;
-            case OVERDUE:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
-            case PAID:
-                return false; // Already paid, no further transitions
-            default:
-                return false;
-        }
-    }
-
-    // ─── EXISTING METHODS ───
+    // ─── PUBLIC METHODS ───
 
     public List<Invoice> getInvoicesByTenant(Long tenantId) {
         return invoiceRepository.findByLeaseTenantId(tenantId);
@@ -432,10 +327,85 @@ public class InvoiceService {
 
     public Invoice getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Invoice not found with id: " + id));
     }
 
     public Invoice saveInvoice(Invoice invoice) {
         return invoiceRepository.save(invoice);
+    }
+
+    @Transactional
+    public Invoice generateInvoice(Long leaseId) {
+        Lease lease = leaseRepository.findById(leaseId)
+                .orElseThrow(() -> new IllegalArgumentException("Lease not found with id: " + leaseId));
+        if (lease.getStatus() != LeaseStatus.ACTIVE) {
+            throw new IllegalArgumentException("Lease is not active. Cannot generate invoice.");
+        }
+        return generateInvoiceForLease(lease);
+    }
+
+    public void notifyInvoiceOverdue(Invoice invoice) {
+        notifyOverdue(invoice);
+    }
+
+    public BigDecimal calculateTotalPenalty(Long invoiceId) {
+        Invoice invoice = getInvoiceById(invoiceId);
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            return invoice.getPenaltyAmount();
+        }
+        long daysOverdue = ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
+        if (daysOverdue <= 0) {
+            return invoice.getPenaltyAmount();
+        }
+        BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
+        return invoice.getPenaltyAmount().add(dailyPenalty.multiply(BigDecimal.valueOf(daysOverdue)));
+    }
+
+    public boolean isOverdue(Invoice invoice) {
+        return invoice.getStatus() == InvoiceStatus.OVERDUE ||
+                (invoice.getStatus() == InvoiceStatus.PENDING && 
+                 invoice.getDueDate().isBefore(LocalDate.now()));
+    }
+
+    public long getDaysOverdue(Invoice invoice) {
+        if (invoice.getStatus() != InvoiceStatus.OVERDUE) {
+            return 0;
+        }
+        return ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
+    }
+
+    public String getInvoiceStatusDisplay(Invoice invoice) {
+        LocalDate today = LocalDate.now();
+        if (invoice.getStatus() == InvoiceStatus.PAID) {
+            return "PAID";
+        }
+        if (invoice.getStatus() == InvoiceStatus.OVERDUE) {
+            return "OVERDUE";
+        }
+        if (invoice.getStatus() == InvoiceStatus.SUBMITTED) {
+            return "SUBMITTED";
+        }
+        if (invoice.getStatus() == InvoiceStatus.PENDING) {
+            if (invoice.getDueDate().isBefore(today)) {
+                return "OVERDUE";
+            }
+            return "PENDING";
+        }
+        return invoice.getStatus().name();
+    }
+
+    private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
+        switch (from) {
+            case PENDING:
+                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE;
+            case SUBMITTED:
+                return to == InvoiceStatus.PAID;
+            case OVERDUE:
+                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
+            case PAID:
+                return false;
+            default:
+                return false;
+        }
     }
 }
