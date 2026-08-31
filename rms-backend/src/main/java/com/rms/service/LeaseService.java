@@ -37,6 +37,8 @@ public class LeaseService {
         this.notificationService = notificationService;
     }
 
+    // ─── GET METHODS ───
+
     @Transactional
     public List<Lease> getAll() {
         syncExpiredLeases();
@@ -72,19 +74,24 @@ public class LeaseService {
         Tenant tenant = tenantRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("No tenant found for user: " + username));
 
+        // Try to find active lease first, then the most recent lease
         return leaseRepository.findByTenantIdAndStatus(tenant.getId(), LeaseStatus.ACTIVE)
                 .stream().findFirst()
                 .or(() -> leaseRepository.findFirstByTenantIdOrderByEndDateDesc(tenant.getId()))
                 .orElse(null);
     }
 
+    // ─── CREATE LEASE ───
+
     @Transactional
     public Lease createLease(LeaseRequest request) {
         syncExpiredLeases();
 
+        // Validate Tenant
         Tenant tenant = tenantRepository.findById(request.getTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Tenant not found with id " + request.getTenantId()));
 
+        // Validate Space
         Space space = spaceRepository.findById(request.getSpaceId())
                 .orElseThrow(() -> new IllegalArgumentException("Space not found with id " + request.getSpaceId()));
 
@@ -96,40 +103,61 @@ public class LeaseService {
             throw new IllegalArgumentException("Space " + space.getUnitNumber() + " already has an active lease");
         }
 
+        // Validate Prepayment
         if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
             throw new IllegalArgumentException("Prepayment must be at least 3 months");
         }
 
+        if (request.getPrepaymentMonths() > 24) {
+            throw new IllegalArgumentException("Prepayment cannot exceed 24 months");
+        }
+
+        // Validate Dates
         if (request.getStartDate().isAfter(request.getEndDate())) {
             throw new IllegalArgumentException("Start date cannot be after end date");
         }
 
-        // ─── COMMENTED OUT FOR TESTING ───
+        // Uncomment for production
         // if (request.getStartDate().isBefore(LocalDate.now())) {
         //     throw new IllegalArgumentException("Start date cannot be in the past");
         // }
 
+        // Validate Monthly Rent
+        if (request.getMonthlyRent() == null || request.getMonthlyRent().compareTo(new java.math.BigDecimal("1.00")) < 0) {
+            throw new IllegalArgumentException("Monthly rent must be at least 1.00");
+        }
+
+        // Validate Due Day
+        if (request.getDueDay() == null || request.getDueDay() < 1 || request.getDueDay() > 31) {
+            throw new IllegalArgumentException("Due day must be between 1 and 31");
+        }
+
+        // Build Lease
         Lease lease = new Lease();
         lease.setTenant(tenant);
         lease.setSpace(space);
         lease.setStartDate(request.getStartDate());
         lease.setEndDate(request.getEndDate());
         lease.setMonthlyRent(request.getMonthlyRent());
-        lease.setDeposit(request.getDeposit());
+        lease.setDeposit(request.getDeposit() != null ? request.getDeposit() : java.math.BigDecimal.ZERO);
         lease.setPrepaymentMonths(request.getPrepaymentMonths());
         lease.setDueDay(request.getDueDay());
         lease.setStatus(LeaseStatus.ACTIVE);
-        lease.setBillingFrequency(request.getBillingFrequency());
+        lease.setBillingFrequency(request.getBillingFrequency() != null ? 
+                request.getBillingFrequency() : BillingFrequency.MONTHLY);
         lease.setNextBillingDate(request.getStartDate().plusMonths(request.getPrepaymentMonths()));
         lease.setFirstInvoiceProrated(request.getStartDate().getDayOfMonth() > 15);
 
         Lease saved = leaseRepository.save(lease);
 
+        // Update Space Status
         space.setStatus(SpaceStatus.OCCUPIED);
         spaceRepository.save(space);
 
         return saved;
     }
+
+    // ─── UPDATE LEASE ───
 
     @Transactional
     public Lease updateLease(Long id, LeaseRequest request) {
@@ -139,10 +167,16 @@ public class LeaseService {
             throw new IllegalArgumentException("Only active leases can be edited");
         }
 
+        // Validate Prepayment
         if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
             throw new IllegalArgumentException("Prepayment must be at least 3 months");
         }
 
+        if (request.getPrepaymentMonths() > 24) {
+            throw new IllegalArgumentException("Prepayment cannot exceed 24 months");
+        }
+
+        // Validate Dates
         if (request.getStartDate().isAfter(request.getEndDate())) {
             throw new IllegalArgumentException("Start date cannot be after end date");
         }
@@ -152,11 +186,21 @@ public class LeaseService {
             throw new IllegalArgumentException("Cannot change start date to a past date");
         }
 
+        // Validate Monthly Rent
+        if (request.getMonthlyRent() == null || request.getMonthlyRent().compareTo(new java.math.BigDecimal("1.00")) < 0) {
+            throw new IllegalArgumentException("Monthly rent must be at least 1.00");
+        }
+
+        // Validate Due Day
+        if (request.getDueDay() == null || request.getDueDay() < 1 || request.getDueDay() > 31) {
+            throw new IllegalArgumentException("Due day must be between 1 and 31");
+        }
+
         try {
             lease.setStartDate(request.getStartDate());
             lease.setEndDate(request.getEndDate());
             lease.setMonthlyRent(request.getMonthlyRent());
-            lease.setDeposit(request.getDeposit());
+            lease.setDeposit(request.getDeposit() != null ? request.getDeposit() : java.math.BigDecimal.ZERO);
             lease.setPrepaymentMonths(request.getPrepaymentMonths());
             lease.setDueDay(request.getDueDay());
             lease.setUpdatedAt(today);
@@ -165,6 +209,7 @@ public class LeaseService {
                 lease.setBillingFrequency(request.getBillingFrequency());
             }
 
+            // Update next billing date if prepayment period changes
             LocalDate newPrepaymentEnd = request.getStartDate().plusMonths(request.getPrepaymentMonths());
             if (lease.getNextBillingDate() != null && today.isBefore(lease.getNextBillingDate())) {
                 lease.setNextBillingDate(newPrepaymentEnd);
@@ -176,6 +221,8 @@ public class LeaseService {
         }
     }
 
+    // ─── TERMINATE LEASE ───
+
     @Transactional
     public Lease terminateLease(Long id) {
         Lease lease = getById(id);
@@ -185,7 +232,8 @@ public class LeaseService {
         }
 
         if (!isValidLeaseStatusTransition(lease.getStatus(), LeaseStatus.TERMINATED)) {
-            throw new IllegalArgumentException("Invalid status transition from " + lease.getStatus() + " to " + LeaseStatus.TERMINATED);
+            throw new IllegalArgumentException("Invalid status transition from " + lease.getStatus() + 
+                    " to " + LeaseStatus.TERMINATED);
         }
 
         try {
@@ -202,6 +250,8 @@ public class LeaseService {
             throw new IllegalArgumentException("Lease was updated by another user. Please refresh and try again.");
         }
     }
+
+    // ─── EXPIRATION MANAGEMENT ───
 
     @Scheduled(cron = "0 0 2 * * ?")
     @Transactional
@@ -243,6 +293,11 @@ public class LeaseService {
             throw new IllegalArgumentException("Only active leases can be expired");
         }
 
+        if (!isValidLeaseStatusTransition(lease.getStatus(), LeaseStatus.EXPIRED)) {
+            throw new IllegalArgumentException("Invalid status transition from " + lease.getStatus() + 
+                    " to " + LeaseStatus.EXPIRED);
+        }
+
         try {
             lease.setStatus(LeaseStatus.EXPIRED);
             lease.setUpdatedAt(LocalDate.now());
@@ -258,6 +313,8 @@ public class LeaseService {
             throw new IllegalArgumentException("Lease was updated by another user. Please refresh and try again.");
         }
     }
+
+    // ─── UTILITY METHODS ───
 
     public LocalDate getNextDueDate(Lease lease) {
         if (lease == null || lease.getStatus() != LeaseStatus.ACTIVE) {
@@ -295,6 +352,8 @@ public class LeaseService {
         return !leaseRepository.findByTenantIdAndStatus(tenantId, LeaseStatus.ACTIVE).isEmpty();
     }
 
+    // ─── PRIVATE HELPERS ───
+
     private void notifyLeaseExpired(Lease lease) {
         Tenant tenant = lease.getTenant();
         notificationService.createForUserOnce(
@@ -320,6 +379,7 @@ public class LeaseService {
         try {
             lease.setStatus(LeaseStatus.EXPIRED);
             lease.setUpdatedAt(LocalDate.now());
+            leaseRepository.save(lease);
 
             Space space = lease.getSpace();
             space.setStatus(SpaceStatus.VACANT);
@@ -334,5 +394,46 @@ public class LeaseService {
 
     private boolean isValidLeaseStatusTransition(LeaseStatus from, LeaseStatus to) {
         return from == LeaseStatus.ACTIVE && (to == LeaseStatus.TERMINATED || to == LeaseStatus.EXPIRED);
+    }
+
+    // ─── VALIDATION HELPERS (for use by controllers) ───
+
+    public void validateLeaseRequest(LeaseRequest request) {
+        if (request.getTenantId() == null || request.getTenantId() <= 0) {
+            throw new IllegalArgumentException("Valid Tenant ID is required");
+        }
+
+        if (request.getSpaceId() == null || request.getSpaceId() <= 0) {
+            throw new IllegalArgumentException("Valid Space ID is required");
+        }
+
+        if (request.getStartDate() == null) {
+            throw new IllegalArgumentException("Start date is required");
+        }
+
+        if (request.getEndDate() == null) {
+            throw new IllegalArgumentException("End date is required");
+        }
+
+        if (request.getStartDate().isAfter(request.getEndDate())) {
+            throw new IllegalArgumentException("Start date must be before end date");
+        }
+
+        if (request.getMonthlyRent() == null || 
+            request.getMonthlyRent().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Monthly rent must be a positive amount");
+        }
+
+        if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
+            throw new IllegalArgumentException("Prepayment must be at least 3 months");
+        }
+
+        if (request.getPrepaymentMonths() > 24) {
+            throw new IllegalArgumentException("Prepayment cannot exceed 24 months");
+        }
+
+        if (request.getDueDay() == null || request.getDueDay() < 1 || request.getDueDay() > 31) {
+            throw new IllegalArgumentException("Due day must be between 1 and 31");
+        }
     }
 }

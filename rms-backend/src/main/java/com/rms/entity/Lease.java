@@ -1,6 +1,7 @@
 package com.rms.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -12,32 +13,48 @@ public class Lease {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotNull(message = "Tenant is required")
     @ManyToOne(optional = false)
     @JoinColumn(name = "tenant_id")
     private Tenant tenant;
 
+    @NotNull(message = "Space is required")
     @ManyToOne(optional = false)
     @JoinColumn(name = "space_id")
     private Space space;
 
+    @NotNull(message = "Start date is required")
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
+    @NotNull(message = "End date is required")
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    @NotNull(message = "Monthly rent is required")
+    @DecimalMin(value = "0.01", message = "Monthly rent must be at least 0.01")
+    @DecimalMax(value = "99999999.99", message = "Monthly rent cannot exceed 99,999,999.99")
     @Column(name = "monthly_rent", nullable = false)
     private BigDecimal monthlyRent;
 
+    @DecimalMin(value = "0.00", message = "Deposit cannot be negative")
+    @DecimalMax(value = "99999999.99", message = "Deposit cannot exceed 99,999,999.99")
     @Column(name = "deposit")
     private BigDecimal deposit = BigDecimal.ZERO;
 
+    @NotNull(message = "Prepayment months is required")
+    @Min(value = 3, message = "Prepayment must be at least 3 months")
+    @Max(value = 24, message = "Prepayment cannot exceed 24 months")
     @Column(name = "prepayment_months", nullable = false)
     private Integer prepaymentMonths = 3;
 
+    @NotNull(message = "Due day is required")
+    @Min(value = 1, message = "Due day must be between 1 and 31")
+    @Max(value = 31, message = "Due day must be between 1 and 31")
     @Column(name = "due_day", nullable = false)
     private Integer dueDay = 1;
 
+    @NotNull(message = "Status is required")
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private LeaseStatus status = LeaseStatus.ACTIVE;
@@ -48,6 +65,7 @@ public class Lease {
     @Column(name = "updated_at")
     private LocalDate updatedAt;
 
+    @NotNull(message = "Billing frequency is required")
     @Enumerated(EnumType.STRING)
     @Column(name = "billing_frequency")
     private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
@@ -61,6 +79,8 @@ public class Lease {
     @Version
     @Column(name = "version")
     private Long version;
+
+    // ─── GETTERS AND SETTERS ───
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -109,4 +129,172 @@ public class Lease {
 
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
+
+    // ─── CUSTOM VALIDATION HELPERS ───
+
+    /**
+     * Checks if the lease is currently active based on status and dates
+     */
+    public boolean isActive() {
+        if (status != LeaseStatus.ACTIVE) {
+            return false;
+        }
+        LocalDate today = LocalDate.now();
+        return !today.isBefore(startDate) && !today.isAfter(endDate);
+    }
+
+    /**
+     * Checks if the lease has expired
+     */
+    public boolean isExpired() {
+        return status == LeaseStatus.EXPIRED || 
+               (status == LeaseStatus.ACTIVE && LocalDate.now().isAfter(endDate));
+    }
+
+    /**
+     * Checks if the lease is currently in the prepayment period
+     */
+    public boolean isInPrepaymentPeriod() {
+        if (status != LeaseStatus.ACTIVE) {
+            return false;
+        }
+        LocalDate today = LocalDate.now();
+        LocalDate prepaymentEnd = startDate.plusMonths(prepaymentMonths);
+        return today.isBefore(prepaymentEnd) || today.isEqual(prepaymentEnd);
+    }
+
+    /**
+     * Gets the number of days until the lease expires
+     */
+    public long getDaysUntilExpiry() {
+        if (status != LeaseStatus.ACTIVE) {
+            return -1;
+        }
+        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), endDate);
+    }
+
+    /**
+     * Gets the number of days until the next billing date
+     */
+    public long getDaysUntilNextBilling() {
+        if (status != LeaseStatus.ACTIVE || nextBillingDate == null) {
+            return -1;
+        }
+        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), nextBillingDate);
+    }
+
+    /**
+     * Calculates the prorated rent for a given month
+     */
+    public BigDecimal calculateProratedRent(LocalDate monthDate) {
+        if (monthDate == null) {
+            monthDate = LocalDate.now();
+        }
+        
+        int daysInMonth = monthDate.lengthOfMonth();
+        int dayOfMonth = monthDate.getDayOfMonth();
+        int daysRemaining = daysInMonth - dayOfMonth + 1;
+        
+        BigDecimal dailyRate = monthlyRent.divide(BigDecimal.valueOf(daysInMonth), 2, 
+                java.math.RoundingMode.HALF_UP);
+        
+        return dailyRate.multiply(BigDecimal.valueOf(daysRemaining))
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Validates the lease dates
+     */
+    public boolean hasValidDates() {
+        if (startDate == null || endDate == null) {
+            return false;
+        }
+        return !startDate.isAfter(endDate);
+    }
+
+    /**
+     * Validates the prepayment period
+     */
+    public boolean hasValidPrepayment() {
+        return prepaymentMonths != null && prepaymentMonths >= 3 && prepaymentMonths <= 24;
+    }
+
+    /**
+     * Validates the due day
+     */
+    public boolean hasValidDueDay() {
+        return dueDay != null && dueDay >= 1 && dueDay <= 31;
+    }
+
+    /**
+     * Validates the rent amount
+     */
+    public boolean hasValidRent() {
+        return monthlyRent != null && monthlyRent.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    /**
+     * Validates the deposit amount
+     */
+    public boolean hasValidDeposit() {
+        return deposit != null && deposit.compareTo(BigDecimal.ZERO) >= 0;
+    }
+
+    // ─── BUSINESS LOGIC METHODS ───
+
+    /**
+     * Calculates the next due date after the prepayment period
+     */
+    public LocalDate getNextDueDate() {
+        if (status != LeaseStatus.ACTIVE) {
+            return null;
+        }
+
+        LocalDate prepaymentEnd = startDate.plusMonths(prepaymentMonths);
+        LocalDate today = LocalDate.now();
+        
+        LocalDate dueDate = prepaymentEnd.withDayOfMonth(Math.min(dueDay, prepaymentEnd.lengthOfMonth()));
+        
+        while (dueDate.isBefore(today)) {
+            dueDate = dueDate.plusMonths(1);
+            dueDate = dueDate.withDayOfMonth(Math.min(dueDay, dueDate.lengthOfMonth()));
+        }
+        
+        return dueDate;
+    }
+
+    /**
+     * Gets the number of days until the next due date
+     */
+    public long getDaysUntilDue() {
+        LocalDate nextDue = getNextDueDate();
+        if (nextDue == null) {
+            return -1;
+        }
+        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), nextDue);
+    }
+
+    /**
+     * Checks if the lease is overdue
+     */
+    public boolean isOverdue() {
+        if (status != LeaseStatus.ACTIVE) {
+            return false;
+        }
+        LocalDate nextDue = getNextDueDate();
+        return nextDue != null && LocalDate.now().isAfter(nextDue);
+    }
+
+    @Override
+    public String toString() {
+        return "Lease{" +
+                "id=" + id +
+                ", tenant=" + (tenant != null ? tenant.getName() : "null") +
+                ", space=" + (space != null ? space.getUnitNumber() : "null") +
+                ", startDate=" + startDate +
+                ", endDate=" + endDate +
+                ", monthlyRent=" + monthlyRent +
+                ", status=" + status +
+                '}';
+    }
 }

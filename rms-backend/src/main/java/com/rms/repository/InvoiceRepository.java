@@ -9,7 +9,10 @@ import org.springframework.data.repository.query.Param;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+<<<<<<< HEAD
 import java.util.Optional;
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
 
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 

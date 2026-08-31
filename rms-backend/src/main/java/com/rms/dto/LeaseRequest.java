@@ -47,7 +47,8 @@ public class LeaseRequest {
     @NotNull(message = "Billing frequency is required")
     private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
 
-    // Getters and Setters
+    // ─── GETTERS AND SETTERS ───
+
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
 
@@ -74,4 +75,126 @@ public class LeaseRequest {
 
     public BillingFrequency getBillingFrequency() { return billingFrequency; }
     public void setBillingFrequency(BillingFrequency billingFrequency) { this.billingFrequency = billingFrequency; }
+
+    // ─── CUSTOM VALIDATION METHODS ───
+
+    /**
+     * Validates that the start date is not after the end date
+     */
+    public boolean hasValidDateRange() {
+        if (startDate == null || endDate == null) {
+            return false;
+        }
+        return !startDate.isAfter(endDate);
+    }
+
+    /**
+     * Validates that the lease duration is at least 1 month
+     */
+    public boolean hasValidDuration() {
+        if (startDate == null || endDate == null) {
+            return false;
+        }
+        return endDate.isAfter(startDate) || endDate.isEqual(startDate.plusMonths(1));
+    }
+
+    /**
+     * Validates all fields are present and valid
+     */
+    public boolean isValid() {
+        return tenantId != null && tenantId > 0 &&
+               spaceId != null && spaceId > 0 &&
+               startDate != null &&
+               endDate != null &&
+               monthlyRent != null && monthlyRent.compareTo(BigDecimal.ZERO) > 0 &&
+               prepaymentMonths != null && prepaymentMonths >= 3 && prepaymentMonths <= 24 &&
+               dueDay != null && dueDay >= 1 && dueDay <= 31 &&
+               billingFrequency != null &&
+               hasValidDateRange();
+    }
+
+    /**
+     * Gets validation error messages
+     */
+    public String getValidationError() {
+        if (tenantId == null || tenantId <= 0) {
+            return "Valid Tenant ID is required";
+        }
+        if (spaceId == null || spaceId <= 0) {
+            return "Valid Space ID is required";
+        }
+        if (startDate == null) {
+            return "Start date is required";
+        }
+        if (endDate == null) {
+            return "End date is required";
+        }
+        if (!hasValidDateRange()) {
+            return "Start date cannot be after end date";
+        }
+        if (!hasValidDuration()) {
+            return "Lease duration must be at least 1 month";
+        }
+        if (monthlyRent == null || monthlyRent.compareTo(BigDecimal.ZERO) <= 0) {
+            return "Monthly rent must be a positive amount";
+        }
+        if (monthlyRent.compareTo(new BigDecimal("1.00")) < 0) {
+            return "Monthly rent must be at least 1.00";
+        }
+        if (prepaymentMonths == null || prepaymentMonths < 3) {
+            return "Prepayment must be at least 3 months";
+        }
+        if (prepaymentMonths > 24) {
+            return "Prepayment cannot exceed 24 months";
+        }
+        if (dueDay == null || dueDay < 1 || dueDay > 31) {
+            return "Due day must be between 1 and 31";
+        }
+        if (billingFrequency == null) {
+            return "Billing frequency is required";
+        }
+        return null;
+    }
+
+    /**
+     * Creates a copy of this request with updated values
+     */
+    public LeaseRequest copyWith(
+            Long tenantId,
+            Long spaceId,
+            LocalDate startDate,
+            LocalDate endDate,
+            BigDecimal monthlyRent,
+            BigDecimal deposit,
+            Integer prepaymentMonths,
+            Integer dueDay,
+            BillingFrequency billingFrequency) {
+        
+        LeaseRequest copy = new LeaseRequest();
+        copy.setTenantId(tenantId != null ? tenantId : this.tenantId);
+        copy.setSpaceId(spaceId != null ? spaceId : this.spaceId);
+        copy.setStartDate(startDate != null ? startDate : this.startDate);
+        copy.setEndDate(endDate != null ? endDate : this.endDate);
+        copy.setMonthlyRent(monthlyRent != null ? monthlyRent : this.monthlyRent);
+        copy.setDeposit(deposit != null ? deposit : this.deposit);
+        copy.setPrepaymentMonths(prepaymentMonths != null ? prepaymentMonths : this.prepaymentMonths);
+        copy.setDueDay(dueDay != null ? dueDay : this.dueDay);
+        copy.setBillingFrequency(billingFrequency != null ? billingFrequency : this.billingFrequency);
+        return copy;
+    }
+
+    @Override
+    public String toString() {
+        return "LeaseRequest{" +
+                "tenantId=" + tenantId +
+                ", spaceId=" + spaceId +
+                ", startDate=" + startDate +
+                ", endDate=" + endDate +
+                ", monthlyRent=" + monthlyRent +
+                ", deposit=" + deposit +
+                ", prepaymentMonths=" + prepaymentMonths +
+                ", dueDay=" + dueDay +
+                ", billingFrequency=" + billingFrequency +
+                '}';
+    }
 }

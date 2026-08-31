@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
-  Menu, Search, Bell, Sun, Moon, LogOut, 
-  User, Settings, ChevronDown, Home 
+  Menu, Bell, LogOut,
+  User, Settings, ChevronDown, Home
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { notificationsApi } from '../../services/api';
@@ -14,7 +14,6 @@ export default function Header({ onMenuClick, title }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isDark, setIsDark] = useState(false);
 
   const loadNotifications = async () => {
     if (!user) return;
@@ -37,11 +36,6 @@ export default function Header({ onMenuClick, title }) {
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle('dark');
   };
 
   const handleNotificationClick = async (notification) => {
@@ -68,7 +62,7 @@ export default function Header({ onMenuClick, title }) {
     }
   };
 
-  
+
   const getInitials = () => {
     if (!user?.name) return '?';
     return user.name
@@ -91,7 +85,7 @@ export default function Header({ onMenuClick, title }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          
+
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-2.5">
               <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/25">
@@ -106,28 +100,6 @@ export default function Header({ onMenuClick, title }) {
 
         {}
         <div className="flex items-center gap-1 sm:gap-2">
-          {}
-          <div className="hidden md:flex items-center gap-2 bg-slate-100 hover:bg-slate-200/70 px-3 py-2 rounded-lg transition-colors w-48 lg:w-64">
-            <Search className="w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="bg-transparent outline-none text-sm text-slate-700 w-full placeholder:text-slate-400"
-            />
-            <kbd className="hidden lg:block text-[10px] font-mono text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">
-              ⌘K
-            </kbd>
-          </div>
-
-          {}
-          <button
-            onClick={toggleTheme}
-            className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-            aria-label="Toggle theme"
-          >
-            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
-
           {}
           <div className="relative">
             <button
@@ -218,7 +190,7 @@ export default function Header({ onMenuClick, title }) {
               <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-md shadow-indigo-500/20">
                 {getInitials()}
               </div>
-              
+
               {}
               <div className="hidden sm:block text-left">
                 <p className="text-sm font-medium text-slate-800 leading-tight">
@@ -228,7 +200,7 @@ export default function Header({ onMenuClick, title }) {
                   @{user?.username || 'username'}
                 </p>
               </div>
-              
+
               <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showDropdown ? 'rotate-180' : ''}`} />
             </button>
 
@@ -236,11 +208,11 @@ export default function Header({ onMenuClick, title }) {
             {showDropdown && (
               <>
                 {}
-                <div 
-                  className="fixed inset-0 z-40" 
+                <div
+                  className="fixed inset-0 z-40"
                   onClick={() => setShowDropdown(false)}
                 />
-                
+
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-50 overflow-hidden animate-fade-in">
                   {}
                   <div className="px-4 py-3 border-b border-slate-100">

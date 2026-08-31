@@ -50,7 +50,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwtUtil.isTokenValid(token)) {
                 String username = jwtUtil.extractUsername(token);
                 String role = jwtUtil.extractRole(token);
+<<<<<<< HEAD
                 System.out.println("✅ FILTER: Valid token for: " + username + " (role: " + role + ")");
+=======
+>>>>>>> abc52cb (Resolve merge conflicts)
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
