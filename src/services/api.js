@@ -192,6 +192,8 @@ export const chapaApi = {
     }),
   verify: (txRef) =>
     request(`/payments/chapa/verify?tx_ref=${txRef}`),
+  confirm: (txRef) =>
+    request(`/payments/chapa/confirm?tx_ref=${txRef}`, { method: 'POST' }),
 };
 
 // ─── TENANT SELF-SERVICE ───

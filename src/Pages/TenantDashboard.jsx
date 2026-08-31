@@ -492,7 +492,7 @@ export default function TenantDashboard() {
               </div>
             </div>
             <Link
-              to="/tenant-payments"
+              to="/my-payments"
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition text-center"
             >
               View Payments

@@ -1,17 +1,32 @@
 // src/Pages/PaymentCallback.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { chapaApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function PaymentCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [status, setStatus] = useState('verifying');
   const [message, setMessage] = useState('');
+  const confirmedRef = useRef(false);
+  // Keep the redirect target in a ref so timers always navigate to the current
+  // value even if `user` (and thus paymentsPath) settles after the effect ran.
+  const paymentsPathRef = useRef('/payments');
+
+  // Tenants land on /my-payments; admins on /payments.
+  const paymentsPath = user?.role === 'TENANT' ? '/my-payments' : '/payments';
+  paymentsPathRef.current = paymentsPath;
 
   useEffect(() => {
     const verifyPayment = async () => {
+      // Guard against React StrictMode double-invoke / re-mounts so we don't
+      // call the confirm endpoint (which is idempotent, but no need to redo it).
+      if (confirmedRef.current) return;
+      confirmedRef.current = true;
+
       const txRef = searchParams.get('tx_ref');
       const statusParam = searchParams.get('status');
 
@@ -27,16 +42,16 @@ export default function PaymentCallback() {
       // Check if payment was successful from URL param (Chapa redirect)
       if (statusParam === 'success') {
         try {
-          // Verify with Chapa API
-          const result = await chapaApi.verify(txRef);
-          
+          // Confirm (and record) with Chapa API — marks invoice PAID
+          const result = await chapaApi.confirm(txRef);
+
           if (result.verified) {
             setStatus('success');
             setMessage('✅ Payment successful! Your invoice has been marked as paid.');
-            setTimeout(() => navigate('/payments'), 3000);
+            setTimeout(() => navigate(paymentsPathRef.current), 3000);
           } else {
             setStatus('error');
-            setMessage('Payment verification failed. Please contact admin.');
+            setMessage(result.message || 'Payment verification failed. Please contact admin.');
           }
         } catch (err) {
           console.error('Verification error:', err);
@@ -47,7 +62,7 @@ export default function PaymentCallback() {
         // User returned from Chapa but didn't complete payment
         setStatus('error');
         setMessage('Payment was not completed. Please try again.');
-        setTimeout(() => navigate('/payments'), 3000);
+        setTimeout(() => navigate(paymentsPathRef.current), 3000);
       } else {
         // Unknown status
         setStatus('error');
@@ -56,7 +71,7 @@ export default function PaymentCallback() {
     };
 
     verifyPayment();
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, paymentsPath]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -84,10 +99,10 @@ export default function PaymentCallback() {
             <h2 className="text-xl font-bold text-slate-800 mt-4">Payment Failed</h2>
             <p className="text-slate-600 mt-2">{message}</p>
             <button
-              onClick={() => navigate('/payments')}
+              onClick={() => navigate(paymentsPath)}
               className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition"
             >
-              Return to Payments
+              Return to {user?.role === 'TENANT' ? 'My Payments' : 'Payments'}
             </button>
           </>
         )}

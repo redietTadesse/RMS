@@ -1,3 +1,4 @@
+// src/Pages/Leases.jsx
 import { useState, useEffect } from 'react';
 import { leasesApi, tenantsApi, spacesApi, invoicesApi } from '../services/api';
 import { FaEdit, FaTrash, FaPlus, FaFileInvoice } from 'react-icons/fa';
@@ -85,22 +86,23 @@ export default function Leases() {
     resetForm();
     setShowForm(true);
   };
+
   const handleGenerateInvoice = async (leaseId) => {
-  const lease = leases.find(l => l.id === leaseId);
-  if (!window.confirm(`Generate invoice for ${lease?.tenant?.name || 'tenant'}?`)) return;
-  
-  try {
-    const invoice = await invoicesApi.generate(leaseId);
-    if (!invoice) {
-      alert('ℹ️ Invoice already exists for this month');
-    } else {
-      alert('✅ Invoice generated successfully!');
+    const lease = leases.find(l => l.id === leaseId);
+    if (!window.confirm(`Generate invoice for ${lease?.tenant?.name || 'tenant'}?`)) return;
+    
+    try {
+      const invoice = await invoicesApi.generate(leaseId);
+      if (!invoice) {
+        alert('ℹ️ Invoice already exists for this month');
+      } else {
+        alert('✅ Invoice generated successfully!');
+      }
+      await loadData();
+    } catch (err) {
+      alert('❌ Failed to generate invoice: ' + err.message);
     }
-    await loadData();
-  } catch (err) {
-    alert('❌ Failed to generate invoice: ' + err.message);
-  }
-};
+  };
 
   const handleEdit = (lease) => {
     setEditingId(lease.id);
@@ -127,7 +129,31 @@ export default function Leases() {
     setSaving(true);
     setError('');
 
-    // Validation
+    // ─── VALIDATION ───
+    if (!formData.tenantId) {
+      setError('Please select a tenant');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.spaceId) {
+      setError('Please select a space');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.startDate) {
+      setError('Start date is required');
+      setSaving(false);
+      return;
+    }
+
+    if (!formData.endDate) {
+      setError('End date is required');
+      setSaving(false);
+      return;
+    }
+
     if (parseInt(formData.prepaymentMonths) < 3) {
       setError('Prepayment must be at least 3 months');
       setSaving(false);
@@ -140,6 +166,7 @@ export default function Leases() {
       return;
     }
 
+    // ─── BUILD PAYLOAD ───
     const payload = {
       tenantId: parseInt(formData.tenantId),
       spaceId: parseInt(formData.spaceId),
@@ -149,8 +176,10 @@ export default function Leases() {
       deposit: parseFloat(formData.deposit) || 0,
       prepaymentMonths: parseInt(formData.prepaymentMonths),
       dueDay: parseInt(formData.dueDay),
-      billingFrequency: formData.billingFrequency,
+      billingFrequency: formData.billingFrequency || 'MONTHLY',
     };
+
+    console.log('📤 Sending payload:', payload);  // ← Debug
 
     try {
       if (editingId) {
@@ -161,7 +190,8 @@ export default function Leases() {
       setShowForm(false);
       await loadData();
     } catch (e) {
-      setError(e.message);
+      console.error('❌ Error:', e);
+      setError(e.message || 'Failed to create lease');
     } finally {
       setSaving(false);
     }
@@ -187,14 +217,12 @@ export default function Leases() {
     }
   };
 
-  // Check if selected space is available
   const selectedSpace = spaces.find(s => s.id === parseInt(formData.spaceId));
   const isSpaceOccupied = selectedSpace?.status === 'OCCUPIED';
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Lease Management</h1>
@@ -208,7 +236,6 @@ export default function Leases() {
           </button>
         </div>
 
-        {/* Error */}
         {error && (
           <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200 flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
@@ -219,7 +246,6 @@ export default function Leases() {
           </div>
         )}
 
-        {/* Form */}
         {showForm && (
           <div className="bg-white rounded-xl border border-slate-100 p-6 shadow-sm animate-fade-in">
             <div className="flex items-center justify-between mb-4">
@@ -236,7 +262,6 @@ export default function Leases() {
 
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Tenant - READ-ONLY when editing */}
                 <div>
                   <label className={labelClass}>Tenant *</label>
                   {editingId ? (
@@ -261,7 +286,6 @@ export default function Leases() {
                   )}
                 </div>
 
-                {/* Space - READ-ONLY when editing */}
                 <div>
                   <label className={labelClass}>Space *</label>
                   {editingId ? (
@@ -294,7 +318,6 @@ export default function Leases() {
                   )}
                 </div>
 
-                {/* Start Date */}
                 <div>
                   <label className={labelClass}>Start Date *</label>
                   <input
@@ -314,7 +337,6 @@ export default function Leases() {
                   )}
                 </div>
 
-                {/* End Date */}
                 <div>
                   <label className={labelClass}>End Date *</label>
                   <input
@@ -327,7 +349,6 @@ export default function Leases() {
                   />
                 </div>
 
-                {/* Monthly Rent */}
                 <div>
                   <label className={labelClass}>Monthly Rent (ETB) *</label>
                   <input
@@ -341,7 +362,6 @@ export default function Leases() {
                   />
                 </div>
 
-                {/* Deposit */}
                 <div>
                   <label className={labelClass}>Security Deposit (ETB)</label>
                   <input
@@ -354,7 +374,6 @@ export default function Leases() {
                   />
                 </div>
 
-                {/* Prepayment */}
                 <div>
                   <label className={labelClass}>Prepayment (months) *</label>
                   <input
@@ -370,7 +389,6 @@ export default function Leases() {
                   <p className="text-xs text-slate-400 mt-1">Minimum 3 months required</p>
                 </div>
 
-                {/* Due Day */}
                 <div>
                   <label className={labelClass}>Payment Due Day</label>
                   <select
@@ -385,7 +403,6 @@ export default function Leases() {
                   </select>
                 </div>
 
-                {/* Billing Frequency */}
                 <div>
                   <label className={labelClass}>Billing Frequency</label>
                   <select
@@ -424,7 +441,6 @@ export default function Leases() {
           </div>
         )}
 
-        {/* Table */}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
@@ -439,13 +455,13 @@ export default function Leases() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                     <Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading…
                   </td>
                 </tr>
               ) : leases.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                     No leases created yet. Click "Create Lease" to get started.
                   </td>
                 </tr>
