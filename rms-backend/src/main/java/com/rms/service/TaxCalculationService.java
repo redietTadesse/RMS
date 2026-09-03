@@ -16,7 +16,7 @@ public class TaxCalculationService {
     private static final BigDecimal PENALTY_RATE = BigDecimal.valueOf(0.20);
     private static final BigDecimal VAT_DIVISOR = BigDecimal.valueOf(1.15);
 
-    public BigDecimal getRentExclusiveOfVat(BigDecimal rentInclusive) {
+    public BigDecimal getUntaxedRent(BigDecimal rentInclusive) {
         if (rentInclusive == null || rentInclusive.compareTo(BigDecimal.ZERO) == 0) {
             return BigDecimal.ZERO;
         }
@@ -27,8 +27,9 @@ public class TaxCalculationService {
         if (tenant == null || !isWithholdingApplicableOnDate(tenant, invoiceDate)) {
             return BigDecimal.ZERO;
         }
-        BigDecimal rentExclusive = getRentExclusiveOfVat(rentInclusive);
-        return rentExclusive.multiply(WITHHOLDING_RATE).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal untaxedRent = getUntaxedRent(rentInclusive);
+        return untaxedRent.multiply(WITHHOLDING_RATE)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     public boolean isWithholdingApplicableOnDate(Tenant tenant, LocalDate date) {
@@ -45,18 +46,13 @@ public class TaxCalculationService {
         return !date.isBefore(startDate);
     }
 
-    public BigDecimal getPenaltyBase(Tenant tenant, BigDecimal rentInclusive, LocalDate invoiceDate) {
-        BigDecimal rentExclusive = getRentExclusiveOfVat(rentInclusive);
-        BigDecimal withholdingTax = calculateWithholdingTax(tenant, rentInclusive, invoiceDate);
-        return rentExclusive.subtract(withholdingTax);
-    }
-
     public BigDecimal calculatePenalty(Tenant tenant, BigDecimal rentInclusive, LocalDate invoiceDate) {
-        if (tenant == null || rentInclusive == null || rentInclusive.compareTo(BigDecimal.ZERO) == 0) {
+        if (rentInclusive == null || rentInclusive.compareTo(BigDecimal.ZERO) == 0) {
             return BigDecimal.ZERO;
         }
-        BigDecimal penaltyBase = getPenaltyBase(tenant, rentInclusive, invoiceDate);
-        return penaltyBase.multiply(PENALTY_RATE).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal untaxedRent = getUntaxedRent(rentInclusive);
+        return untaxedRent.multiply(PENALTY_RATE)
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     public BigDecimal calculateTotalAmount(BigDecimal rentInclusive, BigDecimal penalty) {
@@ -64,47 +60,51 @@ public class TaxCalculationService {
     }
 
     public TaxBreakdown getTaxBreakdown(Tenant tenant, BigDecimal rentInclusive, LocalDate invoiceDate) {
-        BigDecimal rentExclusive = getRentExclusiveOfVat(rentInclusive);
-        BigDecimal vatAmount = rentInclusive.subtract(rentExclusive);
+        BigDecimal untaxedRent = getUntaxedRent(rentInclusive);
+        BigDecimal vatAmount = rentInclusive.subtract(untaxedRent);
         BigDecimal withholdingTax = calculateWithholdingTax(tenant, rentInclusive, invoiceDate);
         boolean withholdingApplicable = isWithholdingApplicableOnDate(tenant, invoiceDate);
-        BigDecimal penaltyBase = getPenaltyBase(tenant, rentInclusive, invoiceDate);
         BigDecimal penalty = calculatePenalty(tenant, rentInclusive, invoiceDate);
         BigDecimal totalAmount = rentInclusive.add(penalty);
 
-        return new TaxBreakdown(rentInclusive, rentExclusive, vatAmount, withholdingTax, withholdingApplicable, penaltyBase, penalty, totalAmount);
+        return new TaxBreakdown(
+                rentInclusive,
+                untaxedRent,
+                vatAmount,
+                withholdingTax,
+                withholdingApplicable,
+                penalty,
+                totalAmount
+        );
     }
 
     public static class TaxBreakdown {
         private final BigDecimal rentInclusive;
-        private final BigDecimal rentExclusive;
+        private final BigDecimal untaxedRent;
         private final BigDecimal vatAmount;
         private final BigDecimal withholdingTax;
         private final boolean withholdingApplicable;
-        private final BigDecimal penaltyBase;
         private final BigDecimal penalty;
         private final BigDecimal totalAmount;
 
-        public TaxBreakdown(BigDecimal rentInclusive, BigDecimal rentExclusive,
+        public TaxBreakdown(BigDecimal rentInclusive, BigDecimal untaxedRent,
                            BigDecimal vatAmount, BigDecimal withholdingTax,
-                           boolean withholdingApplicable, BigDecimal penaltyBase,
-                           BigDecimal penalty, BigDecimal totalAmount) {
+                           boolean withholdingApplicable, BigDecimal penalty,
+                           BigDecimal totalAmount) {
             this.rentInclusive = rentInclusive;
-            this.rentExclusive = rentExclusive;
+            this.untaxedRent = untaxedRent;
             this.vatAmount = vatAmount;
             this.withholdingTax = withholdingTax;
             this.withholdingApplicable = withholdingApplicable;
-            this.penaltyBase = penaltyBase;
             this.penalty = penalty;
             this.totalAmount = totalAmount;
         }
 
         public BigDecimal getRentInclusive() { return rentInclusive; }
-        public BigDecimal getRentExclusive() { return rentExclusive; }
+        public BigDecimal getUntaxedRent() { return untaxedRent; }
         public BigDecimal getVatAmount() { return vatAmount; }
         public BigDecimal getWithholdingTax() { return withholdingTax; }
         public boolean isWithholdingApplicable() { return withholdingApplicable; }
-        public BigDecimal getPenaltyBase() { return penaltyBase; }
         public BigDecimal getPenalty() { return penalty; }
         public BigDecimal getTotalAmount() { return totalAmount; }
     }

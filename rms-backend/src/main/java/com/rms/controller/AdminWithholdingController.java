@@ -127,10 +127,9 @@ public class AdminWithholdingController {
         response.put("tenantName", tenant.getName());
         response.put("withholdingApplicable", breakdown.isWithholdingApplicable());
         response.put("rentInclusive", breakdown.getRentInclusive());
-        response.put("rentExclusive", breakdown.getRentExclusive());
+        response.put("untaxedRent", breakdown.getUntaxedRent());
         response.put("vatAmount", breakdown.getVatAmount());
         response.put("withholdingTax", breakdown.getWithholdingTax());
-        response.put("penaltyBase", breakdown.getPenaltyBase());
         response.put("penalty", breakdown.getPenalty());
         response.put("totalAmount", breakdown.getTotalAmount());
         response.put("effectiveDate", tenant.getWithholdingStartDate());
