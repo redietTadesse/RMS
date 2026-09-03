@@ -2,6 +2,7 @@ package com.rms.dto;
 
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
+import com.rms.service.TaxCalculationService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -24,8 +25,16 @@ public class InvoiceResponse {
     private String lastPaymentDate;
     private String leaseStartDate;
     private String leaseEndDate;
+    private BigDecimal untaxedRent;
+    private BigDecimal vatAmount;
+    private BigDecimal withholdingTax;
+    private boolean withholdingApplicable;
 
     public static InvoiceResponse from(Invoice invoice) {
+        return from(invoice, null);
+    }
+
+    public static InvoiceResponse from(Invoice invoice, TaxCalculationService taxCalculationService) {
         if (invoice == null) {
             return null;
         }
@@ -45,6 +54,20 @@ public class InvoiceResponse {
         response.setReceiptPath(invoice.getReceiptPath());
         response.setLeaseStartDate(invoice.getLease().getStartDate().toString());
         response.setLeaseEndDate(invoice.getLease().getEndDate().toString());
+
+        // Populate tax breakdown if service is available
+        if (taxCalculationService != null && invoice.getRentAmount() != null) {
+            com.rms.service.TaxCalculationService.TaxBreakdown breakdown =
+                    taxCalculationService.getTaxBreakdown(
+                            invoice.getLease().getTenant(),
+                            invoice.getRentAmount(),
+                            invoice.getIssueDate() != null ? invoice.getIssueDate() : LocalDate.now()
+                    );
+            response.setUntaxedRent(breakdown.getUntaxedRent());
+            response.setVatAmount(breakdown.getVatAmount());
+            response.setWithholdingTax(breakdown.getWithholdingTax());
+            response.setWithholdingApplicable(breakdown.isWithholdingApplicable());
+        }
 
         if (invoice.getStatus() == InvoiceStatus.OVERDUE) {
             response.setDaysOverdue(java.time.temporal.ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now()));
@@ -110,4 +133,16 @@ public class InvoiceResponse {
 
     public String getLeaseEndDate() { return leaseEndDate; }
     public void setLeaseEndDate(String leaseEndDate) { this.leaseEndDate = leaseEndDate; }
+
+    public BigDecimal getUntaxedRent() { return untaxedRent; }
+    public void setUntaxedRent(BigDecimal untaxedRent) { this.untaxedRent = untaxedRent; }
+
+    public BigDecimal getVatAmount() { return vatAmount; }
+    public void setVatAmount(BigDecimal vatAmount) { this.vatAmount = vatAmount; }
+
+    public BigDecimal getWithholdingTax() { return withholdingTax; }
+    public void setWithholdingTax(BigDecimal withholdingTax) { this.withholdingTax = withholdingTax; }
+
+    public boolean isWithholdingApplicable() { return withholdingApplicable; }
+    public void setWithholdingApplicable(boolean withholdingApplicable) { this.withholdingApplicable = withholdingApplicable; }
 }

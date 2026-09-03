@@ -4,7 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, FileText, CreditCard, AlertCircle, Upload,
   CheckCircle, Clock, Loader2, Calendar, Home,
-  DollarSign, Info, TrendingUp, TrendingDown
+  DollarSign, Info, TrendingUp, TrendingDown, Download,
+  Receipt,
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { tenantApi, chapaApi, documentsApi, invoicesApi } from '../services/api';
@@ -58,6 +59,7 @@ function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploadin
   const isSubmitted = invoice.status === 'SUBMITTED';
   const isPaid = invoice.status === 'PAID';
   const hasPenalty = invoice.penaltyAmount > 0;
+  const hasWithholding = Number(invoice.withholdingTax) > 0 && invoice.withholdingApplicable;
 
   return (
     <div className={`border rounded-lg p-4 transition ${
@@ -78,6 +80,12 @@ function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploadin
             {isPaid && invoice.paymentDate && (
               <span className="text-xs text-emerald-600 font-medium bg-emerald-100 px-2 py-0.5 rounded-full">
                 Paid on {new Date(invoice.paymentDate).toLocaleDateString()}
+              </span>
+            )}
+            {hasWithholding && (
+              <span className="text-xs text-purple-600 font-medium bg-purple-100 px-2 py-0.5 rounded-full">
+                <Receipt className="w-3 h-3 inline mr-1" />
+                Withholding: ETB {Number(invoice.withholdingTax).toLocaleString()}
               </span>
             )}
           </div>
@@ -102,6 +110,46 @@ function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploadin
               <p className="text-slate-800">{invoice.lastPaymentDate || 'Never'}</p>
             </div>
           </div>
+
+          {/* Tax Breakdown */}
+          {(hasWithholding || Number(invoice.untaxedRent) > 0) && (
+            <div className="mt-2 text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {Number(invoice.untaxedRent) > 0 && (
+                  <div>
+                    <span className="text-slate-500">Untaxed Rent:</span>
+                    <span className="font-medium text-slate-700 ml-1">
+                      ETB {Number(invoice.untaxedRent).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {Number(invoice.vatAmount) > 0 && (
+                  <div>
+                    <span className="text-slate-500">VAT (15%):</span>
+                    <span className="font-medium text-slate-700 ml-1">
+                      ETB {Number(invoice.vatAmount).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {hasWithholding && (
+                  <div>
+                    <span className="text-purple-500">Withholding (3%):</span>
+                    <span className="font-medium text-purple-700 ml-1">
+                      ETB {Number(invoice.withholdingTax).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {invoice.penaltyAmount > 0 && (
+                  <div>
+                    <span className="text-rose-500">Penalty (20%):</span>
+                    <span className="font-medium text-rose-700 ml-1">
+                      ETB {Number(invoice.penaltyAmount).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {hasPenalty && (
             <div className="mt-2 text-sm bg-rose-50 border border-rose-200 rounded-lg px-3 py-1.5 inline-block">
@@ -669,6 +717,7 @@ export default function TenantDashboard() {
                   invoice={inv}
                   onPay={handlePay}
                   onUpload={handleReceiptUpload}
+                  onDownloadPdf={handleDownloadPdf}
                   paying={payingId}
                   uploading={uploadingId}
                 />

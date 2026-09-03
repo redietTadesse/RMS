@@ -11,6 +11,7 @@ import com.rms.service.CurrentUserService;
 import com.rms.service.InvoiceService;
 import com.rms.service.LeaseService;
 import com.rms.service.PaymentService;
+import com.rms.service.TaxCalculationService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -35,19 +36,22 @@ public class TenantController {
     private final PaymentService paymentService;
     private final CurrentUserService currentUserService;
     private final InvoiceRepository invoiceRepository;
+    private final TaxCalculationService taxCalculationService;
 
     public TenantController(LeaseService leaseService,
                             InvoiceService invoiceService,
                             UserRepository userRepository,
                             PaymentService paymentService,
                             CurrentUserService currentUserService,
-                            InvoiceRepository invoiceRepository) {
+                            InvoiceRepository invoiceRepository,
+                            TaxCalculationService taxCalculationService) {
         this.leaseService = leaseService;
         this.invoiceService = invoiceService;
         this.userRepository = userRepository;
         this.paymentService = paymentService;
         this.currentUserService = currentUserService;
         this.invoiceRepository = invoiceRepository;
+        this.taxCalculationService = taxCalculationService;
     }
 
     @GetMapping("/my-lease")
@@ -64,7 +68,7 @@ public class TenantController {
         String username = authentication.getName();
         List<Invoice> invoices = invoiceService.getInvoicesByTenantUsername(username);
         return ResponseEntity.ok(invoices.stream()
-                .map(InvoiceResponse::from)
+                .map(inv -> InvoiceResponse.from(inv, taxCalculationService))
                 .collect(Collectors.toList()));
     }
 
@@ -113,6 +117,6 @@ public class TenantController {
         request.setPaymentMethod(paymentMethod);
 
         Invoice updated = paymentService.recordPayment(invoiceId, request, receipt);
-        return ResponseEntity.ok(InvoiceResponse.from(updated));
+        return ResponseEntity.ok(InvoiceResponse.from(updated, taxCalculationService));
     }
 }

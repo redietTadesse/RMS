@@ -34,6 +34,8 @@ function WithholdingBadge({ tenant }) {
   }
   return <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>;
 }
+
+function VerificationBadge({ result }) {
   if (!result) return null;
   const map = {
     VERIFIED: 'bg-emerald-100 text-emerald-700',
@@ -133,10 +135,47 @@ export default function Tenants() {
   const openAdd = () => { setEditingId(null); setFormData(EMPTY_FORM); setVerify(EMPTY_VERIFY); setFormError(''); setShowModal(true); };
   const openEdit = (t) => {
     setEditingId(t.id);
-    setFormData({ name: t.name || '', type: t.type || 'INDIVIDUAL', contact: t.contact || '', phone: t.phone || '', email: t.email || '', tinNumber: t.tinNumber || '', businessLicense: t.businessLicense || '', faydaNumber: t.faydaNumber || '', tinStatus: t.tinStatus || 'UNVERIFIED', identityStatus: t.identityStatus || 'UNVERIFIED', userId: t.userId ?? '' });
+    setFormData({
+      name: t.name || '',
+      type: t.type || 'INDIVIDUAL',
+      contact: t.contact || '',
+      phone: t.phone || '',
+      email: t.email || '',
+      tinNumber: t.tinNumber || '',
+      businessLicense: t.businessLicense || '',
+      faydaNumber: t.faydaNumber || '',
+      tinStatus: t.tinStatus || 'UNVERIFIED',
+      identityStatus: t.identityStatus || 'UNVERIFIED',
+      userId: t.userId ?? '',
+      isWithholdingTaxApplicable: !!t.isWithholdingTaxApplicable,
+      withholdingStartDate: t.withholdingStartDate || '',
+      withholdingEvidenceVerified: !!t.withholdingEvidenceVerified,
+      withholdingVerifiedBy: t.withholdingVerifiedBy || '',
+      withholdingVerifiedAt: t.withholdingVerifiedAt || '',
+      withholdingDocumentId: t.withholdingDocumentId || null,
+      withholdingEvidenceStatus: t.withholdingEvidenceVerified ? 'VERIFIED' : (t.withholdingDocumentId ? 'PENDING' : ''),
+    });
     setVerify(EMPTY_VERIFY);
     setFormError('');
     setShowModal(true);
+  };
+
+  const handleWithholdingEvidenceUpload = async (file) => {
+    if (!editingId) {
+      setFormError('Please save the tenant first, then upload evidence.');
+      return;
+    }
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (formData.tinNumber) fd.append('tinNumber', formData.tinNumber);
+      if (formData.withholdingStartDate) fd.append('startDate', formData.withholdingStartDate);
+      await adminApi.uploadWithholdingEvidence(editingId, fd);
+      alert('✅ Evidence uploaded successfully! Awaiting admin verification.');
+      setFormData((f) => ({ ...f, withholdingDocumentId: 'uploaded' }));
+    } catch (err) {
+      setFormError(err.message || 'Failed to upload evidence');
+    }
   };
 
   const toErr = (err) =>
@@ -372,21 +411,43 @@ export default function Tenants() {
                   )}
                 </div>
                 {formData.isWithholdingTaxApplicable && (
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 rounded-lg p-4">
                     <div>
-                      <label className="text-xs font-medium text-slate-500">Effective Date</label>
+                      <label className="text-xs font-medium text-slate-500 block mb-1">TIN Number</label>
+                      <input
+                        name="tinNumber"
+                        value={formData.tinNumber || ''}
+                        onChange={handleChange}
+                        className={inputClass}
+                        placeholder="Enter TIN number"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500 block mb-1">Effective Date</label>
                       <input
                         type="date"
                         name="withholdingStartDate"
                         value={formData.withholdingStartDate || ''}
                         onChange={handleChange}
-                        className={`${inputClass} mt-1`}
+                        className={inputClass}
                       />
                       <p className="text-xs text-slate-400 mt-1">Withholding applies from this date forward</p>
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-500">Status</label>
-                      <div className="mt-1">
+                    <div className="md:col-span-2">
+                      <label className="text-xs font-medium text-slate-500 block mb-1">Evidence Document</label>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) handleWithholdingEvidenceUpload(file);
+                          }}
+                          className="text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        />
+                        {formData.withholdingDocumentId && (
+                          <span className="text-xs text-emerald-600">✓ Evidence uploaded</span>
+                        )}
                         {formData.withholdingEvidenceVerified ? (
                           <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>
                         ) : (
@@ -394,6 +455,11 @@ export default function Tenants() {
                         )}
                       </div>
                     </div>
+                    {formData.withholdingEvidenceVerified && (
+                      <div className="md:col-span-2 text-xs text-slate-500 bg-emerald-50 rounded-lg px-3 py-2">
+                        Verified by: {formData.withholdingVerifiedBy || 'Admin'} on {formData.withholdingVerifiedAt ? new Date(formData.withholdingVerifiedAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

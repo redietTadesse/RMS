@@ -5,6 +5,7 @@ import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.service.InvoicePdfService;
 import com.rms.service.InvoiceService;
+import com.rms.service.TaxCalculationService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -23,31 +24,35 @@ public class InvoiceController {
 
     private final InvoiceService invoiceService;
     private final InvoicePdfService invoicePdfService;
+    private final TaxCalculationService taxCalculationService;
 
-    public InvoiceController(InvoiceService invoiceService, InvoicePdfService invoicePdfService) {
+    public InvoiceController(InvoiceService invoiceService,
+                             InvoicePdfService invoicePdfService,
+                             TaxCalculationService taxCalculationService) {
         this.invoiceService = invoiceService;
         this.invoicePdfService = invoicePdfService;
+        this.taxCalculationService = taxCalculationService;
     }
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public List<InvoiceResponse> getAllInvoices() {
         return invoiceService.getAllInvoices().stream()
-                .map(InvoiceResponse::from)
+                .map(inv -> InvoiceResponse.from(inv, taxCalculationService))
                 .collect(Collectors.toList());
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public InvoiceResponse getInvoiceById(@PathVariable Long id) {
-        return InvoiceResponse.from(invoiceService.getInvoiceById(id));
+        return InvoiceResponse.from(invoiceService.getInvoiceById(id), taxCalculationService);
     }
 
     @GetMapping("/status/{status}")
     @PreAuthorize("hasRole('ADMIN')")
     public List<InvoiceResponse> getInvoicesByStatus(@PathVariable InvoiceStatus status) {
         return invoiceService.getInvoicesByStatus(status).stream()
-                .map(InvoiceResponse::from)
+                .map(inv -> InvoiceResponse.from(inv, taxCalculationService))
                 .collect(Collectors.toList());
     }
 
@@ -55,7 +60,7 @@ public class InvoiceController {
     @PreAuthorize("hasRole('ADMIN')")
     public List<InvoiceResponse> getInvoicesByTenant(@PathVariable Long tenantId) {
         return invoiceService.getInvoicesByTenant(tenantId).stream()
-                .map(InvoiceResponse::from)
+                .map(inv -> InvoiceResponse.from(inv, taxCalculationService))
                 .collect(Collectors.toList());
     }
 
@@ -67,7 +72,7 @@ public class InvoiceController {
         if (invoice == null) {
             return ResponseEntity.badRequest().body(null);
         }
-        return ResponseEntity.ok(InvoiceResponse.from(invoice));
+        return ResponseEntity.ok(InvoiceResponse.from(invoice, taxCalculationService));
     }
 
     @GetMapping("/{id}/pdf")
@@ -117,6 +122,6 @@ public class InvoiceController {
         invoice.setStatus(InvoiceStatus.OVERDUE);
         Invoice saved = invoiceService.saveInvoice(invoice);
         invoiceService.notifyInvoiceOverdue(saved);
-        return InvoiceResponse.from(saved);
+        return InvoiceResponse.from(saved, taxCalculationService);
     }
 }

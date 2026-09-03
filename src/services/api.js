@@ -234,6 +234,23 @@ export const adminApi = {
     request(`/users/${id}/toggle-active`, { method: 'PATCH' }),
   changeRole: (id, role) =>
     request(`/users/${id}/role?role=${encodeURIComponent(role)}`, { method: 'PATCH' }),
+
+  // Withholding management
+  uploadWithholdingEvidence: (tenantId, formData) =>
+    request(`/admin/withholding/${tenantId}/evidence`, {
+      method: 'POST',
+      body: formData,
+    }),
+  activateWithholding: (tenantId, startDate) =>
+    request(`/admin/withholding/${tenantId}/activate?startDate=${encodeURIComponent(startDate)}`, {
+      method: 'PUT',
+    }),
+  deactivateWithholding: (tenantId) =>
+    request(`/admin/withholding/${tenantId}/deactivate`, {
+      method: 'PUT',
+    }),
+  previewWithholding: (tenantId, rentAmount, invoiceDate) =>
+    request(`/admin/withholding/${tenantId}/preview?rentAmount=${rentAmount}&invoiceDate=${invoiceDate}`),
 };
 
 // ─── USER PROFILE ───
