@@ -35,7 +35,18 @@ async function request(path, options = {}) {
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
     if (data && typeof data === 'object') {
-      message = data.error || Object.values(data).join(', ') || message;
+      if (data.error) message = data.error;
+      else if (data.message) message = data.message;
+      else if (data.errors) {
+        // Spring validation errors: { field: ["msg", ...], ... }
+        const fieldErrors = Object.values(data.errors).flat().join(', ');
+        if (fieldErrors) message = fieldErrors;
+      } else {
+        const joined = Object.values(data).flat().join(', ');
+        if (joined) message = joined;
+      }
+    } else if (typeof data === 'string' && data) {
+      message = data;
     }
     throw new Error(message);
   }

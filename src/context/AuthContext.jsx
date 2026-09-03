@@ -28,44 +28,64 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
+    const refreshPromiseRef = useRef(null);
+
     const refreshAccessToken = useCallback(async () => {
-        try {
-            const refreshToken = tokenManager.getRefreshToken();
-            if (!refreshToken) {
-                logout();
-                return false;
-            }
+        // ✅ FIX: Prevent multiple concurrent refreshes (race condition)
+        if (refreshPromiseRef.current) {
+            return refreshPromiseRef.current;
+        }
 
-            const response = await authApi.refreshToken(refreshToken);
+        // ✅ FIX: Add retry logic (up to 3 attempts)
+        const attemptRefresh = async () => {
+            const maxAttempts = 3;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    const refreshToken = tokenManager.getRefreshToken();
+                    if (!refreshToken) {
+                        logout();
+                        return false;
+                    }
 
-            if (response?.token) {
-                tokenManager.setTokens(response.token, response.refreshToken || refreshToken);
+                    const response = await authApi.refreshToken(refreshToken);
 
-                if (response.id && response.username) {
-                    tokenManager.setUser({
-                        id: response.id,
-                        username: response.username,
-                        name: response.name,
-                        email: response.email,
-                        role: response.role,
-                    });
-                    setUser({
-                        id: response.id,
-                        username: response.username,
-                        name: response.name,
-                        email: response.email,
-                        role: response.role,
-                    });
+                    if (response?.token) {
+                        tokenManager.setTokens(response.token, response.refreshToken || refreshToken);
+
+                        if (response.id && response.username) {
+                            const userData = {
+                                id: response.id,
+                                username: response.username,
+                                name: response.name,
+                                email: response.email,
+                                role: response.role,
+                            };
+                            tokenManager.setUser(userData);
+                            setUser(userData);
+                        }
+
+                        const expiry = tokenManager.getTokenExpiry();
+                        scheduleTokenRefresh(expiry);
+                        return true;
+                    }
+                    return false;
+                } catch (err) {
+                    // On last attempt, log out; otherwise wait and retry
+                    if (attempt >= maxAttempts) {
+                        logout();
+                        return false;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
                 }
-
-                const expiry = tokenManager.getTokenExpiry();
-                scheduleTokenRefresh(expiry);
-                return true;
             }
             return false;
-        } catch (err) {
-            logout();
-            return false;
+        };
+
+        refreshPromiseRef.current = attemptRefresh();
+        try {
+            return await refreshPromiseRef.current;
+        } finally {
+            refreshPromiseRef.current = null;
         }
     }, [scheduleTokenRefresh]);
 

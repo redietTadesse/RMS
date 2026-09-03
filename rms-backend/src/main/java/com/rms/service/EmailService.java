@@ -33,6 +33,10 @@ public class EmailService {
     }
 
     public void sendInvoiceGeneratedEmail(User tenant, Invoice invoice, Lease lease) {
+        if (tenant == null || tenant.getEmail() == null || tenant.getEmail().isEmpty()) {
+            System.err.println("Cannot send invoice email: tenant or email is null");
+            return;
+        }
         try {
             Context context = new Context();
             context.setVariable("tenantName", tenant.getName());

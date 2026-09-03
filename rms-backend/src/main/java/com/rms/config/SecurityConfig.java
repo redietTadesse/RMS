@@ -37,8 +37,14 @@ public class SecurityConfig {
 
                         // ✅ ADD THIS LINE - Public login
                         .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/refresh").permitAll()
                         .requestMatchers("/api/test/email-test").permitAll()
                         .requestMatchers("/api/test/sms-test").permitAll()
+
+                        // Chapa gateway endpoints - PUBLIC (called by Chapa servers & payment callback)
+                        .requestMatchers("/api/payments/chapa/webhook").permitAll()
+                        .requestMatchers("/api/payments/chapa/confirm").permitAll()
+                        .requestMatchers("/api/payments/chapa/verify").permitAll()
 
                         // Register - ADMIN only
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")

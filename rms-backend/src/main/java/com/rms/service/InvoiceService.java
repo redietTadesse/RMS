@@ -70,6 +70,13 @@ public class InvoiceService {
 
     @Transactional
     public Invoice generateInvoiceForLease(Lease lease) {
+        if (lease == null) {
+            throw new IllegalArgumentException("Lease cannot be null");
+        }
+        if (lease.getStatus() != LeaseStatus.ACTIVE) {
+            throw new IllegalArgumentException("Lease is not active. Cannot generate invoice.");
+        }
+
         LocalDate today = LocalDate.now();
 
         // Skip if still in prepayment period

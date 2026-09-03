@@ -14,6 +14,7 @@ import TenantPayment from './Pages/TenantPayment';
 import PaymentCallback from './Pages/PaymentCallback';
 import Profile from './Pages/Profile';
 import Settings from './Pages/Settings';
+import Reports from './Pages/Reports';
 import UserManagement from './Pages/UserManagement';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -39,6 +40,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredRole="ADMIN">
             <Register />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute requiredRole="ADMIN">
+            <Reports />
           </ProtectedRoute>
         }
       />
