@@ -9,7 +9,7 @@ import DocumentUpload from '../components/Documents/DocumentUpload';
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition';
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 
-const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', faydaNumber: '', tinStatus: 'UNVERIFIED', identityStatus: 'UNVERIFIED', userId: '' };
+const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', faydaNumber: '', tinStatus: 'UNVERIFIED', identityStatus: 'UNVERIFIED', userId: '', isWithholdingTaxApplicable: false, withholdingStartDate: '', withholdingEvidenceVerified: false };
 const EMPTY_VERIFY = { tinBusy: false, tinResult: null, faydaBusy: false, faydaTxn: null, faydaOtp: '', faydaPending: null, faydaResult: null };
 const DOC_TYPES = [
   { value: 'TIN_CERTIFICATE', label: 'TIN Certificate' },
@@ -25,7 +25,15 @@ function DocBadge({ ok, label }) {
   );
 }
 
-function VerifyPill({ result }) {
+function WithholdingBadge({ tenant }) {
+  if (!tenant.isWithholdingTaxApplicable) {
+    return <span className="text-xs text-slate-400">—</span>;
+  }
+  if (!tenant.withholdingEvidenceVerified) {
+    return <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700">Pending</span>;
+  }
+  return <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>;
+}
   if (!result) return null;
   const map = {
     VERIFIED: 'bg-emerald-100 text-emerald-700',
@@ -282,16 +290,16 @@ export default function Tenants() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {['Name', 'Type', 'Contact', 'Phone', 'Email', 'TIN', 'User', 'Documents', 'Actions'].map((h) => (
+                {['Name', 'Type', 'Contact', 'Phone', 'Email', 'TIN', 'Withholding', 'User', 'Documents', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading…</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading…</td></tr>
               ) : tenants.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">{search ? `No tenants match "${search}".` : 'No tenants yet.'}</td></tr>
+                <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-400">{search ? `No tenants match "${search}".` : 'No tenants yet.'}</td></tr>
               ) : (
                 tenants.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50/60 transition">
@@ -301,6 +309,7 @@ export default function Tenants() {
                     <td className="px-4 py-3 text-slate-600">{t.phone}</td>
                     <td className="px-4 py-3 text-slate-600">{t.email || '—'}</td>
                     <td className="px-4 py-3 text-slate-600">{t.tinNumber || '—'}</td>
+                    <td className="px-4 py-3"><WithholdingBadge tenant={t} /></td>
                     <td className="px-4 py-3 text-slate-600">{users.find((u) => u.id === t.userId)?.username || 'Not linked'}</td>
                     <td className="px-4 py-3"><div className="flex flex-wrap gap-1"><DocBadge ok={t.hasIdCard} label="ID" /><DocBadge ok={t.hasBusinessLicense} label="License" /></div></td>
                     <td className="px-4 py-3">
@@ -341,6 +350,52 @@ export default function Tenants() {
                   <button type="button" onClick={verifyTin} disabled={verify.tinBusy || !formData.tinNumber.trim()} className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">{verify.tinBusy ? 'Checking…' : 'Verify'}</button>
                 </div>
                 {verify.tinResult && (<div className="flex items-center gap-2"><VerifyPill result={verify.tinResult} /><span className="text-xs text-slate-500">{verify.tinResult.message}</span></div>)}
+              </div>
+              {/* Withholding Tax Section */}
+              <div className="border-t border-slate-100 pt-4 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Withholding Tax</h3>
+                <div className="flex items-center gap-3 mb-3">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isWithholdingTaxApplicable}
+                      onChange={(e) => {
+                        setFormData({ ...formData, isWithholdingTaxApplicable: e.target.checked });
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <span className="ml-3 text-sm font-medium text-slate-700">Withholding Tax Applicable</span>
+                  </label>
+                  {formData.isWithholdingTaxApplicable && formData.withholdingEvidenceVerified && (
+                    <span className="text-xs text-emerald-600 font-medium bg-emerald-50 px-2 py-0.5 rounded-full">Verified</span>
+                  )}
+                </div>
+                {formData.isWithholdingTaxApplicable && (
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-lg p-4">
+                    <div>
+                      <label className="text-xs font-medium text-slate-500">Effective Date</label>
+                      <input
+                        type="date"
+                        name="withholdingStartDate"
+                        value={formData.withholdingStartDate || ''}
+                        onChange={handleChange}
+                        className={`${inputClass} mt-1`}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Withholding applies from this date forward</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500">Status</label>
+                      <div className="mt-1">
+                        {formData.withholdingEvidenceVerified ? (
+                          <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>
+                        ) : (
+                          <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-700">Pending Verification</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div><label className={labelClass}>Business License No.</label><input name="businessLicense" value={formData.businessLicense} onChange={handleChange} className={inputClass} placeholder="License reference" /></div>
               <div className="space-y-2">

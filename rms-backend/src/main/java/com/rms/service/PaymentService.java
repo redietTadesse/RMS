@@ -4,6 +4,7 @@ import com.rms.dto.PaymentRequest;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.entity.LeaseStatus;
+import com.rms.entity.Tenant;
 import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
 import com.rms.repository.UserRepository;
@@ -26,6 +27,7 @@ public class PaymentService {
     private final SmsService smsService;
     private final SettingsService settingsService;
     private final NotificationService notificationService;
+    private final TaxCalculationService taxCalculationService;
 
     public PaymentService(InvoiceRepository invoiceRepository,
                           FileStorageService fileStorageService,
@@ -33,7 +35,8 @@ public class PaymentService {
                           EmailService emailService,
                           SmsService smsService,
                           SettingsService settingsService,
-                          NotificationService notificationService) {
+                          NotificationService notificationService,
+                          TaxCalculationService taxCalculationService) {
         this.invoiceRepository = invoiceRepository;
         this.fileStorageService = fileStorageService;
         this.userRepository = userRepository;
@@ -41,6 +44,7 @@ public class PaymentService {
         this.smsService = smsService;
         this.settingsService = settingsService;
         this.notificationService = notificationService;
+        this.taxCalculationService = taxCalculationService;
     }
 
     // ─── RECORD PAYMENT (Tenant submits receipt) ───
@@ -218,16 +222,15 @@ public class PaymentService {
 
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
         int paymentWindowEnd = settingsService.getIntSetting("payment_window_end", 10);
-        
+
         // No penalty if paid within the grace period (first X days of month)
         if (paymentDate.getDayOfMonth() <= paymentWindowEnd) {
             return BigDecimal.ZERO;
         }
 
-        int penaltyRate = settingsService.getIntSetting("penalty_rate", 20);
-        return invoice.getRentAmount()
-                .multiply(BigDecimal.valueOf(penaltyRate))
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        Tenant tenant = invoice.getLease().getTenant();
+        // Use the invoice issue date for withholding determination
+        return taxCalculationService.calculatePenalty(tenant, invoice.getRentAmount(), invoice.getIssueDate());
     }
 
     public BigDecimal calculatePenaltyPreview(Long invoiceId, LocalDate paymentDate) {

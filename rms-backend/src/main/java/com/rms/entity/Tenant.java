@@ -3,6 +3,8 @@ package com.rms.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.validator.constraints.Length;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "tenants")
@@ -52,6 +54,25 @@ public class Tenant {
     @Column(name = "has_business_license", nullable = false)
     private boolean hasBusinessLicense = false;
 
+    // Withholding tax fields
+    @Column(name = "is_withholding_tax_applicable", nullable = false)
+    private boolean withholdingTaxApplicable = false;
+
+    @Column(name = "withholding_start_date")
+    private LocalDate withholdingStartDate;
+
+    @Column(name = "withholding_evidence_verified")
+    private boolean withholdingEvidenceVerified = false;
+
+    @Column(name = "withholding_verified_by")
+    private String withholdingVerifiedBy;
+
+    @Column(name = "withholding_verified_at")
+    private LocalDateTime withholdingVerifiedAt;
+
+    @Column(name = "withholding_document_id")
+    private Long withholdingDocumentId;
+
     // Getters and Setters (existing)
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -85,4 +106,23 @@ public class Tenant {
 
     public boolean isHasBusinessLicense() { return hasBusinessLicense; }
     public void setHasBusinessLicense(boolean hasBusinessLicense) { this.hasBusinessLicense = hasBusinessLicense; }
+
+    // Withholding tax getters and setters
+    public boolean isWithholdingTaxApplicable() { return withholdingTaxApplicable; }
+    public void setWithholdingTaxApplicable(boolean withholdingTaxApplicable) { this.withholdingTaxApplicable = withholdingTaxApplicable; }
+
+    public LocalDate getWithholdingStartDate() { return withholdingStartDate; }
+    public void setWithholdingStartDate(LocalDate withholdingStartDate) { this.withholdingStartDate = withholdingStartDate; }
+
+    public boolean isWithholdingEvidenceVerified() { return withholdingEvidenceVerified; }
+    public void setWithholdingEvidenceVerified(boolean withholdingEvidenceVerified) { this.withholdingEvidenceVerified = withholdingEvidenceVerified; }
+
+    public String getWithholdingVerifiedBy() { return withholdingVerifiedBy; }
+    public void setWithholdingVerifiedBy(String withholdingVerifiedBy) { this.withholdingVerifiedBy = withholdingVerifiedBy; }
+
+    public LocalDateTime getWithholdingVerifiedAt() { return withholdingVerifiedAt; }
+    public void setWithholdingVerifiedAt(LocalDateTime withholdingVerifiedAt) { this.withholdingVerifiedAt = withholdingVerifiedAt; }
+
+    public Long getWithholdingDocumentId() { return withholdingDocumentId; }
+    public void setWithholdingDocumentId(Long withholdingDocumentId) { this.withholdingDocumentId = withholdingDocumentId; }
 }

@@ -31,6 +31,7 @@ public class InvoiceService {
     private final EmailService emailService;
     private final SmsService smsService;
     private final SettingsService settingsService;
+    private final TaxCalculationService taxCalculationService;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
                           LeaseRepository leaseRepository,
@@ -39,7 +40,8 @@ public class InvoiceService {
                           NotificationService notificationService,
                           EmailService emailService,
                           SmsService smsService,
-                          SettingsService settingsService) {
+                          SettingsService settingsService,
+                          TaxCalculationService taxCalculationService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
@@ -48,6 +50,7 @@ public class InvoiceService {
         this.emailService = emailService;
         this.smsService = smsService;
         this.settingsService = settingsService;
+        this.taxCalculationService = taxCalculationService;
     }
 
     // ─── GENERATE INVOICES ON 1ST ───
@@ -234,14 +237,15 @@ public class InvoiceService {
 
     // ─── CALCULATE DAILY PENALTY ───
     private BigDecimal calculateDailyPenalty(Invoice invoice) {
-        // Daily rent = monthlyRent / 30
-        BigDecimal dailyRent = invoice.getRentAmount()
-                .divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
+        Tenant tenant = invoice.getLease().getTenant();
+        BigDecimal rentInclusive = invoice.getRentAmount();
+        LocalDate invoiceDate = invoice.getIssueDate();
 
-        // Daily penalty = dailyRent × 20%
-        return dailyRent
-                .multiply(BigDecimal.valueOf(20))
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        // Calculate monthly penalty using tax service
+        BigDecimal monthlyPenalty = taxCalculationService.calculatePenalty(tenant, rentInclusive, invoiceDate);
+
+        // Daily penalty = monthly penalty / 30
+        return monthlyPenalty.divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
     }
 
     private void notifyOverdue(Invoice invoice) {
