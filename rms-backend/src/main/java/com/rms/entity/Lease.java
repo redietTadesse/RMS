@@ -42,11 +42,14 @@ public class Lease {
     @Column(name = "deposit")
     private BigDecimal deposit = BigDecimal.ZERO;
 
-    @NotNull(message = "Prepayment months is required")
-    @Min(value = 3, message = "Prepayment must be at least 3 months")
-    @Max(value = 24, message = "Prepayment cannot exceed 24 months")
-    @Column(name = "prepayment_months", nullable = false)
-    private Integer prepaymentMonths = 3;
+    @Column(name = "initial_payment_months")
+    private Integer initialPaymentMonths = 3;
+
+    @Column(name = "payment_schedule_active", nullable = false)
+    private boolean paymentScheduleActive = false;
+
+    @Column(name = "next_payment_due_date")
+    private LocalDate nextPaymentDueDate;
 
     @NotNull(message = "Due day is required")
     @Min(value = 1, message = "Due day must be between 1 and 31")
@@ -103,8 +106,14 @@ public class Lease {
     public BigDecimal getDeposit() { return deposit; }
     public void setDeposit(BigDecimal deposit) { this.deposit = deposit; }
 
-    public Integer getPrepaymentMonths() { return prepaymentMonths; }
-    public void setPrepaymentMonths(Integer prepaymentMonths) { this.prepaymentMonths = prepaymentMonths; }
+    public Integer getInitialPaymentMonths() { return initialPaymentMonths; }
+    public void setInitialPaymentMonths(Integer initialPaymentMonths) { this.initialPaymentMonths = initialPaymentMonths; }
+
+    public boolean isPaymentScheduleActive() { return paymentScheduleActive; }
+    public void setPaymentScheduleActive(boolean paymentScheduleActive) { this.paymentScheduleActive = paymentScheduleActive; }
+
+    public LocalDate getNextPaymentDueDate() { return nextPaymentDueDate; }
+    public void setNextPaymentDueDate(LocalDate nextPaymentDueDate) { this.nextPaymentDueDate = nextPaymentDueDate; }
 
     public Integer getDueDay() { return dueDay; }
     public void setDueDay(Integer dueDay) { this.dueDay = dueDay; }
@@ -158,9 +167,8 @@ public class Lease {
         if (status != LeaseStatus.ACTIVE) {
             return false;
         }
-        LocalDate today = LocalDate.now();
-        LocalDate prepaymentEnd = startDate.plusMonths(prepaymentMonths);
-        return today.isBefore(prepaymentEnd) || today.isEqual(prepaymentEnd);
+        return paymentScheduleActive && nextPaymentDueDate != null &&
+               LocalDate.now().isBefore(nextPaymentDueDate);
     }
 
     /**
@@ -213,10 +221,10 @@ public class Lease {
     }
 
     /**
-     * Validates the prepayment period
+     * Validates the initial payment months
      */
-    public boolean hasValidPrepayment() {
-        return prepaymentMonths != null && prepaymentMonths >= 3 && prepaymentMonths <= 24;
+    public boolean hasValidInitialPayment() {
+        return initialPaymentMonths != null && initialPaymentMonths >= 1 && initialPaymentMonths <= 24;
     }
 
     /**
@@ -250,11 +258,14 @@ public class Lease {
             return null;
         }
 
-        LocalDate prepaymentEnd = startDate.plusMonths(prepaymentMonths);
         LocalDate today = LocalDate.now();
-        
-        LocalDate dueDate = prepaymentEnd.withDayOfMonth(Math.min(dueDay, prepaymentEnd.lengthOfMonth()));
-        
+
+        if (nextPaymentDueDate != null) {
+            return nextPaymentDueDate;
+        }
+
+        LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
+
         while (dueDate.isBefore(today)) {
             dueDate = dueDate.plusMonths(1);
             dueDate = dueDate.withDayOfMonth(Math.min(dueDay, dueDate.lengthOfMonth()));

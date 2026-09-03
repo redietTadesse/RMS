@@ -1,11 +1,8 @@
 package com.rms.service;
 
-import com.rms.entity.Invoice;
-import com.rms.entity.InvoiceStatus;
-import com.rms.entity.Lease;
-import com.rms.entity.LeaseStatus;
-import com.rms.entity.Tenant;
-import com.rms.entity.User;
+import com.rms.entity.*;
+import com.rms.entity.PaymentSchedule;
+import com.rms.entity.PaymentScheduleStatus;
 import com.rms.repository.InvoiceRepository;
 import com.rms.repository.LeaseRepository;
 import com.rms.repository.TenantRepository;
@@ -32,6 +29,7 @@ public class InvoiceService {
     private final SmsService smsService;
     private final SettingsService settingsService;
     private final TaxCalculationService taxCalculationService;
+    private final PaymentScheduleService paymentScheduleService;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
                           LeaseRepository leaseRepository,
@@ -41,7 +39,8 @@ public class InvoiceService {
                           EmailService emailService,
                           SmsService smsService,
                           SettingsService settingsService,
-                          TaxCalculationService taxCalculationService) {
+                          TaxCalculationService taxCalculationService,
+                          PaymentScheduleService paymentScheduleService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
@@ -51,6 +50,7 @@ public class InvoiceService {
         this.smsService = smsService;
         this.settingsService = settingsService;
         this.taxCalculationService = taxCalculationService;
+        this.paymentScheduleService = paymentScheduleService;
     }
 
     // ─── GENERATE INVOICES ON 1ST ───
@@ -58,7 +58,12 @@ public class InvoiceService {
     @Transactional
     public void generateMonthlyInvoices() {
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
+        LocalDate today = LocalDate.now();
+
         for (Lease lease : activeLeases) {
+            if (paymentScheduleService.isCoveredByPrepayment(lease, today)) {
+                continue;
+            }
             generateInvoiceForLease(lease);
         }
     }
@@ -304,9 +309,7 @@ public class InvoiceService {
 
     // ─── HELPER METHODS ───
     private boolean isCoveredByPrepayment(Lease lease, LocalDate date) {
-        LocalDate start = lease.getStartDate();
-        LocalDate prepaymentEnd = start.plusMonths(lease.getPrepaymentMonths());
-        return date.isBefore(prepaymentEnd) || date.isEqual(prepaymentEnd);
+        return paymentScheduleService.isCoveredByPrepayment(lease, date);
     }
 
     private boolean hasFirstInvoiceBeenGenerated(Lease lease) {
@@ -339,7 +342,7 @@ public class InvoiceService {
     private void updateNextBillingDate(Lease lease) {
         LocalDate currentNext = lease.getNextBillingDate();
         if (currentNext == null) {
-            lease.setNextBillingDate(lease.getStartDate().plusMonths(lease.getPrepaymentMonths()));
+            lease.setNextBillingDate(lease.getStartDate().plusMonths(lease.getInitialPaymentMonths()));
         } else {
             int monthsToAdd = lease.getBillingFrequency().getMonths();
             lease.setNextBillingDate(currentNext.plusMonths(monthsToAdd));
@@ -451,5 +454,26 @@ public class InvoiceService {
             default:
                 return false;
         }
+    }
+
+    @Transactional
+    public PaymentSchedule processPrepayment(Long leaseId, Integer monthsToPay,
+                                             BigDecimal amountPaid, LocalDate paymentDate) {
+        Lease lease = leaseRepository.findById(leaseId)
+                .orElseThrow(() -> new IllegalArgumentException("Lease not found"));
+
+        if (lease.getStatus() != LeaseStatus.ACTIVE) {
+            throw new IllegalArgumentException("Lease is not active");
+        }
+
+        BigDecimal expectedAmount = lease.getMonthlyRent()
+                .multiply(BigDecimal.valueOf(monthsToPay));
+
+        BigDecimal tolerance = expectedAmount.multiply(BigDecimal.valueOf(0.01));
+        if (amountPaid.compareTo(expectedAmount.subtract(tolerance)) < 0) {
+            throw new IllegalArgumentException("Payment amount is less than expected");
+        }
+
+        return paymentScheduleService.createPaymentSchedule(lease, monthsToPay, amountPaid, paymentDate);
     }
 }

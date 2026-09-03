@@ -39,7 +39,7 @@ export default function Leases() {
     endDate: '',
     monthlyRent: '',
     deposit: '',
-    prepaymentMonths: '3',
+    initialPaymentMonths: '3',
     dueDay: '1',
     billingFrequency: 'MONTHLY',
   });
@@ -75,7 +75,7 @@ export default function Leases() {
       endDate: '',
       monthlyRent: '',
       deposit: '',
-      prepaymentMonths: '3',
+      initialPaymentMonths: '3',
       dueDay: '1',
       billingFrequency: 'MONTHLY',
     });
@@ -113,7 +113,7 @@ export default function Leases() {
       endDate: lease.endDate || '',
       monthlyRent: lease.monthlyRent?.toString() || '',
       deposit: lease.deposit?.toString() || '',
-      prepaymentMonths: lease.prepaymentMonths?.toString() || '3',
+      initialPaymentMonths: lease.initialPaymentMonths?.toString() || '3',
       dueDay: lease.dueDay?.toString() || '1',
       billingFrequency: lease.billingFrequency || 'MONTHLY',
     });
@@ -154,8 +154,8 @@ export default function Leases() {
       return;
     }
 
-    if (parseInt(formData.prepaymentMonths) < 3) {
-      setError('Prepayment must be at least 3 months');
+    if (parseInt(formData.initialPaymentMonths) < 1) {
+      setError('Initial payment must be at least 1 month');
       setSaving(false);
       return;
     }
@@ -174,7 +174,7 @@ export default function Leases() {
       endDate: formData.endDate,
       monthlyRent: parseFloat(formData.monthlyRent),
       deposit: parseFloat(formData.deposit) || 0,
-      prepaymentMonths: parseInt(formData.prepaymentMonths),
+      initialPaymentMonths: parseInt(formData.initialPaymentMonths),
       dueDay: parseInt(formData.dueDay),
       billingFrequency: formData.billingFrequency || 'MONTHLY',
     };
@@ -375,12 +375,12 @@ export default function Leases() {
                 </div>
 
                 <div>
-                  <label className={labelClass}>Prepayment (months) *</label>
+                  <label className={labelClass}>Initial Payment (months) *</label>
                   <input
                     type="number"
-                    name="prepaymentMonths"
-                    min="3"
-                    value={formData.prepaymentMonths}
+                    name="initialPaymentMonths"
+                    min="1"
+                    value={formData.initialPaymentMonths}
                     onChange={handleChange}
                     className={inputClass}
                     placeholder="Min 3"

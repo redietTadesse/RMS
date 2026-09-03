@@ -18,8 +18,8 @@ export const mockSpaces = [
 
 
 export const mockLeases = [
-  { id: 1, tenant: "ABC Trading", space: "A-102", startDate: "2026-01-01", endDate: "2026-12-31", monthlyRent: 15000, deposit: 30000, prepaymentMonths: 3, dueDay: 1, status: "Active" },
-  { id: 2, tenant: "XYZ Cafe", space: "B-202", startDate: "2026-03-01", endDate: "2026-12-31", monthlyRent: 8000, deposit: 16000, prepaymentMonths: 6, dueDay: 1, status: "Active" },
+  { id: 1, tenant: "ABC Trading", space: "A-102", startDate: "2026-01-01", endDate: "2026-12-31", monthlyRent: 15000, deposit: 30000, initialPaymentMonths: 3, dueDay: 1, status: "Active" },
+  { id: 2, tenant: "XYZ Cafe", space: "B-202", startDate: "2026-03-01", endDate: "2026-12-31", monthlyRent: 8000, deposit: 16000, initialPaymentMonths: 6, dueDay: 1, status: "Active" },
 ]
 
 
@@ -86,3 +86,4 @@ export const mockInvoices = [
     receiptName: null,
   },
 ]
+

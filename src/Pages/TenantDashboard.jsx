@@ -629,7 +629,7 @@ export default function TenantDashboard() {
                 <p className="text-lg font-bold text-slate-800 mt-1">
                   ETB {Number(lease.deposit || 0).toLocaleString()}
                 </p>
-                <p className="text-sm text-slate-500">{lease.prepaymentMonths || 3} months prepayment</p>
+                <p className="text-sm text-slate-500">{lease.initialPaymentMonths || 3} months initial payment</p>
               </div>
               <div className="bg-slate-50 rounded-lg p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Status</p>

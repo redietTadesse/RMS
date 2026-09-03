@@ -34,10 +34,10 @@ public class LeaseRequest {
     @DecimalMax(value = "99999999.99", message = "Deposit cannot exceed 99,999,999.99")
     private BigDecimal deposit = BigDecimal.ZERO;
 
-    @NotNull(message = "Prepayment months is required")
-    @Min(value = 3, message = "Prepayment must be at least 3 months")
-    @Max(value = 24, message = "Prepayment cannot exceed 24 months")
-    private Integer prepaymentMonths;
+    @NotNull(message = "Initial payment months is required")
+    @Min(value = 1, message = "Initial payment must be at least 1 month")
+    @Max(value = 24, message = "Initial payment cannot exceed 24 months")
+    private Integer initialPaymentMonths;
 
     @NotNull(message = "Due day is required")
     @Min(value = 1, message = "Due day must be between 1 and 31")
@@ -67,8 +67,8 @@ public class LeaseRequest {
     public BigDecimal getDeposit() { return deposit; }
     public void setDeposit(BigDecimal deposit) { this.deposit = deposit; }
 
-    public Integer getPrepaymentMonths() { return prepaymentMonths; }
-    public void setPrepaymentMonths(Integer prepaymentMonths) { this.prepaymentMonths = prepaymentMonths; }
+    public Integer getInitialPaymentMonths() { return initialPaymentMonths; }
+    public void setInitialPaymentMonths(Integer initialPaymentMonths) { this.initialPaymentMonths = initialPaymentMonths; }
 
     public Integer getDueDay() { return dueDay; }
     public void setDueDay(Integer dueDay) { this.dueDay = dueDay; }
@@ -107,7 +107,7 @@ public class LeaseRequest {
                startDate != null &&
                endDate != null &&
                monthlyRent != null && monthlyRent.compareTo(BigDecimal.ZERO) > 0 &&
-               prepaymentMonths != null && prepaymentMonths >= 3 && prepaymentMonths <= 24 &&
+               initialPaymentMonths != null && initialPaymentMonths >= 1 && initialPaymentMonths <= 24 &&
                dueDay != null && dueDay >= 1 && dueDay <= 31 &&
                billingFrequency != null &&
                hasValidDateRange();
@@ -141,11 +141,11 @@ public class LeaseRequest {
         if (monthlyRent.compareTo(new BigDecimal("1.00")) < 0) {
             return "Monthly rent must be at least 1.00";
         }
-        if (prepaymentMonths == null || prepaymentMonths < 3) {
-            return "Prepayment must be at least 3 months";
+        if (initialPaymentMonths == null || initialPaymentMonths < 1) {
+            return "Initial payment must be at least 1 month";
         }
-        if (prepaymentMonths > 24) {
-            return "Prepayment cannot exceed 24 months";
+        if (initialPaymentMonths > 24) {
+            return "Initial payment cannot exceed 24 months";
         }
         if (dueDay == null || dueDay < 1 || dueDay > 31) {
             return "Due day must be between 1 and 31";
@@ -166,7 +166,7 @@ public class LeaseRequest {
             LocalDate endDate,
             BigDecimal monthlyRent,
             BigDecimal deposit,
-            Integer prepaymentMonths,
+            Integer initialPaymentMonths,
             Integer dueDay,
             BillingFrequency billingFrequency) {
         
@@ -177,7 +177,7 @@ public class LeaseRequest {
         copy.setEndDate(endDate != null ? endDate : this.endDate);
         copy.setMonthlyRent(monthlyRent != null ? monthlyRent : this.monthlyRent);
         copy.setDeposit(deposit != null ? deposit : this.deposit);
-        copy.setPrepaymentMonths(prepaymentMonths != null ? prepaymentMonths : this.prepaymentMonths);
+        copy.setInitialPaymentMonths(initialPaymentMonths != null ? initialPaymentMonths : this.initialPaymentMonths);
         copy.setDueDay(dueDay != null ? dueDay : this.dueDay);
         copy.setBillingFrequency(billingFrequency != null ? billingFrequency : this.billingFrequency);
         return copy;
@@ -192,7 +192,7 @@ public class LeaseRequest {
                 ", endDate=" + endDate +
                 ", monthlyRent=" + monthlyRent +
                 ", deposit=" + deposit +
-                ", prepaymentMonths=" + prepaymentMonths +
+                ", initialPaymentMonths=" + initialPaymentMonths +
                 ", dueDay=" + dueDay +
                 ", billingFrequency=" + billingFrequency +
                 '}';

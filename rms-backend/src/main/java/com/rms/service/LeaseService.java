@@ -103,13 +103,13 @@ public class LeaseService {
             throw new IllegalArgumentException("Space " + space.getUnitNumber() + " already has an active lease");
         }
 
-        // Validate Prepayment
-        if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
-            throw new IllegalArgumentException("Prepayment must be at least 3 months");
+        // Validate Initial Payment
+        if (request.getInitialPaymentMonths() == null || request.getInitialPaymentMonths() < 1) {
+            throw new IllegalArgumentException("Initial payment must be at least 1 month");
         }
 
-        if (request.getPrepaymentMonths() > 24) {
-            throw new IllegalArgumentException("Prepayment cannot exceed 24 months");
+        if (request.getInitialPaymentMonths() > 24) {
+            throw new IllegalArgumentException("Initial payment cannot exceed 24 months");
         }
 
         // Validate Dates
@@ -140,12 +140,12 @@ public class LeaseService {
         lease.setEndDate(request.getEndDate());
         lease.setMonthlyRent(request.getMonthlyRent());
         lease.setDeposit(request.getDeposit() != null ? request.getDeposit() : java.math.BigDecimal.ZERO);
-        lease.setPrepaymentMonths(request.getPrepaymentMonths());
+        lease.setInitialPaymentMonths(request.getInitialPaymentMonths());
         lease.setDueDay(request.getDueDay());
         lease.setStatus(LeaseStatus.ACTIVE);
         lease.setBillingFrequency(request.getBillingFrequency() != null ? 
                 request.getBillingFrequency() : BillingFrequency.MONTHLY);
-        lease.setNextBillingDate(request.getStartDate().plusMonths(request.getPrepaymentMonths()));
+        lease.setNextBillingDate(request.getStartDate().plusMonths(request.getInitialPaymentMonths()));
         lease.setFirstInvoiceProrated(request.getStartDate().getDayOfMonth() > 15);
 
         Lease saved = leaseRepository.save(lease);
@@ -167,13 +167,13 @@ public class LeaseService {
             throw new IllegalArgumentException("Only active leases can be edited");
         }
 
-        // Validate Prepayment
-        if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
-            throw new IllegalArgumentException("Prepayment must be at least 3 months");
+        // Validate Initial Payment
+        if (request.getInitialPaymentMonths() == null || request.getInitialPaymentMonths() < 1) {
+            throw new IllegalArgumentException("Initial payment must be at least 1 month");
         }
 
-        if (request.getPrepaymentMonths() > 24) {
-            throw new IllegalArgumentException("Prepayment cannot exceed 24 months");
+        if (request.getInitialPaymentMonths() > 24) {
+            throw new IllegalArgumentException("Initial payment cannot exceed 24 months");
         }
 
         // Validate Dates
@@ -201,7 +201,7 @@ public class LeaseService {
             lease.setEndDate(request.getEndDate());
             lease.setMonthlyRent(request.getMonthlyRent());
             lease.setDeposit(request.getDeposit() != null ? request.getDeposit() : java.math.BigDecimal.ZERO);
-            lease.setPrepaymentMonths(request.getPrepaymentMonths());
+            lease.setInitialPaymentMonths(request.getInitialPaymentMonths());
             lease.setDueDay(request.getDueDay());
             lease.setUpdatedAt(today);
 
@@ -210,7 +210,7 @@ public class LeaseService {
             }
 
             // Update next billing date if prepayment period changes
-            LocalDate newPrepaymentEnd = request.getStartDate().plusMonths(request.getPrepaymentMonths());
+            LocalDate newPrepaymentEnd = request.getStartDate().plusMonths(request.getInitialPaymentMonths());
             if (lease.getNextBillingDate() != null && today.isBefore(lease.getNextBillingDate())) {
                 lease.setNextBillingDate(newPrepaymentEnd);
             }
@@ -321,11 +321,14 @@ public class LeaseService {
             return null;
         }
 
-        LocalDate prepaymentEnd = lease.getStartDate().plusMonths(lease.getPrepaymentMonths());
         LocalDate today = LocalDate.now();
         int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 1;
 
-        LocalDate dueDate = prepaymentEnd.withDayOfMonth(Math.min(dueDay, prepaymentEnd.lengthOfMonth()));
+        if (lease.getNextPaymentDueDate() != null) {
+            return lease.getNextPaymentDueDate();
+        }
+
+        LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
 
         while (dueDate.isBefore(today)) {
             dueDate = dueDate.plusMonths(1);
@@ -343,9 +346,8 @@ public class LeaseService {
 
     public boolean isPrepaymentActive(Lease lease) {
         if (lease == null) return false;
-        LocalDate today = LocalDate.now();
-        LocalDate prepaymentEnd = lease.getStartDate().plusMonths(lease.getPrepaymentMonths());
-        return today.isBefore(prepaymentEnd) || today.isEqual(prepaymentEnd);
+        return lease.isPaymentScheduleActive() && lease.getNextPaymentDueDate() != null &&
+               LocalDate.now().isBefore(lease.getNextPaymentDueDate());
     }
 
     public boolean hasActiveLease(Long tenantId) {
@@ -424,12 +426,12 @@ public class LeaseService {
             throw new IllegalArgumentException("Monthly rent must be a positive amount");
         }
 
-        if (request.getPrepaymentMonths() == null || request.getPrepaymentMonths() < 3) {
-            throw new IllegalArgumentException("Prepayment must be at least 3 months");
+        if (request.getInitialPaymentMonths() == null || request.getInitialPaymentMonths() < 1) {
+            throw new IllegalArgumentException("Initial payment must be at least 1 month");
         }
 
-        if (request.getPrepaymentMonths() > 24) {
-            throw new IllegalArgumentException("Prepayment cannot exceed 24 months");
+        if (request.getInitialPaymentMonths() > 24) {
+            throw new IllegalArgumentException("Initial payment cannot exceed 24 months");
         }
 
         if (request.getDueDay() == null || request.getDueDay() < 1 || request.getDueDay() > 31) {
