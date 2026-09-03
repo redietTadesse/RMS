@@ -9,7 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.security.access.prepost.PreAuthorize;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -25,11 +25,7 @@ public class PaymentController {
     }
 
     @PostMapping("/{invoiceId}")
-<<<<<<< HEAD
     @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
-=======
-    @PreAuthorize("hasRole('ADMIN')")
->>>>>>> abc52cb (Resolve merge conflicts)
     @ResponseStatus(HttpStatus.OK)
     public Invoice recordPayment(
             @PathVariable Long invoiceId,
@@ -43,12 +39,9 @@ public class PaymentController {
     public Invoice approvePayment(@PathVariable Long invoiceId) {
         return paymentService.approvePayment(invoiceId);
     }
-<<<<<<< HEAD
 
-=======
-    
->>>>>>> abc52cb (Resolve merge conflicts)
     @GetMapping("/preview")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public ResponseEntity<BigDecimal> previewPenalty(
             @RequestParam Long invoiceId,
             @RequestParam LocalDate paymentDate) {

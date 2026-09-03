@@ -20,15 +20,21 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
+    private final EmailService emailService;
+    private final SmsService smsService;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtUtil jwtUtil,
-                       RefreshTokenService refreshTokenService) {
+                       RefreshTokenService refreshTokenService,
+                       EmailService emailService,
+                       SmsService smsService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.refreshTokenService = refreshTokenService;
+        this.emailService = emailService;
+        this.smsService = smsService;
     }
 
     @Transactional
@@ -87,7 +93,6 @@ public class AuthService {
         User user = new User();
         user.setUsername(request.getUsername());
         user.setName(request.getName());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEmail(request.getEmail());
 
         Role role = Role.TENANT;
@@ -101,6 +106,13 @@ public class AuthService {
         user.setRole(role);
         user.setActive(request.getActive() == null || request.getActive());
 
+        // Send welcome email with credentials before hashing password
+        String plainPassword = request.getPassword();
+        if (user.getEmail() != null && !user.getEmail().isBlank()) {
+            emailService.sendWelcomeEmail(user, request.getUsername(), plainPassword);
+        }
+
+        user.setPassword(passwordEncoder.encode(plainPassword));
         return userRepository.save(user);
     }
 

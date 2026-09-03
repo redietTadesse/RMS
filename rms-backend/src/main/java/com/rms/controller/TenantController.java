@@ -13,6 +13,7 @@ import com.rms.service.LeaseService;
 import com.rms.service.PaymentService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,6 +51,7 @@ public class TenantController {
     }
 
     @GetMapping("/my-lease")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public ResponseEntity<Lease> getMyLease(Authentication authentication) {
         String username = authentication.getName();
         Lease lease = leaseService.getLeaseByTenantUsername(username);
@@ -57,6 +59,7 @@ public class TenantController {
     }
 
     @GetMapping("/my-invoices")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public ResponseEntity<List<InvoiceResponse>> getMyInvoices(Authentication authentication) {
         String username = authentication.getName();
         List<Invoice> invoices = invoiceService.getInvoicesByTenantUsername(username);
@@ -66,6 +69,7 @@ public class TenantController {
     }
 
     @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public ResponseEntity<Map<String, Object>> getStats(Authentication authentication) {
         String username = authentication.getName();
         User user = userRepository.findByUsername(username)
@@ -92,30 +96,23 @@ public class TenantController {
     }
 
     @PostMapping("/invoices/{invoiceId}/receipt")
-<<<<<<< HEAD
+    @PreAuthorize("hasRole('TENANT')")
     public ResponseEntity<InvoiceResponse> submitReceipt(
-=======
-    public ResponseEntity<Invoice> submitReceipt(
->>>>>>> abc52cb (Resolve merge conflicts)
             @PathVariable Long invoiceId,
             @RequestParam("paymentDate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate paymentDate,
             @RequestParam(value = "paymentMethod", required = false, defaultValue = "receipt") String paymentMethod,
-            @RequestPart("receipt") MultipartFile receipt) {
+            @RequestPart("receipt") MultipartFile receipt,
+            Authentication authentication) {
 
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
         currentUserService.requireOwnership(invoice);
 
-<<<<<<< HEAD
         com.rms.dto.PaymentRequest request = new com.rms.dto.PaymentRequest();
         request.setPaymentDate(paymentDate);
         request.setPaymentMethod(paymentMethod);
 
         Invoice updated = paymentService.recordPayment(invoiceId, request, receipt);
         return ResponseEntity.ok(InvoiceResponse.from(updated));
-=======
-        Invoice updated = paymentService.submitReceipt(invoiceId, paymentDate, paymentMethod, receipt);
-        return ResponseEntity.ok(updated);
->>>>>>> abc52cb (Resolve merge conflicts)
     }
 }

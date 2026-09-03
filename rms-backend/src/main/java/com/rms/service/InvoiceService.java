@@ -163,6 +163,46 @@ public class InvoiceService {
         }
     }
 
+    // ─── SEND RENT DUE EMAIL ON DUE DAY ───
+    @Scheduled(cron = "0 0 9 * * ?")
+    @Transactional
+    public void sendRentDueEmails() {
+        LocalDate today = LocalDate.now();
+        List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
+
+        for (Lease lease : activeLeases) {
+            if (isCoveredByPrepayment(lease, today)) {
+                continue;
+            }
+
+            LocalDate monthStart = today.withDayOfMonth(1);
+            LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+
+            Invoice currentInvoice = invoiceRepository.findByLease(lease).stream()
+                    .filter(i -> i.getIssueDate().isAfter(monthStart.minusDays(1)) &&
+                            i.getIssueDate().isBefore(monthEnd.plusDays(1)))
+                    .filter(i -> i.getStatus() == InvoiceStatus.PENDING)
+                    .findFirst()
+                    .orElse(null);
+
+            if (currentInvoice == null) {
+                continue;
+            }
+
+            // Send email only on the due date
+            if (!currentInvoice.getDueDate().equals(today)) {
+                continue;
+            }
+
+            User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
+            if (user != null && user.getEmail() != null) {
+                emailService.sendRentDueEmail(user, lease);
+                System.out.println("📧 Rent due email sent to " + user.getEmail() +
+                        " for " + currentInvoice.getInvoiceNumber());
+            }
+        }
+    }
+
     // ─── DAILY PENALTY CALCULATION ───
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional

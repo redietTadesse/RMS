@@ -217,6 +217,31 @@ public class EmailService {
         }
     }
 
+    public void sendPaymentConfirmedEmail(User tenant, Invoice invoice) {
+        try {
+            Context context = new Context();
+            context.setVariable("tenantName", tenant.getName());
+            context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
+            context.setVariable("amount", invoice.getTotalAmount());
+            context.setVariable("paymentDate", invoice.getPaymentDate() != null ?
+                    invoice.getPaymentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")) :
+                    LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("paymentMethod", invoice.getPaymentMethod() != null ?
+                    invoice.getPaymentMethod() : "Bank Transfer");
+            context.setVariable("invoiceUrl", baseUrl + "/payments");
+            context.setVariable("year", java.time.Year.now().getValue());
+
+            String htmlContent = templateEngine.process("email/payment-confirmed", context);
+            sendHtmlEmail(
+                    tenant.getEmail(),
+                    "✅ Payment Confirmed: " + invoice.getInvoiceNumber(),
+                    htmlContent
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to send payment confirmed email: " + e.getMessage());
+        }
+    }
+
     private void sendHtmlEmail(String to, String subject, String htmlContent) {
         if (to == null || to.isEmpty()) {
             System.err.println("No email address provided");

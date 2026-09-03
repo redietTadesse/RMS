@@ -7,7 +7,7 @@ import {
   DollarSign, Info, TrendingUp, TrendingDown
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { tenantApi, chapaApi, documentsApi } from '../services/api';
+import { tenantApi, chapaApi, documentsApi, invoicesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
   const colors = {
@@ -53,7 +53,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function InvoiceCard({ invoice, onPay, onUpload, paying, uploading }) {
+function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploading }) {
   const isPayable = invoice.status === 'PENDING' || invoice.status === 'OVERDUE';
   const isSubmitted = invoice.status === 'SUBMITTED';
   const isPaid = invoice.status === 'PAID';
@@ -175,6 +175,13 @@ function InvoiceCard({ invoice, onPay, onUpload, paying, uploading }) {
               </label>
             </>
           ) : null}
+          <button
+            onClick={() => onDownloadPdf(invoice)}
+            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium rounded-lg transition inline-flex items-center gap-1.5"
+            title="Download PDF"
+          >
+            <Download className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -385,6 +392,14 @@ export default function TenantDashboard() {
       loadDocuments();
     }
   }, [user]);
+
+  const handleDownloadPdf = async (invoice) => {
+    try {
+      await invoicesApi.downloadPdf(invoice.id, invoice.invoiceNumber);
+    } catch (err) {
+      alert('Failed to download PDF: ' + err.message);
+    }
+  };
 
   const handleDownload = async (doc) => {
     try {

@@ -1,0 +1,34 @@
+﻿<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to RMS</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+        <h1 style="margin: 0; font-size: 28px;">🏢 Welcome to RMS</h1>
+        <p style="margin: 10px 0 0; opacity: 0.9;">Rental Management System</p>
+    </div>
+    <div style="border: 1px solid #e5e7eb; padding: 30px; border-radius: 0 0 12px 12px;">
+        <p>Dear <strong th:text="${tenantName}">Tenant</strong>,</p>
+        <p>Your account has been created successfully. You can now access the RMS tenant portal to view your lease, invoices, and make payments.</p>
+        <div style="background: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #22c55e;">
+            <h3 style="margin: 0 0 10px; color: #166534;">Your Login Credentials</h3>
+            <p style="margin: 5px 0;"><strong>Username:</strong> <span th:text="${username}" style="font-family: monospace; background: #dcfce7; padding: 2px 8px; rounded;">tenant123</span></p>
+            <p style="margin: 5px 0;"><strong>Password:</strong> <span th:text="${password}" style="font-family: monospace; background: #dcfce7; padding: 2px 8px; rounded;">********</span></p>
+        </div>
+        <div style="text-align: center; margin: 25px 0;">
+            <a href="#" th:href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">Login to Your Account</a>
+        </div>
+        <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0; color: #92400e;"><strong>🔒 Security Tip:</strong> Please change your password after your first login for security.</p>
+        </div>
+        <p style="margin-top: 20px; font-size: 14px; color: #6b7280;">If you have any questions, please contact the property management office.</p>
+    </div>
+    <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+        <p>© <span th:text="${year}">2026</span> RMS - Rental Management System</p>
+        <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+</body>
+</html>

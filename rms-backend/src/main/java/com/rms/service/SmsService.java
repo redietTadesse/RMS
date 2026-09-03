@@ -92,6 +92,26 @@ public class SmsService {
         sendSms(tenant, message);
     }
 
+    public void sendPaymentConfirmedSms(Tenant tenant, Invoice invoice) {
+        String message = String.format(
+                "✅ RMS: Your payment of ETB %.2f for invoice %s has been confirmed. Thank you! - %s",
+                invoice.getTotalAmount(),
+                invoice.getInvoiceNumber(),
+                baseUrl
+        );
+        sendSms(tenant, message);
+    }
+
+    public void sendWelcomeSms(Tenant tenant, String username) {
+        String message = String.format(
+                "🏢 Welcome to RMS, %s! Your account is ready. Login: %s/login | Username: %s",
+                tenant.getName(),
+                baseUrl,
+                username
+        );
+        sendSms(tenant, message);
+    }
+
     public boolean isMockMode() {
         return "mock".equalsIgnoreCase(smsMode);
     }

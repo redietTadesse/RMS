@@ -39,21 +39,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        System.out.println("🔐 FILTER: Processing " + request.getMethod() + " " + request.getRequestURI());
-
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            System.out.println("🔐 FILTER: Token present: " + token.substring(0, Math.min(token.length(), 20)) + "...");
 
             if (jwtUtil.isTokenValid(token)) {
                 String username = jwtUtil.extractUsername(token);
                 String role = jwtUtil.extractRole(token);
-<<<<<<< HEAD
-                System.out.println("✅ FILTER: Valid token for: " + username + " (role: " + role + ")");
-=======
->>>>>>> abc52cb (Resolve merge conflicts)
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -64,11 +57,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-            } else {
-                System.out.println("❌ FILTER: Invalid token");
             }
-        } else {
-            System.out.println("❌ FILTER: No Bearer token found");
         }
 
         filterChain.doFilter(request, response);

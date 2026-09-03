@@ -8,12 +8,9 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;   // add this import
-<<<<<<< HEAD
-@Repository
-=======
+import java.util.Optional;
 
->>>>>>> abc52cb (Resolve merge conflicts)
+@Repository
 public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
     long countByStatus(LeaseStatus status);
@@ -26,7 +23,6 @@ public interface LeaseRepository extends JpaRepository<Lease, Long> {
 
     List<Lease> findByStatusAndEndDateBetween(LeaseStatus status, LocalDate start, LocalDate end);
 
-    // These were missing – add them back
     List<Lease> findByTenantIdAndStatus(Long tenantId, LeaseStatus status);
 
     Optional<Lease> findFirstByTenantIdOrderByEndDateDesc(Long tenantId);

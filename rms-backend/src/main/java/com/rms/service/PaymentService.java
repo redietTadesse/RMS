@@ -23,6 +23,7 @@ public class PaymentService {
     private final FileStorageService fileStorageService;
     private final UserRepository userRepository;
     private final EmailService emailService;
+    private final SmsService smsService;
     private final SettingsService settingsService;
     private final NotificationService notificationService;
 
@@ -30,12 +31,14 @@ public class PaymentService {
                           FileStorageService fileStorageService,
                           UserRepository userRepository,
                           EmailService emailService,
+                          SmsService smsService,
                           SettingsService settingsService,
                           NotificationService notificationService) {
         this.invoiceRepository = invoiceRepository;
         this.fileStorageService = fileStorageService;
         this.userRepository = userRepository;
         this.emailService = emailService;
+        this.smsService = smsService;
         this.settingsService = settingsService;
         this.notificationService = notificationService;
     }
@@ -188,15 +191,21 @@ public class PaymentService {
             User tenant = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
             if (tenant != null) {
                 if (tenant.getEmail() != null) {
-                    emailService.sendPaymentApprovedEmail(tenant, saved);
+                    emailService.sendPaymentConfirmedEmail(tenant, saved);
                 }
-                notificationService.createForUser(
+                notificationService.createForUserOnce(
                         tenant.getId(),
                         "PAYMENT_APPROVED",
+                        saved.getId(),
                         "Payment Approved",
                         "Your payment for invoice " + saved.getInvoiceNumber() + " has been approved.",
                         "/payments"
                 );
+            }
+
+            // Send SMS confirmation
+            if (invoice.getLease().getTenant().getPhone() != null) {
+                smsService.sendPaymentConfirmedSms(invoice.getLease().getTenant(), saved);
             }
 
             return saved;
