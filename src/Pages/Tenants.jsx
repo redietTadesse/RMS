@@ -3,19 +3,24 @@ import { tenantsApi, documentsApi, adminApi } from '../services/api';
 import { verificationApi } from '../services/verificationApi';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { Loader2, Plus, Search, Edit, Trash2, FileText, X } from 'lucide-react';
-import DocumentList from '../components/Documents/DocumentList';
 import DocumentUpload from '../components/Documents/DocumentUpload';  
 
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition';
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 
-const EMPTY_FORM = { name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '', tinNumber: '', businessLicense: '', faydaNumber: '', tinStatus: 'UNVERIFIED', identityStatus: 'UNVERIFIED', userId: '', isWithholdingTaxApplicable: false, withholdingStartDate: '', withholdingEvidenceVerified: false };
+const EMPTY_FORM = {
+  name: '', type: 'INDIVIDUAL', contact: '', phone: '', email: '',
+  tinNumber: '', businessLicense: '', faydaNumber: '',
+  tinStatus: 'UNVERIFIED', identityStatus: 'UNVERIFIED', userId: '',
+  isWithholdingTaxApplicable: false,
+  withholdingStartDate: '',
+  withholdingEvidenceVerified: false,
+  withholdingEvidenceStatus: '',
+  withholdingVerifiedBy: '',
+  withholdingVerifiedAt: '',
+  withholdingDocumentId: null,
+};
 const EMPTY_VERIFY = { tinBusy: false, tinResult: null, faydaBusy: false, faydaTxn: null, faydaOtp: '', faydaPending: null, faydaResult: null };
-const DOC_TYPES = [
-  { value: 'TIN_CERTIFICATE', label: 'TIN Certificate' },
-  { value: 'ID_CARD', label: 'ID Card' },
-  { value: 'BUSINESS_LICENSE', label: 'Business License' },
-];
 
 function DocBadge({ ok, label }) {
   return (
@@ -35,7 +40,7 @@ function WithholdingBadge({ tenant }) {
   return <span className="inline-block rounded-full px-2 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>;
 }
 
-function VerificationBadge({ result }) {
+function VerifyPill({ result }) {
   if (!result) return null;
   const map = {
     VERIFIED: 'bg-emerald-100 text-emerald-700',
@@ -65,11 +70,7 @@ export default function Tenants() {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [docsTenant, setDocsTenant] = useState(null);
-  const [docs, setDocs] = useState([]);
-  const [docsLoading, setDocsLoading] = useState(false);
-  const [docsError, setDocsError] = useState('');
-  const [uploadingType, setUploadingType] = useState('');
-  
+
   // Document upload states
   const [showDocUpload, setShowDocUpload] = useState(false);
   const [tenantDocuments, setTenantDocuments] = useState([]);
@@ -85,15 +86,6 @@ export default function Tenants() {
       setError(e.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadUsers = async () => {
-    try {
-      const data = await adminApi.getAllUsers();
-      setUsers(data.filter((u) => u.role === 'TENANT'));
-    } catch (e) {
-      console.error('Failed to load users:', e);
     }
   };
 
@@ -114,15 +106,27 @@ export default function Tenants() {
     await loadDocuments(t.id);
   };
 
-  const handleDocUpload = () => {
-    if (docsTenant) {
-      loadDocuments(docsTenant.id);
-    }
-  };
-
   useEffect(() => {
-    loadTenants('');
-    loadUsers();
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await tenantsApi.getAll(undefined);
+        if (!cancelled) setTenants(data);
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    (async () => {
+      try {
+        const data = await adminApi.getAllUsers();
+        if (!cancelled) setUsers((data || []).filter((u) => u.role === 'TENANT'));
+      } catch (e) {
+        console.error('Failed to load users:', e);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const handleSearchChange = (e) => {
@@ -288,23 +292,6 @@ export default function Tenants() {
     }
   };
 
-  const handleUpload = async (type, file) => {
-    if (!file) return;
-    setUploadingType(type);
-    setDocsError('');
-    try {
-      await documentsApi.upload(docsTenant.id, type, file);
-      setDocs(await documentsApi.getByTenant(docsTenant.id));
-      await loadTenants();
-    } catch (e) {
-      setDocsError(e.message);
-    } finally {
-      setUploadingType('');
-    }
-  };
-
-  const docLabel = (type) => DOC_TYPES.find((d) => d.value === type)?.label || type;
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -458,6 +445,49 @@ export default function Tenants() {
                     {formData.withholdingEvidenceVerified && (
                       <div className="md:col-span-2 text-xs text-slate-500 bg-emerald-50 rounded-lg px-3 py-2">
                         Verified by: {formData.withholdingVerifiedBy || 'Admin'} on {formData.withholdingVerifiedAt ? new Date(formData.withholdingVerifiedAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    )}
+                    {/* Activate / Deactivate buttons */}
+                    {formData.isWithholdingTaxApplicable && formData.withholdingDocumentId && !formData.withholdingEvidenceVerified && (
+                      <div className="md:col-span-2 flex gap-3 mt-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!editingId) { setFormError('Please save the tenant first.'); return; }
+                            if (!formData.withholdingStartDate) { setFormError('Please set an effective date.'); return; }
+                            try {
+                              await adminApi.activateWithholding(editingId, formData.withholdingStartDate);
+                              setFormData((f) => ({ ...f, withholdingEvidenceVerified: true, withholdingEvidenceStatus: 'VERIFIED' }));
+                              alert('✅ Withholding tax activated successfully!');
+                            } catch (err) {
+                              setFormError(err.message || 'Failed to activate withholding');
+                            }
+                          }}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition"
+                        >
+                          ✓ Activate Withholding
+                        </button>
+                      </div>
+                    )}
+                    {formData.isWithholdingTaxApplicable && formData.withholdingEvidenceVerified && (
+                      <div className="md:col-span-2 flex gap-3 mt-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!editingId) return;
+                            if (!window.confirm('Deactivate withholding for this tenant?')) return;
+                            try {
+                              await adminApi.deactivateWithholding(editingId);
+                              setFormData((f) => ({ ...f, withholdingEvidenceVerified: false, isWithholdingTaxApplicable: false, withholdingEvidenceStatus: '' }));
+                              alert('✅ Withholding tax deactivated.');
+                            } catch (err) {
+                              setFormError(err.message || 'Failed to deactivate withholding');
+                            }
+                          }}
+                          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium rounded-lg transition"
+                        >
+                          ✕ Deactivate
+                        </button>
                       </div>
                     )}
                   </div>
@@ -623,7 +653,7 @@ export default function Tenants() {
       {showDocUpload && docsTenant && (
         <DocumentUpload
           tenantId={docsTenant.id}
-          onUpload={handleDocUpload}
+          onUpload={() => loadDocuments(docsTenant.id)}
           onClose={() => setShowDocUpload(false)}
         />
       )}

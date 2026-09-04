@@ -28,6 +28,8 @@ export default function Leases() {
   const [spaces, setSpaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [terminatingId, setTerminatingId] = useState(null);
   
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -47,6 +49,7 @@ export default function Leases() {
   const loadData = async () => {
     setLoading(true);
     setError('');
+    setSuccess('');
     try {
       const [leasesData, tenantsData, spacesData] = await Promise.all([
         leasesApi.getAll(),
@@ -64,7 +67,26 @@ export default function Leases() {
   };
 
   useEffect(() => {
-    loadData();
+    let cancelled = false;
+    (async () => {
+      try {
+        const [leasesData, tenantsData, spacesData] = await Promise.all([
+          leasesApi.getAll(),
+          tenantsApi.getAll(),
+          spacesApi.getAll(),
+        ]);
+        if (!cancelled) {
+          setLeases(leasesData);
+          setTenants(tenantsData);
+          setSpaces(spacesData);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const resetForm = () => {
@@ -199,11 +221,16 @@ export default function Leases() {
 
   const handleTerminate = async (id) => {
     if (!window.confirm('Terminate this lease? The space will become vacant.')) return;
+    setTerminatingId(id);
+    setError('');
     try {
       await leasesApi.terminate(id);
       await loadData();
+      setSuccess('Lease terminated successfully. Space is now vacant.');
     } catch (e) {
-      setError(e.message);
+      setError(e.message || 'Failed to terminate lease');
+    } finally {
+      setTerminatingId(null);
     }
   };
 
@@ -241,6 +268,16 @@ export default function Leases() {
             <AlertCircle className="w-4 h-4" />
             {error}
             <button onClick={() => setError('')} className="ml-auto text-red-500 hover:text-red-700">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700 border border-emerald-200 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4" />
+            {success}
+            <button onClick={() => setSuccess('')} className="ml-auto text-emerald-500 hover:text-emerald-700">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -495,10 +532,15 @@ export default function Leases() {
                         {lease.status === 'ACTIVE' && (
                           <button
                             onClick={() => handleTerminate(lease.id)}
-                            className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                            disabled={terminatingId === lease.id}
+                            className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Terminate"
                           >
-                            <CheckCircle className="w-4 h-4" />
+                            {terminatingId === lease.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4" />
+                            )}
                           </button>
                         )}
                         <button
