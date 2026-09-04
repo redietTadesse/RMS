@@ -48,21 +48,24 @@ public class Tenant {
     @Column(name = "business_license")
     private String businessLicense;
 
+    // Boolean wrappers (not primitives) so Hibernate can load legacy rows where
+    // the column is NULL without throwing "Null value was assigned to a property
+    // of primitive type". Getters unbox null-safely.
     @Column(name = "has_id_card", nullable = false)
-    private boolean hasIdCard = false;
+    private Boolean hasIdCard = false;
 
     @Column(name = "has_business_license", nullable = false)
-    private boolean hasBusinessLicense = false;
+    private Boolean hasBusinessLicense = false;
 
     // Withholding tax fields
     @Column(name = "is_withholding_tax_applicable", nullable = false)
-    private boolean withholdingTaxApplicable = false;
+    private Boolean withholdingTaxApplicable = false;
 
     @Column(name = "withholding_start_date")
     private LocalDate withholdingStartDate;
 
     @Column(name = "withholding_evidence_verified")
-    private boolean withholdingEvidenceVerified = false;
+    private Boolean withholdingEvidenceVerified = false;
 
     @Column(name = "withholding_verified_by")
     private String withholdingVerifiedBy;
@@ -101,21 +104,21 @@ public class Tenant {
     public String getBusinessLicense() { return businessLicense; }
     public void setBusinessLicense(String businessLicense) { this.businessLicense = businessLicense; }
 
-    public boolean isHasIdCard() { return hasIdCard; }
-    public void setHasIdCard(boolean hasIdCard) { this.hasIdCard = hasIdCard; }
+    public boolean isHasIdCard() { return Boolean.TRUE.equals(hasIdCard); }
+    public void setHasIdCard(Boolean hasIdCard) { this.hasIdCard = hasIdCard; }
 
-    public boolean isHasBusinessLicense() { return hasBusinessLicense; }
-    public void setHasBusinessLicense(boolean hasBusinessLicense) { this.hasBusinessLicense = hasBusinessLicense; }
+    public boolean isHasBusinessLicense() { return Boolean.TRUE.equals(hasBusinessLicense); }
+    public void setHasBusinessLicense(Boolean hasBusinessLicense) { this.hasBusinessLicense = hasBusinessLicense; }
 
     // Withholding tax getters and setters
-    public boolean isWithholdingTaxApplicable() { return withholdingTaxApplicable; }
-    public void setWithholdingTaxApplicable(boolean withholdingTaxApplicable) { this.withholdingTaxApplicable = withholdingTaxApplicable; }
+    public boolean isWithholdingTaxApplicable() { return Boolean.TRUE.equals(withholdingTaxApplicable); }
+    public void setWithholdingTaxApplicable(Boolean withholdingTaxApplicable) { this.withholdingTaxApplicable = withholdingTaxApplicable; }
 
     public LocalDate getWithholdingStartDate() { return withholdingStartDate; }
     public void setWithholdingStartDate(LocalDate withholdingStartDate) { this.withholdingStartDate = withholdingStartDate; }
 
-    public boolean isWithholdingEvidenceVerified() { return withholdingEvidenceVerified; }
-    public void setWithholdingEvidenceVerified(boolean withholdingEvidenceVerified) { this.withholdingEvidenceVerified = withholdingEvidenceVerified; }
+    public boolean isWithholdingEvidenceVerified() { return Boolean.TRUE.equals(withholdingEvidenceVerified); }
+    public void setWithholdingEvidenceVerified(Boolean withholdingEvidenceVerified) { this.withholdingEvidenceVerified = withholdingEvidenceVerified; }
 
     public String getWithholdingVerifiedBy() { return withholdingVerifiedBy; }
     public void setWithholdingVerifiedBy(String withholdingVerifiedBy) { this.withholdingVerifiedBy = withholdingVerifiedBy; }

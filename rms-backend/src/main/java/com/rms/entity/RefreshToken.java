@@ -22,7 +22,7 @@ public class RefreshToken {
     private LocalDateTime expiryDate;
 
     @Column(nullable = false)
-    private boolean revoked = false;
+    private Boolean revoked = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -39,8 +39,8 @@ public class RefreshToken {
     public LocalDateTime getExpiryDate() { return expiryDate; }
     public void setExpiryDate(LocalDateTime expiryDate) { this.expiryDate = expiryDate; }
 
-    public boolean isRevoked() { return revoked; }
-    public void setRevoked(boolean revoked) { this.revoked = revoked; }
+    public boolean isRevoked() { return Boolean.TRUE.equals(revoked); }
+    public void setRevoked(Boolean revoked) { this.revoked = revoked; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

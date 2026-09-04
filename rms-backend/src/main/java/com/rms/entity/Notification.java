@@ -30,7 +30,7 @@ public class Notification {
     private Long referenceId;
 
     @Column(name = "read_flag", nullable = false)
-    private boolean readFlag = false;
+    private Boolean readFlag = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -56,8 +56,8 @@ public class Notification {
     public Long getReferenceId() { return referenceId; }
     public void setReferenceId(Long referenceId) { this.referenceId = referenceId; }
 
-    public boolean isReadFlag() { return readFlag; }
-    public void setReadFlag(boolean readFlag) { this.readFlag = readFlag; }
+    public boolean isReadFlag() { return Boolean.TRUE.equals(readFlag); }
+    public void setReadFlag(Boolean readFlag) { this.readFlag = readFlag; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -46,7 +46,7 @@ public class Lease {
     private Integer initialPaymentMonths = 3;
 
     @Column(name = "payment_schedule_active", nullable = false)
-    private boolean paymentScheduleActive = false;
+    private Boolean paymentScheduleActive = false;
 
     @Column(name = "next_payment_due_date")
     private LocalDate nextPaymentDueDate;
@@ -109,8 +109,8 @@ public class Lease {
     public Integer getInitialPaymentMonths() { return initialPaymentMonths; }
     public void setInitialPaymentMonths(Integer initialPaymentMonths) { this.initialPaymentMonths = initialPaymentMonths; }
 
-    public boolean isPaymentScheduleActive() { return paymentScheduleActive; }
-    public void setPaymentScheduleActive(boolean paymentScheduleActive) { this.paymentScheduleActive = paymentScheduleActive; }
+    public boolean isPaymentScheduleActive() { return Boolean.TRUE.equals(paymentScheduleActive); }
+    public void setPaymentScheduleActive(Boolean paymentScheduleActive) { this.paymentScheduleActive = paymentScheduleActive; }
 
     public LocalDate getNextPaymentDueDate() { return nextPaymentDueDate; }
     public void setNextPaymentDueDate(LocalDate nextPaymentDueDate) { this.nextPaymentDueDate = nextPaymentDueDate; }
