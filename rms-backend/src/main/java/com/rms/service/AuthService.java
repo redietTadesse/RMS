@@ -146,4 +146,13 @@ public class AuthService {
         User user = getCurrentUser(username);
         refreshTokenService.revokeAllUserTokens(user);
     }
+
+    /**
+     * Logout for callers whose access token may already be expired: revoke
+     * just the presented refresh token instead of every session of the user.
+     */
+    @Transactional
+    public void logoutToken(String rawRefreshToken) {
+        refreshTokenService.revokeToken(rawRefreshToken);
+    }
 }

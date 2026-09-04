@@ -41,9 +41,16 @@ public class AuthController {
         return UserResponse.from(user);
     }
 
+    // Logout is intentionally public: the client may hold only an expired
+    // access token (or none) and must still be able to invalidate its
+    // refresh token server-side.
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(Authentication authentication) {
+    public void logout(Authentication authentication,
+                       @RequestBody(required = false) RefreshTokenRequest request) {
+        if (request != null && request.getRefreshToken() != null && !request.getRefreshToken().isBlank()) {
+            authService.logoutToken(request.getRefreshToken());
+        }
         if (authentication != null) {
             authService.logout(authentication.getName());
         }

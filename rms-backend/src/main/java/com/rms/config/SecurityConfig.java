@@ -38,8 +38,11 @@ public class SecurityConfig {
                         // ✅ ADD THIS LINE - Public login
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/refresh").permitAll()
-                        .requestMatchers("/api/test/email-test").permitAll()
+                        // Logout must work with an expired/missing access token
+                        .requestMatchers("/api/auth/logout").permitAll()
+                                                .requestMatchers("/api/test/email-test").permitAll()
                         .requestMatchers("/api/test/sms-test").permitAll()
+                        .requestMatchers("/api/test/time/**").hasRole("ADMIN")
 
                         // Chapa gateway endpoints - PUBLIC (called by Chapa servers & payment callback)
                         .requestMatchers("/api/payments/chapa/webhook").permitAll()
