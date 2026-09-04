@@ -42,7 +42,20 @@ export default function Spaces() {
     }
   };
 
-  useEffect(() => { loadSpaces(); }, [filter]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await spacesApi.getAll(filter || undefined);
+        if (!cancelled) setSpaces(data);
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [filter]);
 
   const openAdd = () => { setEditingId(null); setFormData(EMPTY_FORM); setFormError(''); setShowModal(true); };
   const openEdit = (space) => {

@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function LeaseList({ leases }) {
   return (
     <div className="lease-list">

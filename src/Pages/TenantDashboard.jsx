@@ -1,15 +1,15 @@
 // src/pages/TenantDashboard.jsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, FileText, CreditCard, AlertCircle, Upload,
   CheckCircle, Clock, Loader2, Calendar, Home,
-  DollarSign, Info, TrendingUp, TrendingDown, Download,
+  DollarSign, Info, Download,
   Receipt,
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { tenantApi, chapaApi, documentsApi, invoicesApi } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
   const colors = {
     indigo: 'bg-indigo-100 text-indigo-600',
@@ -333,7 +333,7 @@ export default function TenantDashboard() {
   const [uploadingId, setUploadingId] = useState(null);
   const [payError, setPayError] = useState('');
   const [documents, setDocuments] = useState([]);
-  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [loadingDocs] = useState(false);
 
   useEffect(() => {
     if (user && user.role !== 'TENANT') {
@@ -423,22 +423,19 @@ export default function TenantDashboard() {
     }
   };
 
-  const loadDocuments = async () => {
-    setLoadingDocs(true);
-    try {
-      const data = await documentsApi.getMyDocuments();
-      setDocuments(data || []);
-    } catch (err) {
-      console.error('Failed to load documents:', err);
-    } finally {
-      setLoadingDocs(false);
-    }
-  };
-
   useEffect(() => {
-    if (user && user.role === 'TENANT') {
-      loadDocuments();
-    }
+    if (!user || user.role !== 'TENANT') return;
+    let cancelled = false;
+    documentsApi.getMyDocuments()
+      .then((data) => {
+        if (!cancelled) setDocuments(data || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load documents:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const handleDownloadPdf = async (invoice) => {

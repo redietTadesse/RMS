@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function SpaceList({ spaces }) {
   return (
     <div className="space-list">

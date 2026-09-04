@@ -1,9 +1,8 @@
 // src/Pages/TenantPayments.jsx
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { tenantApi, chapaApi } from '../services/api';
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { Loader2, CreditCard, Upload, CheckCircle, Clock, AlertCircle, FileText } from 'lucide-react';
+import { Loader2, CreditCard, Upload, AlertCircle, FileText } from 'lucide-react';
 
 function StatusBadge({ status }) {
   const styles = {
@@ -20,28 +19,36 @@ function StatusBadge({ status }) {
 }
 
 export default function TenantPayments() {
-  const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [payingId, setPayingId] = useState(null);
   const [uploadingId, setUploadingId] = useState(null);
   const [payError, setPayError] = useState('');
 
   const loadInvoices = async () => {
-    setLoading(true);
     try {
       const data = await tenantApi.getMyInvoices();
       setInvoices(data || []);
     } catch (err) {
-      setError(err.message || 'Failed to load invoices');
+      setPayError(err.message || 'Failed to load invoices');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadInvoices();
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await tenantApi.getMyInvoices();
+        if (!cancelled) setInvoices(data || []);
+      } catch (err) {
+        if (!cancelled) setPayError(err.message || 'Failed to load invoices');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const handleChapaPay = async (invoice) => {
@@ -56,7 +63,7 @@ export default function TenantPayments() {
       const res = await chapaApi.initialize(invoice.id, phone);
       const url = res?.checkoutUrl || res?.checkout_url || res?.data?.checkout_url;
       if (url) {
-        window.location.href = url;
+        window.location.replace(url);
       } else {
         setPayError('Payment link not received. Contact admin.');
         setPayingId(null);

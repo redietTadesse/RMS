@@ -1,6 +1,6 @@
 // src/Pages/UserManagement.jsx
 import { useEffect, useState } from 'react';
-import { Users, Shield, UserPlus, Trash2, Edit2 } from 'lucide-react';
+import { Users, UserPlus, Trash2, Edit2 } from 'lucide-react';
 import { adminApi } from '../services/api';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 

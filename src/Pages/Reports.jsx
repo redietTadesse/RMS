@@ -44,28 +44,30 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadAll = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [rev, out, occ, exp] = await Promise.all([
-        reportsApi.getRevenue(6),
-        reportsApi.getOutstandingBalance(),
-        reportsApi.getOccupancy(),
-        reportsApi.getLeaseExpiry(90),
-      ]);
-      setRevenue(rev);
-      setOutstanding(out);
-      setOccupancy(occ);
-      setLeaseExpiry(exp);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [rev, out, occ, exp] = await Promise.all([
+          reportsApi.getRevenue(6),
+          reportsApi.getOutstandingBalance(),
+          reportsApi.getOccupancy(),
+          reportsApi.getLeaseExpiry(90),
+        ]);
+        if (!cancelled) {
+          setRevenue(rev);
+          setOutstanding(out);
+          setOccupancy(occ);
+          setLeaseExpiry(exp);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const filteredExpiry = leaseExpiry.filter((l) => Number(l.daysRemaining) <= Number(expiryFilter));
 

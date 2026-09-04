@@ -1,5 +1,5 @@
 // src/components/Documents/DocumentList.jsx
-import { FileText, Download, Trash2 } from 'lucide-react';
+import { FileText, Trash2 } from 'lucide-react';
 
 export default function DocumentList({ documents, onDelete, isAdmin }) {
   const handleDownload = async (doc) => {

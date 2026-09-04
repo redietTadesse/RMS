@@ -1,16 +1,14 @@
 // src/pages/Payments.jsx
 import { useState, useEffect, useMemo } from 'react';
 import {
-  FaEye, FaPlus, FaCheck, FaFileInvoice,
+  FaEye, FaPlus, FaCheck,
 } from 'react-icons/fa';
 import {
   CheckCircle2, Clock, AlertTriangle, DollarSign,
-  Settings2, X, Loader2, FileCheck, TrendingUp, TrendingDown,
-  Calendar, Users, Building2, Bell
+  Settings2, X, Loader2, FileCheck, TrendingUp,
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
 import { invoicesApi, paymentsApi, leasesApi, settingsApi } from '../services/api';
-import { useAuth } from '../context/AuthContext';
 
 const statusBadge = {
   PENDING: 'bg-amber-100 text-amber-700',
@@ -324,7 +322,6 @@ function SettingsModal({ settings, onSave, onClose, saving }) {
 }
 
 export default function Payments() {
-  const { user } = useAuth();
   const [invoices, setInvoices] = useState([]);
   const [leases, setLeases] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -355,23 +352,38 @@ export default function Payments() {
     }
   };
 
-  const loadSettings = async () => {
-    try {
-      const data = await settingsApi.getSettings();
-      if (data) {
-        setSettings({
-          penaltyRate: data.penaltyRate || 20,
-          paymentWindowEnd: data.paymentWindowEnd || 10,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-    }
-  };
-
   useEffect(() => {
-    loadData();
-    loadSettings();
+    let cancelled = false;
+    (async () => {
+      try {
+        const [invoicesData, leasesData] = await Promise.all([
+          invoicesApi.getAll(),
+          leasesApi.getAll(),
+        ]);
+        if (!cancelled) {
+          setInvoices(invoicesData || []);
+          setLeases(leasesData || []);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load data');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    (async () => {
+      try {
+        const data = await settingsApi.getSettings();
+        if (data && !cancelled) {
+          setSettings({
+            penaltyRate: data.penaltyRate || 20,
+            paymentWindowEnd: data.paymentWindowEnd || 10,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const totals = useMemo(() => ({

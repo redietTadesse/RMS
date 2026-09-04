@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function TenantList({ tenants }) {
   return (
     <div className="tenant-list">

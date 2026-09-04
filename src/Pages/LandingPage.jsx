@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { FaBuilding, FaUsers, FaFileContract, FaMoneyBill, FaArrowRight, FaCheckCircle, FaShieldAlt, FaHeadset } from 'react-icons/fa'
+import { FaBuilding, FaUsers, FaFileContract, FaMoneyBill, FaArrowRight, FaShieldAlt, FaHeadset } from 'react-icons/fa'
 
 function LandingPage() {
   return (
