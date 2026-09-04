@@ -1,21 +1,30 @@
 // src/pages/Login.jsx
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Building, User, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { Building, User, Lock, Eye, EyeOff, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login, error: authError, loading: authLoading } = useAuth();
-  
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  // Read a one-time session message (expiry/logout) set by AuthContext/Header.
+  const [info, setInfo] = useState(() => {
+    const message = sessionStorage.getItem('rms_auth_message');
+    if (message) sessionStorage.removeItem('rms_auth_message');
+    if (message === 'logout') return 'You have been signed out. See you soon!';
+    if (message === 'session') return 'Your session has expired. Please sign in again.';
+    return '';
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
 
     try {
       await login(username, password);
@@ -45,6 +54,14 @@ export default function Login() {
 
           <h2 className="text-3xl font-bold text-slate-800">Welcome back 👋</h2>
           <p className="text-slate-500 mt-2 mb-8">Please enter your details to sign in.</p>
+
+          {/* Session / sign-out info banner */}
+          {info && !error && !authError && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              {info}
+            </div>
+          )}
 
           {/* Error Display */}
           {error && (

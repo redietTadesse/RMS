@@ -1,5 +1,5 @@
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'support@rms.example.com';
 

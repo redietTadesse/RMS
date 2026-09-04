@@ -1,56 +1,178 @@
+import tokenManager from './TokenManager';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
+// Auth lifecycle events — dispatched on `window` so non-React modules (api.js)
+// can signal React state (AuthContext) without creating an import cycle.
+export const AUTH_EVENTS = {
+  SESSION_EXPIRED: 'rms:session-expired',
+  TOKEN_REFRESHED: 'rms:token-refreshed',
+};
+
+// Honor both the modern tokenManager keys and the legacy CRA-era 'token' key.
 const getToken = () =>
-  localStorage.getItem('access_token') || localStorage.getItem('token');
+  tokenManager.getAccessToken() || localStorage.getItem('token');
 
 const getHeaders = (options = {}) => {
   const headers = options.body instanceof FormData
     ? {}
     : { 'Content-Type': 'application/json' };
-  
+
   const token = getToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   return headers;
 };
 
-async function request(path, options = {}) {
-  const headers = getHeaders(options);
-  
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers,
-    ...options,
-  });
-
+const readBody = async (res) => {
   if (res.status === 204) return null;
-
-  let data = null;
   const text = await res.text();
-  if (text) {
-    try { data = JSON.parse(text); } catch { data = text; }
-  }
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return text; }
+};
 
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`;
-    if (data && typeof data === 'object') {
-      if (data.error) message = data.error;
-      else if (data.message) message = data.message;
-      else if (data.errors) {
-        // Spring validation errors: { field: ["msg", ...], ... }
-        const fieldErrors = Object.values(data.errors).flat().join(', ');
-        if (fieldErrors) message = fieldErrors;
-      } else {
-        const joined = Object.values(data).flat().join(', ');
-        if (joined) message = joined;
-      }
-    } else if (typeof data === 'string' && data) {
-      message = data;
+const errorFromResponse = (res, data) => {
+  let message = `Request failed (${res.status})`;
+  if (data && typeof data === 'object') {
+    if (data.error) message = data.error;
+    else if (data.message) message = data.message;
+    else if (data.errors) {
+      // Spring validation errors: { field: ["msg", ...], ... }
+      const fieldErrors = Object.values(data.errors).flat().join(', ');
+      if (fieldErrors) message = fieldErrors;
+    } else {
+      const joined = Object.values(data).flat().join(', ');
+      if (joined) message = joined;
     }
-    throw new Error(message);
+  } else if (typeof data === 'string' && data) {
+    message = data;
   }
-  return data;
+  return new Error(message);
+};
+
+// ─── Single-flight token refresh ────────────────────────────────────────────
+// Shared by the 401 interceptor below AND AuthContext, so a proactive scheduled
+// refresh and a reactive 401 refresh can never race each other.
+let refreshPromise = null;
+let sessionExpiredNotified = false;
+
+const notify = (name, detail) => {
+  try {
+    window.dispatchEvent(new CustomEvent(name, detail ? { detail } : undefined));
+  } catch {
+    /* non-browser environment (tests / SSR) */
+  }
+};
+
+export async function refreshAccessTokenOnce(refreshToken) {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const rt = refreshToken || tokenManager.getRefreshToken();
+    if (!rt) {
+      const err = new Error('No refresh token available');
+      err.kind = 'auth';
+      throw err;
+    }
+
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: rt }),
+      });
+    } catch {
+      const err = new Error('Network error while refreshing your session');
+      err.kind = 'network';
+      throw err;
+    }
+
+    const data = await readBody(res);
+    if (!res.ok) {
+      const err = errorFromResponse(res, data);
+      err.kind = 'auth';
+      throw err;
+    }
+
+    tokenManager.setTokens(data.token, data.refreshToken || rt);
+    if (data.id && data.username) {
+      const user = {
+        id: data.id,
+        username: data.username,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      };
+      tokenManager.setUser(user);
+      sessionExpiredNotified = false;
+      notify(AUTH_EVENTS.TOKEN_REFRESHED, user);
+    }
+    return data;
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+}
+
+function handleSessionExpired() {
+  tokenManager.clearAll();
+  if (!sessionExpiredNotified) {
+    sessionExpiredNotified = true;
+    notify(AUTH_EVENTS.SESSION_EXPIRED);
+  }
+  const err = new Error('Your session has expired. Please sign in again.');
+  err.kind = 'auth';
+  throw err;
+}
+
+async function request(path, options = {}) {
+  let retried = false;
+
+  const attempt = async () => {
+    const headers = getHeaders(options);
+    let res;
+    try {
+      res = await fetch(`${API_BASE}${path}`, { headers, ...options });
+    } catch {
+      const err = new Error('Network error — check your connection and try again.');
+      err.kind = 'network';
+      throw err;
+    }
+
+    const data = await readBody(res);
+
+    if (res.ok) {
+      sessionExpiredNotified = false;
+      return data;
+    }
+
+    const err = errorFromResponse(res, data);
+
+    // Expired / invalid access token: try a transparent refresh and retry once.
+    const isAuthRoute = path.startsWith('/auth/');
+    if (res.status === 401 && !isAuthRoute && !retried && tokenManager.getRefreshToken()) {
+      try {
+        await refreshAccessTokenOnce();
+        retried = true;
+        return await attempt();
+      } catch {
+        handleSessionExpired();
+      }
+    }
+
+    if (res.status === 401) {
+      err.kind = 'auth';
+    }
+    throw err;
+  };
+
+  return attempt();
 }
 
 // ─── AUTH ───
@@ -65,13 +187,14 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(userData),
     }),
-  refreshToken: (refreshToken) =>
-    request('/auth/refresh', {
+  refreshToken: (refreshToken) => refreshAccessTokenOnce(refreshToken),
+  // Send the refresh token so the server can invalidate the session even when
+  // the access token is already expired (the logout endpoint is public).
+  logout: (refreshToken) =>
+    request('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refreshToken }),
+      ...(refreshToken ? { body: JSON.stringify({ refreshToken }) } : {}),
     }),
-  logout: () =>
-    request('/auth/logout', { method: 'POST' }),
 };
 
 // ─── SPACES ───
@@ -312,4 +435,31 @@ export const settingsApi = {
       method: 'PUT',
       body: JSON.stringify(settings),
     }),
+};
+
+// ─── ACCOUNTING ───
+export const accountingApi = {
+  getSummary: (start, end) => {
+    const params = new URLSearchParams();
+    if (start) params.append('start', start);
+    if (end) params.append('end', end);
+    const qs = params.toString();
+    return request(`/accounting/summary${qs ? `?${qs}` : ''}`);
+  },
+  getDashboardWidget: () => request('/accounting/dashboard-widget'),
+};
+
+// Test-only time-travel controls (admin only; backend gates /api/test/time/** by ADMIN role)
+export const testApi = {
+  getCurrentTime: () => request('/test/time/current'),
+  setTimeDate: (date) =>
+    request('/test/time/set-date?date=' + encodeURIComponent(date), { method: 'POST' }),
+  advanceDays: (days) =>
+    request('/test/time/advance-days?days=' + days, { method: 'POST' }),
+  advanceMonths: (months) =>
+    request('/test/time/advance-months?months=' + months, { method: 'POST' }),
+  runScheduledJobs: () =>
+    request('/test/time/run-scheduled-jobs', { method: 'POST' }),
+  resetTime: () =>
+    request('/test/time/reset', { method: 'POST' }),
 };

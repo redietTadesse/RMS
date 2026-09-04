@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { chapaApi } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 export default function PaymentCallback() {
   const [searchParams] = useSearchParams();
@@ -18,7 +18,10 @@ export default function PaymentCallback() {
 
   // Tenants land on /my-payments; admins on /payments.
   const paymentsPath = user?.role === 'TENANT' ? '/my-payments' : '/payments';
-  paymentsPathRef.current = paymentsPath;
+
+  useEffect(() => {
+    paymentsPathRef.current = paymentsPath;
+  }, [paymentsPath]);
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -71,7 +74,7 @@ export default function PaymentCallback() {
     };
 
     verifyPayment();
-  }, [searchParams, navigate, paymentsPath]);
+  }, [searchParams, navigate]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">

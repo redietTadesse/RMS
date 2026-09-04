@@ -1,11 +1,10 @@
-import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Users, FileText,
   CreditCard, X, Building, LogOut, Shield,
   Settings, HelpCircle, ChevronRight, BarChart3
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate();

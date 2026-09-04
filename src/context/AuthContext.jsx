@@ -1,6 +1,6 @@
-import { createContext, useState, useContext, useEffect, useCallback, useRef } from 'react';
+import { createContext, useState, useEffect, useCallback, useRef } from 'react';
 import tokenManager from '../services/TokenManager';
-import { authApi } from '../services/api';
+import { authApi, AUTH_EVENTS } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -9,34 +9,37 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const refreshTimeoutRef = useRef(null);
+    // Guards against a late in-flight token refresh resurrecting the session
+    // after the user has explicitly logged out.
+    const loggedOutRef = useRef(false);
 
-    const scheduleTokenRefresh = useCallback((expiry) => {
+    const logout = useCallback(async () => {
+        loggedOutRef.current = true;
+        // Always attempt server-side revocation — even with an expired access
+        // token — by presenting the refresh token (endpoint is public now).
+        const refreshToken = tokenManager.getRefreshToken();
+        if (refreshToken) {
+            await authApi.logout(refreshToken).catch(() => {});
+        }
+        tokenManager.clearAll();
+        setUser(null);
         if (refreshTimeoutRef.current) {
             clearTimeout(refreshTimeoutRef.current);
-        }
-
-        if (!expiry) return;
-
-        const now = Date.now();
-        const timeUntilExpiry = expiry.getTime() - now;
-        const refreshTime = Math.max(timeUntilExpiry - 5 * 60 * 1000, 60000);
-
-        if (refreshTime > 0) {
-            refreshTimeoutRef.current = setTimeout(() => {
-                refreshAccessToken();
-            }, refreshTime);
+            refreshTimeoutRef.current = null;
         }
     }, []);
 
     const refreshPromiseRef = useRef(null);
+    const refreshAccessTokenRef = useRef(null);
+    const scheduleTokenRefreshRef = useRef(null);
 
     const refreshAccessToken = useCallback(async () => {
-        // ✅ FIX: Prevent multiple concurrent refreshes (race condition)
+        // Prevent multiple concurrent refreshes (race condition)
         if (refreshPromiseRef.current) {
             return refreshPromiseRef.current;
         }
 
-        // ✅ FIX: Add retry logic (up to 3 attempts)
+        // Add retry logic (up to 3 attempts)
         const attemptRefresh = async () => {
             const maxAttempts = 3;
             for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -65,11 +68,11 @@ export const AuthProvider = ({ children }) => {
                         }
 
                         const expiry = tokenManager.getTokenExpiry();
-                        scheduleTokenRefresh(expiry);
+                        scheduleTokenRefreshRef.current(expiry);
                         return true;
                     }
                     return false;
-                } catch (err) {
+                } catch {
                     // On last attempt, log out; otherwise wait and retry
                     if (attempt >= maxAttempts) {
                         logout();
@@ -87,7 +90,53 @@ export const AuthProvider = ({ children }) => {
         } finally {
             refreshPromiseRef.current = null;
         }
+    }, [logout]);
+
+    const scheduleTokenRefresh = useCallback((expiry) => {
+        if (refreshTimeoutRef.current) {
+            clearTimeout(refreshTimeoutRef.current);
+        }
+
+        if (!expiry) return;
+
+        const now = Date.now();
+        const timeUntilExpiry = expiry.getTime() - now;
+        const refreshTime = Math.max(timeUntilExpiry - 5 * 60 * 1000, 60000);
+
+        if (refreshTime > 0) {
+            refreshTimeoutRef.current = setTimeout(() => {
+                refreshAccessTokenRef.current();
+            }, refreshTime);
+        }
+    }, []);
+
+    useEffect(() => {
+        refreshAccessTokenRef.current = refreshAccessToken;
+    }, [refreshAccessToken]);
+
+    useEffect(() => {
+        scheduleTokenRefreshRef.current = scheduleTokenRefresh;
     }, [scheduleTokenRefresh]);
+
+    // ─── Graceful session lifecycle ────────────────────────────────────────────
+    // api.js dispatches these events when a token refresh fails (session expired)
+    // or succeeds (tokens were rotated out-of-band by the 401 interceptor).
+    useEffect(() => {
+        const onSessionExpired = () => {
+            sessionStorage.setItem('rms_auth_message', 'session');
+            logout();
+        };
+        const onTokenRefreshed = (e) => {
+            if (e?.detail && !loggedOutRef.current) setUser(e.detail);
+        };
+
+        window.addEventListener(AUTH_EVENTS.SESSION_EXPIRED, onSessionExpired);
+        window.addEventListener(AUTH_EVENTS.TOKEN_REFRESHED, onTokenRefreshed);
+        return () => {
+            window.removeEventListener(AUTH_EVENTS.SESSION_EXPIRED, onSessionExpired);
+            window.removeEventListener(AUTH_EVENTS.TOKEN_REFRESHED, onTokenRefreshed);
+        };
+    }, [logout]);
 
     useEffect(() => {
         const initAuth = async () => {
@@ -122,6 +171,7 @@ export const AuthProvider = ({ children }) => {
                 throw new Error('Invalid login response');
             }
 
+            loggedOutRef.current = false;
             tokenManager.setTokens(response.token, response.refreshToken);
 
             const userData = {
@@ -145,23 +195,6 @@ export const AuthProvider = ({ children }) => {
         }
     }, [scheduleTokenRefresh]);
 
-    const logout = useCallback(async () => {
-        try {
-            const token = tokenManager.getAccessToken();
-            if (token) {
-                await authApi.logout().catch(() => {});
-            }
-        } catch (_) {}
-        finally {
-            tokenManager.clearAll();
-            setUser(null);
-            if (refreshTimeoutRef.current) {
-                clearTimeout(refreshTimeoutRef.current);
-                refreshTimeoutRef.current = null;
-            }
-        }
-    }, []);
-
     const updateUser = useCallback((userData) => {
         const updated = { ...user, ...userData };
         tokenManager.setUser(updated);
@@ -184,12 +217,11 @@ export const AuthProvider = ({ children }) => {
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within AuthProvider');
-    }
-    return context;
-};
-
 export default AuthContext;
+
+// Backward-compatibility shim: stale/cached module graphs (e.g. a browser tab
+// from before the useAuth refactor) may still import `useAuth` from this file.
+// Re-exporting the canonical hook keeps those imports resolving correctly.
+// The canonical implementation lives in src/hooks/useAuth.js.
+// eslint-disable-next-line react-refresh/only-export-components -- deliberate re-export shim, see comment above
+export { useAuth } from '../hooks/useAuth';

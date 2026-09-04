@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { User, Mail, Lock, Save, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { userApi } from '../services/api';
 
 export default function Profile() {

@@ -1,6 +1,7 @@
 // src/App.jsx
 import { Routes, Route } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './hooks/useAuth';
 import LandingPage from './Pages/LandingPage';
 import Login from './Pages/Login';
 import Register from './Pages/Register';
@@ -17,6 +18,7 @@ import Settings from './Pages/Settings';
 import Reports from './Pages/Reports';
 import UserManagement from './Pages/UserManagement';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import TimeTravelControls from './components/Test/TimeTravelControls';
 
 function AppRoutes() {
   const { loading } = useAuth();
@@ -141,6 +143,7 @@ function App() {
   return (
     <AuthProvider>   // ← MUST wrap everything
       <AppRoutes />
+      <TimeTravelControls />
     </AuthProvider>
   );
 }

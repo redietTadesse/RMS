@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Menu, Bell, LogOut,
   User, Settings, ChevronDown, Home
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { notificationsApi } from '../../services/api';
 
 export default function Header({ onMenuClick, title }) {
@@ -30,10 +30,27 @@ export default function Header({ onMenuClick, title }) {
   };
 
   useEffect(() => {
-    loadNotifications();
+    if (!user) return;
+    let cancelled = false;
+    Promise.all([
+      notificationsApi.getMine(),
+      notificationsApi.getUnreadCount(),
+    ])
+      .then(([items, unread]) => {
+        if (cancelled) return;
+        setNotifications(items || []);
+        setUnreadCount(unread?.count || 0);
+      })
+      .catch((err) => {
+        console.error('Failed to load notifications:', err);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const handleLogout = () => {
+    sessionStorage.setItem('rms_auth_message', 'logout');
     logout();
     navigate('/login');
   };

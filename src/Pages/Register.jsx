@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Building, User, Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle, Shield, Users, AlertCircle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { adminApi } from '../services/api';
 
 export default function Register() {
