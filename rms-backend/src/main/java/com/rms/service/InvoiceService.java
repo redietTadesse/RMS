@@ -27,9 +27,10 @@ public class InvoiceService {
     private final NotificationService notificationService;
     private final EmailService emailService;
     private final SmsService smsService;
-    private final SettingsService settingsService;
+        private final SettingsService settingsService;
     private final TaxCalculationService taxCalculationService;
     private final PaymentScheduleService paymentScheduleService;
+    private final TimeTravelService timeTravelService;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
                           LeaseRepository leaseRepository,
@@ -40,7 +41,8 @@ public class InvoiceService {
                           SmsService smsService,
                           SettingsService settingsService,
                           TaxCalculationService taxCalculationService,
-                          PaymentScheduleService paymentScheduleService) {
+                          PaymentScheduleService paymentScheduleService,
+                          TimeTravelService timeTravelService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
@@ -51,6 +53,7 @@ public class InvoiceService {
         this.settingsService = settingsService;
         this.taxCalculationService = taxCalculationService;
         this.paymentScheduleService = paymentScheduleService;
+        this.timeTravelService = timeTravelService;
     }
 
     // ─── GENERATE INVOICES ON 1ST ───
@@ -58,7 +61,7 @@ public class InvoiceService {
     @Transactional
     public void generateMonthlyInvoices() {
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
 
         for (Lease lease : activeLeases) {
             if (paymentScheduleService.isCoveredByPrepayment(lease, today)) {
@@ -77,7 +80,7 @@ public class InvoiceService {
             throw new IllegalArgumentException("Lease is not active. Cannot generate invoice.");
         }
 
-        LocalDate today = LocalDate.now();
+                LocalDate today = timeTravelService.getCurrentDate();
 
         // Skip if still in prepayment period
         if (isCoveredByPrepayment(lease, today)) {
@@ -144,7 +147,7 @@ public class InvoiceService {
     @Scheduled(cron = "0 0 8 25 * ?")
     @Transactional
     public void sendRentDueRemindersSms() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
 
         for (Lease lease : activeLeases) {
@@ -182,7 +185,7 @@ public class InvoiceService {
     @Scheduled(cron = "0 0 9 * * ?")
     @Transactional
     public void sendRentDueEmails() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
 
         for (Lease lease : activeLeases) {
@@ -222,7 +225,7 @@ public class InvoiceService {
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional
     public void calculateDailyPenalties() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         List<Invoice> pendingInvoices = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
 
         for (Invoice invoice : pendingInvoices) {
@@ -287,7 +290,7 @@ public class InvoiceService {
     @Scheduled(cron = "0 30 8 * * ?")
     @Transactional
     public void sendUpcomingPaymentReminders() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         int reminderDays = settingsService.getIntSetting("reminder_days_before", 3);
         LocalDate targetDueDate = today.plusDays(reminderDays);
         List<Invoice> pendingInvoices = invoiceRepository.findByStatus(InvoiceStatus.PENDING);

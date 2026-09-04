@@ -55,9 +55,14 @@ public class TaxCalculationService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    public BigDecimal calculateTotalAmount(BigDecimal rentInclusive, BigDecimal penalty) {
+        public BigDecimal calculateTotalAmount(BigDecimal rentInclusive, BigDecimal penalty) {
         return rentInclusive.add(penalty);
     }
+
+    // ─── Configuration accessors ───
+    public BigDecimal getWithholdingRate() { return WITHHOLDING_RATE; }
+    public BigDecimal getPenaltyRate() { return PENALTY_RATE; }
+    public BigDecimal getVatRate() { return VAT_RATE; }
 
     public TaxBreakdown getTaxBreakdown(Tenant tenant, BigDecimal rentInclusive, LocalDate invoiceDate) {
         BigDecimal untaxedRent = getUntaxedRent(rentInclusive);

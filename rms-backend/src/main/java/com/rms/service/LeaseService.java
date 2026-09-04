@@ -24,17 +24,20 @@ public class LeaseService {
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final TimeTravelService timeTravelService;
 
     public LeaseService(LeaseRepository leaseRepository,
                         SpaceRepository spaceRepository,
                         TenantRepository tenantRepository,
                         UserRepository userRepository,
-                        NotificationService notificationService) {
+                        NotificationService notificationService,
+                        TimeTravelService timeTravelService) {
         this.leaseRepository = leaseRepository;
         this.spaceRepository = spaceRepository;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
+        this.timeTravelService = timeTravelService;
     }
 
     // ─── GET METHODS ───
@@ -225,10 +228,14 @@ public class LeaseService {
 
     @Transactional
     public Lease terminateLease(Long id) {
-        Lease lease = getById(id);
+        // Fetch lease directly WITHOUT calling getById(), because getById() has a side effect
+        // (expireLeaseIfNeeded) that auto-expires ACTIVE leases whose endDate has passed.
+        // That would make a lease un-terminable after its natural end date.
+        Lease lease = leaseRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lease not found with id " + id));
 
         if (lease.getStatus() != LeaseStatus.ACTIVE) {
-            throw new IllegalArgumentException("Lease is not active");
+            throw new IllegalArgumentException("Lease is not active (current status: " + lease.getStatus() + ")");
         }
 
         if (!isValidLeaseStatusTransition(lease.getStatus(), LeaseStatus.TERMINATED)) {
@@ -242,8 +249,10 @@ public class LeaseService {
             leaseRepository.save(lease);
 
             Space space = lease.getSpace();
-            space.setStatus(SpaceStatus.VACANT);
-            spaceRepository.save(space);
+            if (space != null) {
+                space.setStatus(SpaceStatus.VACANT);
+                spaceRepository.save(space);
+            }
 
             return lease;
         } catch (OptimisticLockingFailureException e) {
@@ -278,7 +287,7 @@ public class LeaseService {
 
     public boolean isLeaseExpired(Long leaseId) {
         Lease lease = getById(leaseId);
-        return lease.getEndDate().isBefore(LocalDate.now());
+        return lease.getEndDate().isBefore(timeTravelService.getCurrentDate());
     }
 
     @Transactional
@@ -370,7 +379,7 @@ public class LeaseService {
     }
 
     private boolean expireLeaseIfNeeded(Lease lease) {
-        if (lease.getStatus() != LeaseStatus.ACTIVE || !lease.getEndDate().isBefore(LocalDate.now())) {
+        if (lease.getStatus() != LeaseStatus.ACTIVE || !lease.getEndDate().isBefore(timeTravelService.getCurrentDate())) {
             return false;
         }
 

@@ -27,8 +27,12 @@ public class InvoiceResponse {
     private String leaseEndDate;
     private BigDecimal untaxedRent;
     private BigDecimal vatAmount;
-    private BigDecimal withholdingTax;
+        private BigDecimal withholdingTax;
     private boolean withholdingApplicable;
+    private BigDecimal amountToCollect;
+    private BigDecimal dailyPenaltyRate;
+    private BigDecimal penaltyRate;
+    private BigDecimal rentInclusive;
 
     public static InvoiceResponse from(Invoice invoice) {
         return from(invoice, null);
@@ -66,12 +70,30 @@ public class InvoiceResponse {
             response.setUntaxedRent(breakdown.getUntaxedRent());
             response.setVatAmount(breakdown.getVatAmount());
             response.setWithholdingTax(breakdown.getWithholdingTax());
-            response.setWithholdingApplicable(breakdown.isWithholdingApplicable());
+                        response.setWithholdingApplicable(breakdown.isWithholdingApplicable());
+
+            // Amount to collect = total - withholding (withholding is deducted at source)
+            BigDecimal amountToCollect = breakdown.getTotalAmount();
+            if (breakdown.isWithholdingApplicable()) {
+                amountToCollect = amountToCollect.subtract(breakdown.getWithholdingTax());
+            }
+            response.setAmountToCollect(amountToCollect);
+            response.setRentInclusive(breakdown.getRentInclusive());
         }
 
         if (invoice.getStatus() == InvoiceStatus.OVERDUE) {
             response.setDaysOverdue(java.time.temporal.ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now()));
             response.setOverdue(true);
+        }
+
+                if (invoice.getRentAmount() != null && taxCalculationService != null) {
+            BigDecimal monthlyPenalty = taxCalculationService.calculatePenalty(
+                invoice.getLease().getTenant(),
+                invoice.getRentAmount(),
+                invoice.getIssueDate() != null ? invoice.getIssueDate() : LocalDate.now()
+            );
+                        response.setDailyPenaltyRate(monthlyPenalty.divide(BigDecimal.valueOf(30), 2, java.math.RoundingMode.HALF_UP));
+            response.setPenaltyRate(taxCalculationService.getPenaltyRate().multiply(BigDecimal.valueOf(100)));
         }
 
         if (invoice.getPaymentDate() != null) {
@@ -143,6 +165,18 @@ public class InvoiceResponse {
     public BigDecimal getWithholdingTax() { return withholdingTax; }
     public void setWithholdingTax(BigDecimal withholdingTax) { this.withholdingTax = withholdingTax; }
 
-    public boolean isWithholdingApplicable() { return withholdingApplicable; }
+        public boolean isWithholdingApplicable() { return withholdingApplicable; }
     public void setWithholdingApplicable(boolean withholdingApplicable) { this.withholdingApplicable = withholdingApplicable; }
+
+    public BigDecimal getAmountToCollect() { return amountToCollect; }
+    public void setAmountToCollect(BigDecimal amountToCollect) { this.amountToCollect = amountToCollect; }
+
+    public BigDecimal getDailyPenaltyRate() { return dailyPenaltyRate; }
+    public void setDailyPenaltyRate(BigDecimal dailyPenaltyRate) { this.dailyPenaltyRate = dailyPenaltyRate; }
+
+    public BigDecimal getPenaltyRate() { return penaltyRate; }
+    public void setPenaltyRate(BigDecimal penaltyRate) { this.penaltyRate = penaltyRate; }
+
+    public BigDecimal getRentInclusive() { return rentInclusive; }
+    public void setRentInclusive(BigDecimal rentInclusive) { this.rentInclusive = rentInclusive; }
 }
