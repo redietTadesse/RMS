@@ -35,9 +35,11 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
 
-                        // ✅ ADD THIS LINE - Public login
+                        //  ADD THIS LINE - Public login
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/auth/forgot-password").permitAll()
+                        .requestMatchers("/api/auth/reset-password").permitAll()
                         .requestMatchers("/api/test/email-test").permitAll()
                         .requestMatchers("/api/test/sms-test").permitAll()
 
@@ -66,12 +68,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/**").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/dashboard/**").hasRole("ADMIN")
 
-                        // 🔒 ADMIN only - Documents
+                        //  ADMIN only - Documents
                         .requestMatchers("/api/documents/upload/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/tenant/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/delete/**").hasRole("ADMIN")
 
-                        // 🔒 ADMIN + TENANT - View/Download
+                        //  ADMIN + TENANT - View/Download
                         .requestMatchers("/api/documents/my-documents").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/documents/download/**").hasAnyRole("ADMIN", "TENANT")
 

@@ -72,6 +72,16 @@ export const authApi = {
     }),
   logout: () =>
     request('/auth/logout', { method: 'POST' }),
+  forgotPassword: (usernameOrEmail) =>
+    request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ usernameOrEmail }),
+    }),
+  resetPassword: (token, newPassword) =>
+    request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
 };
 
 // ─── SPACES ───

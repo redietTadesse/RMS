@@ -17,6 +17,8 @@ import Settings from './Pages/Settings';
 import Reports from './Pages/Reports';
 import UserManagement from './Pages/UserManagement';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import ForgotPassword from './Pages/ForgotPassword';
+import ResetPassword from './Pages/ResetPassword';
 
 function AppRoutes() {
   const { loading } = useAuth();
@@ -34,7 +36,8 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/payment-callback" element={<PaymentCallback />} />
-
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/register"
         element={

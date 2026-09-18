@@ -31,6 +31,27 @@ public class EmailService {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
     }
+    public void sendPasswordResetEmail(User user, String resetToken) {
+        try {
+            String resetUrl = baseUrl + "/reset-password?token=" + resetToken;
+
+            Context context = new Context();
+            context.setVariable("userName", user.getName());
+            context.setVariable("resetUrl", resetUrl);
+            context.setVariable("year", java.time.Year.now().getValue());
+
+            String htmlContent = templateEngine.process("email/password-reset", context);
+            sendHtmlEmail(
+                    user.getEmail(),
+                    " Reset Your RMS Password",
+                    htmlContent
+            );
+            System.out.println(" Password reset email sent to: " + user.getEmail());
+        } catch (Exception e) {
+            System.err.println("Failed to send password reset email: " + e.getMessage());
+            throw new RuntimeException("Failed to send reset email", e);
+        }
+    }
 
     public void sendInvoiceGeneratedEmail(User tenant, Invoice invoice, Lease lease) {
         if (tenant == null || tenant.getEmail() == null || tenant.getEmail().isEmpty()) {
