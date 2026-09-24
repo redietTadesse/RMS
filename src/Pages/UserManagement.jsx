@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Users, UserPlus, Trash2, Edit2 } from 'lucide-react';
 import { adminApi } from '../services/api';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);

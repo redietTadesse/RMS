@@ -7,7 +7,7 @@ import {
   DollarSign, Info, Download,
   Receipt,
 } from 'lucide-react';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { tenantApi, chapaApi, documentsApi, invoicesApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {

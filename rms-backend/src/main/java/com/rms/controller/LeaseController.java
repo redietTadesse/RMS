@@ -64,6 +64,13 @@ public class LeaseController {
         return leaseService.terminateLease(id);
     }
 
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        leaseService.deleteLease(id);
+    }
+
     @PostMapping("/test/mark-expired")
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.OK)

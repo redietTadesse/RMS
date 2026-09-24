@@ -3,8 +3,10 @@ package com.rms.controller;
 import com.rms.dto.InvoiceResponse;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
+import com.rms.service.CurrentUserService;
 import com.rms.service.InvoicePdfService;
 import com.rms.service.InvoiceService;
+import com.rms.service.TimeTravelService;
 import com.rms.service.TaxCalculationService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -25,13 +27,20 @@ public class InvoiceController {
     private final InvoiceService invoiceService;
     private final InvoicePdfService invoicePdfService;
     private final TaxCalculationService taxCalculationService;
+    private final TimeTravelService timeTravelService;
+    private final CurrentUserService currentUserService;
 
     public InvoiceController(InvoiceService invoiceService,
                              InvoicePdfService invoicePdfService,
-                             TaxCalculationService taxCalculationService) {
+                             TaxCalculationService taxCalculationService,
+                             TimeTravelService timeTravelService,
+                             CurrentUserService currentUserService) {
         this.invoiceService = invoiceService;
         this.invoicePdfService = invoicePdfService;
         this.taxCalculationService = taxCalculationService;
+        this.timeTravelService = timeTravelService;
+        this.currentUserService = currentUserService;
+        InvoiceResponse.setTimeTravelService(timeTravelService);
     }
 
     @GetMapping
@@ -45,7 +54,9 @@ public class InvoiceController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public InvoiceResponse getInvoiceById(@PathVariable Long id) {
-        return InvoiceResponse.from(invoiceService.getInvoiceById(id), taxCalculationService);
+        Invoice invoice = invoiceService.getInvoiceById(id);
+        currentUserService.requireInvoiceAccess(invoice);
+        return InvoiceResponse.from(invoice, taxCalculationService);
     }
 
     @GetMapping("/status/{status}")
@@ -78,8 +89,11 @@ public class InvoiceController {
     @GetMapping("/{id}/pdf")
     @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
+        // Authorize OUTSIDE the try/catch so the 403 propagates to the client.
+        Invoice invoice = invoiceService.getInvoiceById(id);
+        currentUserService.requireInvoiceAccess(invoice);
+
         try {
-            Invoice invoice = invoiceService.getInvoiceById(id);
             byte[] pdfBytes = invoicePdfService.generateInvoicePdf(invoice);
 
             HttpHeaders headers = new HttpHeaders();
@@ -97,7 +111,7 @@ public class InvoiceController {
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.OK)
     public String testMarkOverdue() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         List<Invoice> pendingInvoices = invoiceService.getInvoicesByStatus(InvoiceStatus.PENDING);
         int count = 0;
 
@@ -118,7 +132,7 @@ public class InvoiceController {
     @ResponseStatus(HttpStatus.OK)
     public InvoiceResponse forceOverdue(@PathVariable Long id) {
         Invoice invoice = invoiceService.getInvoiceById(id);
-        invoice.setDueDate(LocalDate.now().minusDays(5));
+        invoice.setDueDate(timeTravelService.getCurrentDate().minusDays(5));
         invoice.setStatus(InvoiceStatus.OVERDUE);
         Invoice saved = invoiceService.saveInvoice(invoice);
         invoiceService.notifyInvoiceOverdue(saved);

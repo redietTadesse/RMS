@@ -6,7 +6,7 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 import { dashboardApi, invoicesApi, leasesApi } from '../services/api';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 const PIE_COLORS = { Vacant: '#22c55e', Occupied: '#3b82f6' };

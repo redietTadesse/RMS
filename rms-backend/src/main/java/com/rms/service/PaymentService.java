@@ -15,7 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import com.rms.service.TimeTravelService;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class PaymentService {
@@ -24,33 +26,41 @@ public class PaymentService {
     private final FileStorageService fileStorageService;
     private final UserRepository userRepository;
     private final EmailService emailService;
-    private final SmsService smsService;
     private final SettingsService settingsService;
     private final NotificationService notificationService;
     private final TaxCalculationService taxCalculationService;
+    private final TimeTravelService timeTravelService;
 
     public PaymentService(InvoiceRepository invoiceRepository,
                           FileStorageService fileStorageService,
                           UserRepository userRepository,
                           EmailService emailService,
-                          SmsService smsService,
                           SettingsService settingsService,
                           NotificationService notificationService,
-                          TaxCalculationService taxCalculationService) {
+                          TaxCalculationService taxCalculationService,
+                          TimeTravelService timeTravelService) {
         this.invoiceRepository = invoiceRepository;
         this.fileStorageService = fileStorageService;
         this.userRepository = userRepository;
         this.emailService = emailService;
-        this.smsService = smsService;
         this.settingsService = settingsService;
         this.notificationService = notificationService;
         this.taxCalculationService = taxCalculationService;
+        this.timeTravelService = timeTravelService;
     }
 
     // ─── RECORD PAYMENT (Tenant submits receipt) ───
 
     @Transactional
     public Invoice recordPayment(Long invoiceId, PaymentRequest request, MultipartFile receipt) {
+        // Validate request payload
+        validatePaymentRequest(request);
+
+        // Validate receipt file type/size when one is provided
+        if (receipt != null && !receipt.isEmpty()) {
+            validateReceipt(receipt);
+        }
+
         // Validate invoice exists
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found with id: " + invoiceId));
@@ -66,7 +76,7 @@ public class PaymentService {
         }
 
         // Validate status transition
-        if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.SUBMITTED)) {
+        if (!invoice.getStatus().canTransitionTo(InvoiceStatus.SUBMITTED)) {
             throw new IllegalArgumentException("Invalid status transition from " +
                     invoice.getStatus() + " to SUBMITTED");
         }
@@ -122,51 +132,6 @@ public class PaymentService {
         }
     }
 
-    // ─── SUBMIT RECEIPT (Simplified version) ───
-
-    @Transactional
-    public Invoice submitReceipt(Long invoiceId, LocalDate paymentDate,
-                                 String paymentMethod, MultipartFile receipt) {
-        Invoice invoice = invoiceRepository.findById(invoiceId)
-                .orElseThrow(() -> new IllegalArgumentException("Invoice not found"));
-
-        if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new IllegalArgumentException("Invoice already paid");
-        }
-
-        if (invoice.getLease().getStatus() != LeaseStatus.ACTIVE) {
-            throw new IllegalArgumentException("Lease is no longer active. Cannot process payment.");
-        }
-
-        if (receipt == null || receipt.isEmpty()) {
-            throw new IllegalArgumentException("A receipt file is required");
-        }
-
-        BigDecimal penalty = calculatePenalty(invoice, paymentDate);
-
-        try {
-            invoice.setPenaltyAmount(penalty);
-            invoice.setTotalAmount(invoice.getRentAmount().add(penalty));
-            invoice.setStatus(InvoiceStatus.SUBMITTED);
-            invoice.setPaymentMethod(paymentMethod);
-            invoice.setPaymentDate(paymentDate);
-            invoice.setReceiptPath(fileStorageService.storeReceipt(receipt, invoiceId));
-
-            Invoice saved = invoiceRepository.save(invoice);
-
-            notifyAdminOfSubmittedPayment(saved);
-
-            User user = userRepository.findById(invoice.getLease().getTenant().getUserId()).orElse(null);
-            if (user != null && user.getEmail() != null) {
-                emailService.sendPaymentConfirmationEmail(user, saved);
-            }
-
-            return saved;
-        } catch (OptimisticLockingFailureException e) {
-            throw new IllegalArgumentException("Invoice was updated by another process. Please try again.");
-        }
-    }
-
     // ─── APPROVE PAYMENT (Admin) ───
 
     @Transactional
@@ -182,7 +147,7 @@ public class PaymentService {
             throw new IllegalArgumentException("Lease is no longer active. Cannot approve payment.");
         }
 
-        if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.PAID)) {
+        if (!invoice.getStatus().canTransitionTo(InvoiceStatus.PAID)) {
             throw new IllegalArgumentException("Invalid status transition from " +
                     invoice.getStatus() + " to PAID");
         }
@@ -205,11 +170,6 @@ public class PaymentService {
                         "Your payment for invoice " + saved.getInvoiceNumber() + " has been approved.",
                         "/payments"
                 );
-            }
-
-            // Send SMS confirmation
-            if (invoice.getLease().getTenant().getPhone() != null) {
-                smsService.sendPaymentConfirmedSms(invoice.getLease().getTenant(), saved);
             }
 
             return saved;
@@ -258,21 +218,6 @@ public class PaymentService {
 
     // ─── VALIDATION HELPERS ───
 
-    private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
-        switch (from) {
-            case PENDING:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE;
-            case SUBMITTED:
-                return to == InvoiceStatus.PAID;
-            case OVERDUE:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
-            case PAID:
-                return false;
-            default:
-                return false;
-        }
-    }
-
     // ─── VALIDATION METHODS (For use by controllers) ───
 
     public void validatePaymentRequest(PaymentRequest request) {
@@ -280,7 +225,7 @@ public class PaymentService {
             throw new IllegalArgumentException("Payment date is required");
         }
 
-        if (request.getPaymentDate().isAfter(LocalDate.now())) {
+        if (request.getPaymentDate().isAfter(timeTravelService.getCurrentDate())) {
             throw new IllegalArgumentException("Payment date cannot be in the future");
         }
 

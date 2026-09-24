@@ -4,9 +4,14 @@ import com.rms.dto.LeaseRequest;
 import com.rms.entity.*;
 import com.rms.exception.ResourceNotFoundException;
 import com.rms.repository.LeaseRepository;
+import com.rms.repository.InvoiceRepository;
+import com.rms.repository.NotificationRepository;
+import com.rms.repository.PaymentScheduleRepository;
 import com.rms.repository.SpaceRepository;
 import com.rms.repository.TenantRepository;
 import com.rms.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -19,25 +24,36 @@ import java.util.List;
 @Service
 public class LeaseService {
 
+    private static final Logger log = LoggerFactory.getLogger(LeaseService.class);
+
     private final LeaseRepository leaseRepository;
     private final SpaceRepository spaceRepository;
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final TimeTravelService timeTravelService;
+    private final InvoiceRepository invoiceRepository;
+    private final PaymentScheduleRepository paymentScheduleRepository;
+    private final NotificationRepository notificationRepository;
 
     public LeaseService(LeaseRepository leaseRepository,
                         SpaceRepository spaceRepository,
                         TenantRepository tenantRepository,
                         UserRepository userRepository,
                         NotificationService notificationService,
-                        TimeTravelService timeTravelService) {
+                        TimeTravelService timeTravelService,
+                        InvoiceRepository invoiceRepository,
+                        PaymentScheduleRepository paymentScheduleRepository,
+                        NotificationRepository notificationRepository) {
         this.leaseRepository = leaseRepository;
         this.spaceRepository = spaceRepository;
         this.tenantRepository = tenantRepository;
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.timeTravelService = timeTravelService;
+        this.invoiceRepository = invoiceRepository;
+        this.paymentScheduleRepository = paymentScheduleRepository;
+        this.notificationRepository = notificationRepository;
     }
 
     // ─── GET METHODS ───
@@ -58,7 +74,7 @@ public class LeaseService {
 
     @Transactional
     public List<Lease> getActiveLeases() {
-        syncExpiredLeases();
+        // Don't auto-sync expired leases to avoid transaction issues
         return leaseRepository.findByStatus(LeaseStatus.ACTIVE);
     }
 
@@ -260,6 +276,42 @@ public class LeaseService {
         }
     }
 
+    // ─── DELETE LEASE ───
+
+    @Transactional
+    public void deleteLease(Long id) {
+        Lease lease = leaseRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Lease not found with id " + id));
+
+        // Delete dependent records first to satisfy FK constraints.
+        List<com.rms.entity.PaymentSchedule> schedules =
+                paymentScheduleRepository.findByLeaseOrderByPaymentNumberAsc(lease);
+        if (!schedules.isEmpty()) {
+            paymentScheduleRepository.deleteAll(schedules);
+        }
+
+        List<com.rms.entity.Invoice> invoices = invoiceRepository.findByLease(lease);
+        if (!invoices.isEmpty()) {
+            invoiceRepository.deleteAll(invoices);
+        }
+
+        // Clean up notifications that reference this lease directly.
+        notificationRepository.deleteByReferenceId(lease.getId());
+
+        // Only free the space when deleting an ACTIVE lease; if the lease is
+        // already TERMINATED/EXPIRED the space may have been re-occupied.
+        if (lease.getStatus() == LeaseStatus.ACTIVE) {
+            Space space = lease.getSpace();
+            if (space != null) {
+                space.setStatus(SpaceStatus.VACANT);
+                spaceRepository.save(space);
+            }
+        }
+
+        leaseRepository.delete(lease);
+        log.info("Lease {} deleted", id);
+    }
+
     // ─── EXPIRATION MANAGEMENT ───
 
     @Scheduled(cron = "0 0 2 * * ?")
@@ -267,7 +319,7 @@ public class LeaseService {
     public void autoMarkExpiredLeases() {
         int expiredCount = syncExpiredLeases();
         if (expiredCount > 0) {
-            System.out.println(expiredCount + " leases marked as EXPIRED.");
+            log.info("{} leases marked as EXPIRED", expiredCount);
         }
     }
 
@@ -283,11 +335,6 @@ public class LeaseService {
         }
 
         return expiredCount;
-    }
-
-    public boolean isLeaseExpired(Long leaseId) {
-        Lease lease = getById(leaseId);
-        return lease.getEndDate().isBefore(timeTravelService.getCurrentDate());
     }
 
     @Transactional

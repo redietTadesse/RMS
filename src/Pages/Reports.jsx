@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import { reportsApi } from '../services/api';
 import { exportToCsv } from '../utils/csvExport';
-import DashboardLayout from '../components/Layout/DashboardLayout';   // ← fixed path (lowercase 'components')
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { Loader2, Download, AlertCircle } from 'lucide-react';
 
 const PIE_COLORS = { Vacant: '#22c55e', Occupied: '#3b82f6' };

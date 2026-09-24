@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { User, Mail, Lock, Save, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { useAuth } from '../hooks/useAuth';
 import { userApi } from '../services/api';
 
@@ -30,9 +30,7 @@ export default function Profile() {
       setLoading(true);
       setError('');
       try {
-        console.log('🔍 Loading profile...');
         const data = await userApi.getProfile();
-        console.log('✅ Profile loaded:', data);
         setProfile({
           name: data.name || '',
           email: data.email || '',
@@ -55,13 +53,10 @@ export default function Profile() {
     setSuccess('');
 
     try {
-      console.log('🔍 Updating profile...');
       const updated = await userApi.updateProfile({
         name: profile.name,
         email: profile.email,
       });
-
-      console.log('✅ Profile updated:', updated);
 
       // Update user in context
       updateUser({
@@ -99,14 +94,12 @@ export default function Profile() {
     }
 
     try {
-      console.log('🔍 Changing password...');
       await userApi.changePassword({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
         confirmPassword: passwordForm.confirmPassword,
       });
 
-      console.log('✅ Password changed successfully');
       setSuccess('Password updated successfully!');
       setPasswordForm({
         currentPassword: '',

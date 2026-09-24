@@ -3,7 +3,10 @@ package com.rms.controller;
 
 import com.rms.entity.DocumentType;
 import com.rms.entity.TenantDocument;
+import com.rms.service.CurrentUserService;
 import com.rms.service.DocumentService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -21,10 +24,15 @@ import java.util.List;
 @CrossOrigin(origins = "http://localhost:5173")
 public class DocumentController {
 
-    private final DocumentService documentService;
+    private static final Logger log = LoggerFactory.getLogger(DocumentController.class);
 
-    public DocumentController(DocumentService documentService) {
+
+    private final DocumentService documentService;
+    private final CurrentUserService currentUserService;
+
+    public DocumentController(DocumentService documentService, CurrentUserService currentUserService) {
         this.documentService = documentService;
+        this.currentUserService = currentUserService;
     }
 
     @GetMapping("/tenant/{tenantId}")
@@ -34,7 +42,7 @@ public class DocumentController {
             List<TenantDocument> documents = documentService.getDocumentsForTenant(tenantId);
             return ResponseEntity.ok(documents);
         } catch (Exception e) {
-            System.err.println("Error getting documents: " + e.getMessage());
+            log.error("Error getting documents for tenant", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -47,7 +55,7 @@ public class DocumentController {
             List<TenantDocument> documents = documentService.getDocumentsForTenantByUsername(username);
             return ResponseEntity.ok(documents);
         } catch (Exception e) {
-            System.err.println("Error getting my documents: " + e.getMessage());
+            log.error("Error getting my documents", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -65,7 +73,7 @@ public class DocumentController {
             TenantDocument document = documentService.uploadDocument(tenantId, type, file, description, uploadedBy);
             return ResponseEntity.ok(document);
         } catch (Exception e) {
-            System.err.println("Error uploading document: " + e.getMessage());
+            log.error("Error uploading document", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -73,24 +81,25 @@ public class DocumentController {
     @GetMapping("/download/{documentId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public ResponseEntity<Resource> downloadDocument(@PathVariable Long documentId) {
+        log.debug("Download requested for document ID: {}", documentId);
+
+        // Authorize BEFORE reading the file. Admin OR the owning tenant only.
+        TenantDocument document = documentService.getDocumentByIdWithTenant(documentId);
+        currentUserService.requireDocumentAccess(document);
+
+        if (document.getFilePath() == null || document.getFilePath().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
         try {
-            System.out.println("📥 Download requested for document ID: " + documentId);
-
-            TenantDocument document = documentService.getDocumentById(documentId);
-
-            if (document.getFilePath() == null || document.getFilePath().isEmpty()) {
-                return ResponseEntity.badRequest().build();
-            }
-
             Path filePath = Paths.get(document.getFilePath());
 
             if (!filePath.toFile().exists()) {
-                System.err.println("File not found: " + filePath.toString());
+                log.warn("File not found: {}", filePath);
                 return ResponseEntity.notFound().build();
             }
 
             Resource resource = new UrlResource(filePath.toUri());
-
             if (!resource.exists() || !resource.isReadable()) {
                 return ResponseEntity.notFound().build();
             }
@@ -98,18 +107,15 @@ public class DocumentController {
             String contentType = "application/octet-stream";
             try {
                 contentType = java.nio.file.Files.probeContentType(filePath);
-            } catch (Exception e) {
-            }
+            } catch (Exception ignored) { }
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType))
                     .header(HttpHeaders.CONTENT_DISPOSITION,
                             "attachment; filename=\"" + document.getFileName() + "\"")
                     .body(resource);
-
         } catch (Exception e) {
-            System.err.println("❌ Download error: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Download error", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -121,7 +127,7 @@ public class DocumentController {
             documentService.deleteDocument(documentId);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
-            System.err.println("Error deleting document: " + e.getMessage());
+            log.error("Error deleting document", e);
             return ResponseEntity.internalServerError().build();
         }
     }

@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import tokenManager from '../services/TokenManager';
 import { authApi, AUTH_EVENTS } from '../services/api';
 
@@ -12,85 +12,32 @@ export const AuthProvider = ({ children }) => {
     // Guards against a late in-flight token refresh resurrecting the session
     // after the user has explicitly logged out.
     const loggedOutRef = useRef(false);
+    // Stable user ref so callbacks/effects don't need `user` as a dependency.
+    const userRef = useRef(null);
+
+    const setUserStable = useCallback((userData) => {
+        userRef.current = userData;
+        setUser(userData);
+    }, []);
 
     const logout = useCallback(async () => {
         loggedOutRef.current = true;
-        // Always attempt server-side revocation — even with an expired access
-        // token — by presenting the refresh token (endpoint is public now).
+      
         const refreshToken = tokenManager.getRefreshToken();
         if (refreshToken) {
             await authApi.logout(refreshToken).catch(() => {});
         }
         tokenManager.clearAll();
-        setUser(null);
+        setUserStable(null);
         if (refreshTimeoutRef.current) {
             clearTimeout(refreshTimeoutRef.current);
             refreshTimeoutRef.current = null;
         }
-    }, []);
+    }, [setUserStable]);
 
     const refreshPromiseRef = useRef(null);
-    const refreshAccessTokenRef = useRef(null);
     const scheduleTokenRefreshRef = useRef(null);
-
-    const refreshAccessToken = useCallback(async () => {
-        // Prevent multiple concurrent refreshes (race condition)
-        if (refreshPromiseRef.current) {
-            return refreshPromiseRef.current;
-        }
-
-        // Add retry logic (up to 3 attempts)
-        const attemptRefresh = async () => {
-            const maxAttempts = 3;
-            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                try {
-                    const refreshToken = tokenManager.getRefreshToken();
-                    if (!refreshToken) {
-                        logout();
-                        return false;
-                    }
-
-                    const response = await authApi.refreshToken(refreshToken);
-
-                    if (response?.token) {
-                        tokenManager.setTokens(response.token, response.refreshToken || refreshToken);
-
-                        if (response.id && response.username) {
-                            const userData = {
-                                id: response.id,
-                                username: response.username,
-                                name: response.name,
-                                email: response.email,
-                                role: response.role,
-                            };
-                            tokenManager.setUser(userData);
-                            setUser(userData);
-                        }
-
-                        const expiry = tokenManager.getTokenExpiry();
-                        scheduleTokenRefreshRef.current(expiry);
-                        return true;
-                    }
-                    return false;
-                } catch {
-                    // On last attempt, log out; otherwise wait and retry
-                    if (attempt >= maxAttempts) {
-                        logout();
-                        return false;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-                }
-            }
-            return false;
-        };
-
-        refreshPromiseRef.current = attemptRefresh();
-        try {
-            return await refreshPromiseRef.current;
-        } finally {
-            refreshPromiseRef.current = null;
-        }
-    }, [logout]);
+    const refreshAccessTokenRef = useRef(null);
 
     const scheduleTokenRefresh = useCallback((expiry) => {
         if (refreshTimeoutRef.current) {
@@ -110,6 +57,65 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
+    const refreshAccessToken = useCallback(async () => {
+        // Prevent multiple concurrent refreshes (race condition)
+        if (refreshPromiseRef.current) {
+            return refreshPromiseRef.current;
+        }
+
+        const attemptRefresh = async () => {
+            const maxAttempts = 3;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    const refreshToken = tokenManager.getRefreshToken();
+                    if (!refreshToken) {
+                        await logout();
+                        return false;
+                    }
+
+                    const response = await authApi.refreshToken(refreshToken);
+
+                    if (response?.token) {
+                        tokenManager.setTokens(response.token, response.refreshToken || refreshToken);
+
+                        if (response.id && response.username) {
+                            const userData = {
+                                id: response.id,
+                                username: response.username,
+                                name: response.name,
+                                email: response.email,
+                                role: response.role,
+                            };
+                            tokenManager.setUser(userData);
+                            setUserStable(userData);
+                        }
+
+                        const expiry = tokenManager.getTokenExpiry();
+                        scheduleTokenRefresh(expiry);
+                        return true;
+                    }
+                    return false;
+                } catch {
+                    if (attempt >= maxAttempts) {
+                        await logout();
+                        return false;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                }
+            }
+            return false;
+        };
+
+        refreshPromiseRef.current = attemptRefresh();
+        try {
+            return await refreshPromiseRef.current;
+        } finally {
+            refreshPromiseRef.current = null;
+        }
+    }, [logout, scheduleTokenRefresh, setUserStable]);
+
+
+
     useEffect(() => {
         refreshAccessTokenRef.current = refreshAccessToken;
     }, [refreshAccessToken]);
@@ -121,13 +127,26 @@ export const AuthProvider = ({ children }) => {
     // ─── Graceful session lifecycle ────────────────────────────────────────────
     // api.js dispatches these events when a token refresh fails (session expired)
     // or succeeds (tokens were rotated out-of-band by the 401 interceptor).
+    // Uses a ref for logout so this effect subscribes once and never re-subscribes.
+    const logoutRef = useRef(logout);
+    useEffect(() => {
+        logoutRef.current = logout;
+    });
     useEffect(() => {
         const onSessionExpired = () => {
             sessionStorage.setItem('rms_auth_message', 'session');
-            logout();
+            logoutRef.current?.();
         };
         const onTokenRefreshed = (e) => {
-            if (e?.detail && !loggedOutRef.current) setUser(e.detail);
+            // Only update if the user actually changed (avoid identity churn)
+            if (e?.detail && !loggedOutRef.current) {
+                const prev = userRef.current;
+                const next = e.detail;
+                if (!prev || prev.id !== next.id || prev.role !== next.role ||
+                    prev.username !== next.username || prev.name !== next.name) {
+                    setUserStable(next);
+                }
+            }
         };
 
         window.addEventListener(AUTH_EVENTS.SESSION_EXPIRED, onSessionExpired);
@@ -136,19 +155,29 @@ export const AuthProvider = ({ children }) => {
             window.removeEventListener(AUTH_EVENTS.SESSION_EXPIRED, onSessionExpired);
             window.removeEventListener(AUTH_EVENTS.TOKEN_REFRESHED, onTokenRefreshed);
         };
-    }, [logout]);
+    }, [setUserStable]);
 
+    // Stable init — uses an initRef guard so StrictMode's double-invoke doesn't
+    // re-run auth initialization or re-create timers.
+    const initRef = useRef(false);
     useEffect(() => {
+        if (initRef.current) return;
+        initRef.current = true;
+
         const initAuth = async () => {
             const token = tokenManager.getAccessToken();
             const storedUser = tokenManager.getUser();
 
             if (token && tokenManager.isTokenValid(token)) {
-                setUser(storedUser);
+                setUserStable(storedUser);
                 const expiry = tokenManager.getTokenExpiry();
                 scheduleTokenRefresh(expiry);
             } else if (token) {
-                await refreshAccessToken();
+                try {
+                    await refreshAccessToken();
+                } catch {
+                    /* handled in refreshAccessToken */
+                }
             }
             setLoading(false);
         };
@@ -160,7 +189,7 @@ export const AuthProvider = ({ children }) => {
                 clearTimeout(refreshTimeoutRef.current);
             }
         };
-    }, [refreshAccessToken, scheduleTokenRefresh]);
+    }, [refreshAccessToken, scheduleTokenRefresh, setUserStable]);
 
     const login = useCallback(async (username, password) => {
         setError(null);
@@ -183,7 +212,7 @@ export const AuthProvider = ({ children }) => {
             };
 
             tokenManager.setUser(userData);
-            setUser(userData);
+            setUserStable(userData);
 
             const expiry = tokenManager.getTokenExpiry();
             scheduleTokenRefresh(expiry);
@@ -193,15 +222,18 @@ export const AuthProvider = ({ children }) => {
             setError(err.message || 'Login failed');
             throw err;
         }
-    }, [scheduleTokenRefresh]);
+    }, [scheduleTokenRefresh, setUserStable]);
 
     const updateUser = useCallback((userData) => {
-        const updated = { ...user, ...userData };
+        const current = userRef.current;
+        const updated = { ...current, ...userData };
         tokenManager.setUser(updated);
-        setUser(updated);
-    }, [user]);
+        setUserStable(updated);
+    }, [setUserStable]);
 
-    const value = {
+    // Memoize the context value so consumers only re-render when user/loading/error
+    // actually change — not on every AuthProvider render.
+    const value = useMemo(() => ({
         user,
         loading,
         error,
@@ -212,7 +244,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         updateUser,
         refreshAccessToken,
-    };
+    }), [user, loading, error, login, logout, updateUser, refreshAccessToken]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

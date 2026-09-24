@@ -7,6 +7,8 @@ import com.rms.repository.LeaseRepository;
 import com.rms.repository.SpaceRepository;
 import org.springframework.stereotype.Service;
 
+import com.rms.service.TimeTravelService;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -20,18 +22,21 @@ public class ReportService {
     private final InvoiceRepository invoiceRepository;
     private final SpaceRepository spaceRepository;
     private final LeaseRepository leaseRepository;
+    private final TimeTravelService timeTravelService;
 
     public ReportService(InvoiceRepository invoiceRepository,
                          SpaceRepository spaceRepository,
-                         LeaseRepository leaseRepository) {
+                         LeaseRepository leaseRepository,
+                         TimeTravelService timeTravelService) {
         this.invoiceRepository = invoiceRepository;
         this.spaceRepository = spaceRepository;
         this.leaseRepository = leaseRepository;
+        this.timeTravelService = timeTravelService;
     }
 
     /** Revenue Report: PAID invoice totals grouped by month, for the last `months` months */
     public List<RevenueReportEntry> getRevenueReport(int months) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         DateTimeFormatter keyFmt = DateTimeFormatter.ofPattern("yyyy-MM");
         DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("MMM yyyy");
 
@@ -96,7 +101,7 @@ public class ReportService {
 
     /** Lease Expiry Report: ACTIVE leases ending within `maxDays` days, bucketed into 30/60/90 */
     public List<leaseExpiryEntry> getLeaseExpiryReport(int maxDays) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         LocalDate cutoff = today.plusDays(maxDays);
 
         List<Lease> expiring = leaseRepository.findByStatusAndEndDateBetween(

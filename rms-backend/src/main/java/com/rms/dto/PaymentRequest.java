@@ -2,9 +2,11 @@ package com.rms.dto;
 
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import com.rms.service.TimeTravelService;
 import java.time.LocalDate;
 
 public class PaymentRequest {
+    private static TimeTravelService timeTravelService;
 
     @NotNull(message = "Payment date is required")
     @PastOrPresent(message = "Payment date cannot be in the future")
@@ -22,6 +24,10 @@ public class PaymentRequest {
     private BigDecimal amount;
 
     // ─── GETTERS AND SETTERS ───
+
+    public static void setTimeTravelService(TimeTravelService service) {
+        timeTravelService = service;
+    }
 
     public LocalDate getPaymentDate() { return paymentDate; }
     public void setPaymentDate(LocalDate paymentDate) { this.paymentDate = paymentDate; }
@@ -50,7 +56,7 @@ public class PaymentRequest {
         if (paymentDate == null) {
             return "Payment date is required";
         }
-        if (paymentDate.isAfter(LocalDate.now())) {
+        if (paymentDate.isAfter((timeTravelService != null) ? timeTravelService.getCurrentDate() : LocalDate.now())) {
             return "Payment date cannot be in the future";
         }
         if (paymentMethod == null || paymentMethod.isBlank()) {

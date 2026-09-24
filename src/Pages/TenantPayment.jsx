@@ -1,7 +1,7 @@
 // src/Pages/TenantPayments.jsx
 import { useEffect, useState } from 'react';
 import { tenantApi, chapaApi } from '../services/api';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { Loader2, CreditCard, Upload, AlertCircle, FileText } from 'lucide-react';
 
 function StatusBadge({ status }) {

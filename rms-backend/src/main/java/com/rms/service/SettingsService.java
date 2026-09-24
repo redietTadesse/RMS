@@ -3,12 +3,16 @@ package com.rms.service;
 import com.rms.entity.SystemSetting;
 import com.rms.repository.SystemSettingRepository;
 import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
 @Service
 public class SettingsService {
+
+    private static final Logger log = LoggerFactory.getLogger(SettingsService.class);
 
     private final SystemSettingRepository settingsRepository;
 
@@ -23,7 +27,7 @@ public class SettingsService {
             initializeDefault("payment_window_end", "10", "Day of month after which penalties apply");
             initializeDefault("reminder_days_before", "3", "Days before the due date to send a payment reminder");
         } catch (Exception e) {
-            System.err.println("Warning: Could not initialize default settings: " + e.getMessage());
+            log.warn("Could not initialize default settings", e);
             // Continue anyway - system will use hardcoded defaults
         }
     }
@@ -40,7 +44,7 @@ public class SettingsService {
                 settingsRepository.save(setting);
             }
         } catch (Exception e) {
-            System.err.println("Warning: Could not initialize setting '" + key + "': " + e.getMessage());
+            log.warn("Could not initialize setting '{}'", key, e);
         }
     }
 

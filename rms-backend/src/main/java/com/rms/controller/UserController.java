@@ -9,6 +9,8 @@ import com.rms.entity.User;
 import com.rms.repository.UserRepository;
 import com.rms.service.AuthService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -21,6 +23,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/users")
 @CrossOrigin(origins = "http://localhost:5173")
 public class UserController {
+
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final UserRepository userRepository;
     private final AuthService authService;
@@ -109,18 +113,18 @@ public class UserController {
     public ResponseEntity<UserResponse> getMyProfile(Authentication authentication) {
         try {
             String username = authentication.getName();
-            System.out.println("🔍 Fetching profile for user: " + username);
+            log.debug("Fetching profile for user: {}", username);
 
             User user = authService.getCurrentUser(username);
             if (user == null) {
-                System.out.println("❌ User not found: " + username);
+                log.warn("User not found: {}", username);
                 return ResponseEntity.notFound().build();
             }
 
-            System.out.println("✅ Profile fetched for: " + username);
+            log.debug("Profile fetched for: {}", username);
             return ResponseEntity.ok(UserResponse.from(user));
         } catch (Exception e) {
-            System.err.println("❌ Error fetching profile: " + e.getMessage());
+            log.error("Error fetching profile", e);
             return ResponseEntity.badRequest().build();
         }
     }
@@ -134,7 +138,7 @@ public class UserController {
             @Valid @RequestBody UpdateUserRequest request) {
         try {
             String username = authentication.getName();
-            System.out.println("🔍 Updating profile for user: " + username);
+            log.debug("Updating profile for user: {}", username);
 
             User user = authService.getCurrentUser(username);
 
@@ -146,10 +150,10 @@ public class UserController {
             }
 
             User updated = userRepository.save(user);
-            System.out.println("✅ Profile updated for: " + username);
+            log.debug("Profile updated for: {}", username);
             return ResponseEntity.ok(UserResponse.from(updated));
         } catch (Exception e) {
-            System.err.println("❌ Error updating profile: " + e.getMessage());
+            log.error("Error updating profile", e);
             return ResponseEntity.badRequest().build();
         }
     }
@@ -163,7 +167,7 @@ public class UserController {
             @Valid @RequestBody UpdatePasswordRequest request) {
         try {
             String username = authentication.getName();
-            System.out.println("🔍 Changing password for user: " + username);
+            log.debug("Changing password for user: {}", username);
 
             authService.changePassword(
                     username,
@@ -171,10 +175,10 @@ public class UserController {
                     request.getNewPassword(),
                     request.getConfirmPassword()
             );
-            System.out.println("✅ Password changed for: " + username);
+            log.debug("Password changed for: {}", username);
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
-            System.err.println("❌ Error changing password: " + e.getMessage());
+            log.error("Error changing password", e);
             return ResponseEntity.badRequest().build();
         }
     }

@@ -8,6 +8,8 @@ import com.rms.exception.ResourceNotFoundException;
 import com.rms.repository.TenantDocumentRepository;
 import com.rms.repository.TenantRepository;
 import com.rms.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +19,8 @@ import java.util.List;
 
 @Service
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final TenantDocumentRepository documentRepository;
     private final TenantRepository tenantRepository;
@@ -92,6 +96,17 @@ public class DocumentService {
     }
 
     /**
+     * Get document by ID with its tenant eagerly loaded, so ownership checks
+     * can run in the controller layer outside of a transaction.
+     */
+    @Transactional(readOnly = true)
+    public TenantDocument getDocumentByIdWithTenant(Long documentId) {
+        return documentRepository.findByIdWithTenant(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Document not found with id: " + documentId));
+    }
+
+    /**
      * Delete a document
      */
     @Transactional
@@ -101,7 +116,7 @@ public class DocumentService {
         // Delete physical file
         boolean deleted = fileStorageService.deleteFile(document.getFilePath());
         if (!deleted) {
-            System.err.println("Warning: Could not delete file: " + document.getFilePath());
+            log.warn("Could not delete file: {}", document.getFilePath());
         }
 
         // Delete database record

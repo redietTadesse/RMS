@@ -55,6 +55,12 @@ Desktop.ini
 *.log
 *.tmp
 *.tempuploads/
+logs/
+
+# AI agent tooling (heartbeat/db churn triggers dev-server reloads)
+.autoclaw/
+.clinerules/
+.ava/
 
 # uploaded receipt files
 /uploads/

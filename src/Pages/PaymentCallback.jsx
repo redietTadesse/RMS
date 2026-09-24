@@ -33,8 +33,6 @@ export default function PaymentCallback() {
       const txRef = searchParams.get('tx_ref');
       const statusParam = searchParams.get('status');
 
-      console.log('🔍 Payment callback received:', { txRef, statusParam });
-
       // If no tx_ref, show error
       if (!txRef) {
         setStatus('error');

@@ -3,6 +3,7 @@ package com.rms.service;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.entity.Lease;
+import com.rms.entity.LeaseStatus;
 import com.rms.entity.Tenant;
 import com.rms.entity.User;
 import com.rms.repository.InvoiceRepository;
@@ -24,7 +25,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,7 +52,13 @@ class InvoiceServiceTest {
     private EmailService emailService;
 
     @Mock
-    private SmsService smsService;
+    private TimeTravelService timeTravelService;
+
+    @Mock
+    private TaxCalculationService taxCalculationService;
+
+    @Mock
+    private PaymentScheduleService paymentScheduleService;
 
     @InjectMocks
     private InvoiceService invoiceService;
@@ -68,6 +74,8 @@ class InvoiceServiceTest {
         testLease.setId(1L);
         testLease.setMonthlyRent(new BigDecimal("60000"));
         testLease.setDueDay(10);
+        testLease.setStatus(LeaseStatus.ACTIVE);
+        testLease.setStartDate(LocalDate.now().minusMonths(1));
 
         testTenant = new Tenant();
         testTenant.setId(1L);
@@ -89,6 +97,8 @@ class InvoiceServiceTest {
         testInvoice.setStatus(InvoiceStatus.PENDING);
         testInvoice.setDueDate(LocalDate.of(2026, 8, 10));
         testLease.setTenant(testTenant);
+
+        lenient().when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.now());
     }
 
     // ✅ TEST 1: Generate invoice success
@@ -126,6 +136,7 @@ class InvoiceServiceTest {
         List<Invoice> pendingInvoices = new ArrayList<>();
         Invoice pastDueInvoice = new Invoice();
         pastDueInvoice.setId(1L);
+        pastDueInvoice.setLease(testLease);
         pastDueInvoice.setDueDate(LocalDate.now().minusDays(5));
         pastDueInvoice.setStatus(InvoiceStatus.PENDING);
         pastDueInvoice.setRentAmount(new BigDecimal("60000"));
@@ -133,7 +144,8 @@ class InvoiceServiceTest {
         pendingInvoices.add(pastDueInvoice);
 
         when(invoiceRepository.findByStatus(InvoiceStatus.PENDING)).thenReturn(pendingInvoices);
-        when(settingsService.getIntSetting("penalty_rate", 20)).thenReturn(20);
+        when(taxCalculationService.calculatePenalty(any(), any(), any()))
+                .thenReturn(new BigDecimal("300"));
 
         invoiceService.calculateDailyPenalties();
 
@@ -181,17 +193,16 @@ class InvoiceServiceTest {
                 () -> invoiceService.getInvoiceById(99L));
     }
 
-    // ✅ TEST 7: Notify overdue with mock SMS
+    // ✅ TEST 7: Notify overdue sends notification and email
     @Test
-    void notifyOverdue_ShouldTriggerMockSms_WhenInvoiceOverdue() {
+    void notifyOverdue_ShouldSendNotificationAndEmail_WhenInvoiceOverdue() {
         testInvoice.setDueDate(LocalDate.now().minusDays(1));
         testInvoice.setStatus(InvoiceStatus.OVERDUE);
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(smsService.isMockMode()).thenReturn(true);
 
         invoiceService.notifyInvoiceOverdue(testInvoice);
 
-        verify(smsService).sendOverdueSms(eq(testTenant), eq(testInvoice), anyLong(), anyDouble());
+        verify(emailService).sendOverdueEmail(testUser, testInvoice);
     }
 }

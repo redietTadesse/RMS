@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import com.rms.service.TimeTravelService;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,15 +22,18 @@ public class PaymentScheduleService {
     private final LeaseRepository leaseRepository;
     private final InvoiceRepository invoiceRepository;
     private final TaxCalculationService taxCalculationService;
+    private final TimeTravelService timeTravelService;
 
     public PaymentScheduleService(PaymentScheduleRepository scheduleRepository,
                                   LeaseRepository leaseRepository,
                                   InvoiceRepository invoiceRepository,
-                                  TaxCalculationService taxCalculationService) {
+                                  TaxCalculationService taxCalculationService,
+                                  TimeTravelService timeTravelService) {
         this.scheduleRepository = scheduleRepository;
         this.leaseRepository = leaseRepository;
         this.invoiceRepository = invoiceRepository;
         this.taxCalculationService = taxCalculationService;
+        this.timeTravelService = timeTravelService;
     }
 
     @Transactional
@@ -137,7 +141,7 @@ public class PaymentScheduleService {
     }
 
     private String generateInvoiceNumber() {
-        String year = String.valueOf(LocalDate.now().getYear());
+        String year = String.valueOf(timeTravelService.getCurrentDate().getYear());
         long count = invoiceRepository.count() + 1;
         String seq = String.format("%04d", count);
         return "INV-" + year + "-" + seq;
@@ -150,8 +154,8 @@ public class PaymentScheduleService {
 
         if (lastSchedule != null) {
             LocalDate nextDue = lastSchedule.getEndDate().plusDays(1);
-            if (nextDue.isBefore(LocalDate.now())) {
-                nextDue = LocalDate.now();
+            if (nextDue.isBefore(timeTravelService.getCurrentDate())) {
+                nextDue = timeTravelService.getCurrentDate();
             }
             lease.setNextPaymentDueDate(nextDue);
             lease.setPaymentScheduleActive(true);
@@ -188,7 +192,7 @@ public class PaymentScheduleService {
     }
 
     public PaymentSchedule getCurrentSchedule(Lease lease) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         List<PaymentSchedule> schedules = scheduleRepository
                 .findByLeaseOrderByPaymentNumberAsc(lease);
 

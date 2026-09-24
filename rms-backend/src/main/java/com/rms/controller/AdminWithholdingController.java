@@ -4,6 +4,7 @@ import com.rms.entity.Tenant;
 import com.rms.entity.TenantDocument;
 import com.rms.service.DocumentService;
 import com.rms.service.TenantService;
+import com.rms.service.TimeTravelService;
 import com.rms.service.TaxCalculationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,13 +24,16 @@ import java.math.BigDecimal;
 public class AdminWithholdingController {
 
     private final TenantService tenantService;
+    private final TimeTravelService timeTravelService;
     private final DocumentService documentService;
     private final TaxCalculationService taxCalculationService;
 
     public AdminWithholdingController(TenantService tenantService,
                                       DocumentService documentService,
-                                      TaxCalculationService taxCalculationService) {
+                                      TaxCalculationService taxCalculationService,
+                                      TimeTravelService timeTravelService) {
         this.tenantService = tenantService;
+        this.timeTravelService = timeTravelService;
         this.documentService = documentService;
         this.taxCalculationService = taxCalculationService;
     }
@@ -75,7 +79,7 @@ public class AdminWithholdingController {
         Tenant tenant = tenantService.getById(tenantId);
         String verifiedBy = authentication != null ? authentication.getName() : "admin";
 
-        LocalDate effectiveDate = startDate != null ? LocalDate.parse(startDate) : LocalDate.now();
+        LocalDate effectiveDate = startDate != null ? LocalDate.parse(startDate) : timeTravelService.getCurrentDate();
         
         tenant.setWithholdingTaxApplicable(true);
         tenant.setWithholdingStartDate(effectiveDate);
@@ -118,7 +122,7 @@ public class AdminWithholdingController {
             @RequestParam(required = false) String invoiceDate) {
         
         Tenant tenant = tenantService.getById(tenantId);
-        LocalDate date = invoiceDate != null ? LocalDate.parse(invoiceDate) : LocalDate.now();
+        LocalDate date = invoiceDate != null ? LocalDate.parse(invoiceDate) : timeTravelService.getCurrentDate();
 
         TaxCalculationService.TaxBreakdown breakdown = 
             taxCalculationService.getTaxBreakdown(tenant, rentAmount, date);

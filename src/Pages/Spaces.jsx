@@ -1,7 +1,7 @@
 // src/pages/Spaces.jsx - COMPLETE FILE
 import { useEffect, useState } from 'react';
 import { spacesApi } from '../services/api';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { Loader2, Plus, Edit, Trash2 } from 'lucide-react';
 
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition';

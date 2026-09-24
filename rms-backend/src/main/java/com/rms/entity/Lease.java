@@ -3,11 +3,22 @@ package com.rms.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import com.rms.service.TimeTravelService;
 import java.time.LocalDate;
 
 @Entity
 @Table(name = "leases")
 public class Lease {
+    private static TimeTravelService timeTravelService;
+
+    public static void setTimeTravelService(TimeTravelService service) {
+        timeTravelService = service;
+    }
+
+    /** Returns virtual date if set, otherwise real system date */
+    private LocalDate getCurrentDate() {
+        return (timeTravelService != null) ? timeTravelService.getCurrentDate() : LocalDate.now();
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,7 +53,7 @@ public class Lease {
     @Column(name = "deposit")
     private BigDecimal deposit = BigDecimal.ZERO;
 
-    @Column(name = "initial_payment_months")
+    @Column(name = "prepayment_months")
     private Integer initialPaymentMonths = 3;
 
     @Column(name = "payment_schedule_active", nullable = false)
@@ -148,7 +159,7 @@ public class Lease {
         if (status != LeaseStatus.ACTIVE) {
             return false;
         }
-        LocalDate today = LocalDate.now();
+        LocalDate today = getCurrentDate();
         return !today.isBefore(startDate) && !today.isAfter(endDate);
     }
 
@@ -157,7 +168,7 @@ public class Lease {
      */
     public boolean isExpired() {
         return status == LeaseStatus.EXPIRED || 
-               (status == LeaseStatus.ACTIVE && LocalDate.now().isAfter(endDate));
+               (status == LeaseStatus.ACTIVE && getCurrentDate().isAfter(endDate));
     }
 
     /**
@@ -168,7 +179,7 @@ public class Lease {
             return false;
         }
         return paymentScheduleActive && nextPaymentDueDate != null &&
-               LocalDate.now().isBefore(nextPaymentDueDate);
+               getCurrentDate().isBefore(nextPaymentDueDate);
     }
 
     /**
@@ -178,7 +189,7 @@ public class Lease {
         if (status != LeaseStatus.ACTIVE) {
             return -1;
         }
-        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), endDate);
+        return java.time.temporal.ChronoUnit.DAYS.between(getCurrentDate(), endDate);
     }
 
     /**
@@ -188,7 +199,7 @@ public class Lease {
         if (status != LeaseStatus.ACTIVE || nextBillingDate == null) {
             return -1;
         }
-        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), nextBillingDate);
+        return java.time.temporal.ChronoUnit.DAYS.between(getCurrentDate(), nextBillingDate);
     }
 
     /**
@@ -196,7 +207,7 @@ public class Lease {
      */
     public BigDecimal calculateProratedRent(LocalDate monthDate) {
         if (monthDate == null) {
-            monthDate = LocalDate.now();
+            monthDate = getCurrentDate();
         }
         
         int daysInMonth = monthDate.lengthOfMonth();
@@ -258,7 +269,7 @@ public class Lease {
             return null;
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = getCurrentDate();
 
         if (nextPaymentDueDate != null) {
             return nextPaymentDueDate;
@@ -282,7 +293,7 @@ public class Lease {
         if (nextDue == null) {
             return -1;
         }
-        return java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), nextDue);
+        return java.time.temporal.ChronoUnit.DAYS.between(getCurrentDate(), nextDue);
     }
 
     /**
@@ -293,7 +304,7 @@ public class Lease {
             return false;
         }
         LocalDate nextDue = getNextDueDate();
-        return nextDue != null && LocalDate.now().isAfter(nextDue);
+        return nextDue != null && getCurrentDate().isAfter(nextDue);
     }
 
     @Override

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { leasesApi, tenantsApi, spacesApi, invoicesApi } from '../services/api';
 import { FaEdit, FaTrash, FaPlus, FaFileInvoice } from 'react-icons/fa';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { Loader2, X, CheckCircle, AlertCircle } from 'lucide-react';
 
 const inputClass =
@@ -201,7 +201,7 @@ export default function Leases() {
       billingFrequency: formData.billingFrequency || 'MONTHLY',
     };
 
-    console.log('📤 Sending payload:', payload);  // ← Debug
+
 
     try {
       if (editingId) {

@@ -5,6 +5,8 @@ import com.rms.entity.Lease;
 import com.rms.entity.User;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -17,6 +19,8 @@ import java.time.format.DateTimeFormatter;
 
 @Service
 public class EmailService {
+
+    private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
@@ -34,7 +38,7 @@ public class EmailService {
 
     public void sendInvoiceGeneratedEmail(User tenant, Invoice invoice, Lease lease) {
         if (tenant == null || tenant.getEmail() == null || tenant.getEmail().isEmpty()) {
-            System.err.println("Cannot send invoice email: tenant or email is null");
+            log.warn("Cannot send invoice email: tenant or email is null");
             return;
         }
         try {
@@ -58,7 +62,7 @@ public class EmailService {
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send invoice email: " + e.getMessage());
+            log.error("Failed to send invoice email", e);
         }
     }
 
@@ -81,9 +85,9 @@ public class EmailService {
                     "🚨 Rent Due Today: " + lease.getSpace().getUnitNumber(),
                     htmlContent
             );
-            System.out.println("✅ Rent due email sent to: " + tenant.getEmail());
+            log.info("Rent due email sent to: {}", tenant.getEmail());
         } catch (Exception e) {
-            System.err.println("Failed to send rent due email: " + e.getMessage());
+            log.error("Failed to send rent due email", e);
         }
     }
 
@@ -104,7 +108,7 @@ public class EmailService {
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send payment approved email: " + e.getMessage());
+            log.error("Failed to send payment approved email", e);
         }
     }
 
@@ -125,7 +129,7 @@ public class EmailService {
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send payment confirmation email: " + e.getMessage());
+            log.error("Failed to send payment confirmation email", e);
         }
     }
 
@@ -153,7 +157,7 @@ public class EmailService {
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send overdue email: " + e.getMessage());
+            log.error("Failed to send overdue email", e);
         }
     }
 
@@ -171,9 +175,9 @@ public class EmailService {
                     "🧪 Test Email from RMS",
                     htmlContent
             );
-            System.out.println("✅ Test email sent to: " + testEmail);
+            log.info("Test email sent to: {}", testEmail);
         } catch (Exception e) {
-            System.err.println("❌ Test email failed: " + e.getMessage());
+            log.error("Test email failed", e);
             throw e;
         }
     }
@@ -197,7 +201,7 @@ public class EmailService {
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send reminder email: " + e.getMessage());
+            log.error("Failed to send reminder email", e);
         }
     }
 
@@ -217,7 +221,7 @@ public class EmailService {
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send welcome email: " + e.getMessage());
+            log.error("Failed to send welcome email", e);
         }
     }
 
@@ -242,13 +246,13 @@ public class EmailService {
                     htmlContent
             );
         } catch (Exception e) {
-            System.err.println("Failed to send payment confirmed email: " + e.getMessage());
+            log.error("Failed to send payment confirmed email", e);
         }
     }
 
     private void sendHtmlEmail(String to, String subject, String htmlContent) {
         if (to == null || to.isEmpty()) {
-            System.err.println("No email address provided");
+            log.warn("No email address provided");
             return;
         }
 
@@ -261,9 +265,9 @@ public class EmailService {
             helper.setText(htmlContent, true);
 
             mailSender.send(message);
-            System.out.println("✅ Email sent to: " + to + " - " + subject);
+            log.info("Email sent to: {} - {}", to, subject);
         } catch (MessagingException e) {
-            System.err.println("Failed to send email to " + to + ": " + e.getMessage());
+            log.error("Failed to send email to {}", to, e);
         }
     }
 }

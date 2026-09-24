@@ -21,20 +21,17 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
     private final EmailService emailService;
-    private final SmsService smsService;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
                        JwtUtil jwtUtil,
                        RefreshTokenService refreshTokenService,
-                       EmailService emailService,
-                       SmsService smsService) {
+                       EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.refreshTokenService = refreshTokenService;
         this.emailService = emailService;
-        this.smsService = smsService;
     }
 
     @Transactional

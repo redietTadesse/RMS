@@ -6,6 +6,7 @@ import com.rms.entity.Lease;
 import com.rms.entity.PaymentSchedule;
 import com.rms.repository.LeaseRepository;
 import com.rms.service.InvoiceService;
+import com.rms.service.TimeTravelService;
 import com.rms.service.PaymentScheduleService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -25,13 +26,15 @@ public class PrepaymentController {
     private final InvoiceService invoiceService;
     private final PaymentScheduleService paymentScheduleService;
     private final LeaseRepository leaseRepository;
+    private final TimeTravelService timeTravelService;
 
     public PrepaymentController(InvoiceService invoiceService,
                                 PaymentScheduleService paymentScheduleService,
-                                LeaseRepository leaseRepository) {
+                                LeaseRepository leaseRepository, TimeTravelService timeTravelService) {
         this.invoiceService = invoiceService;
         this.paymentScheduleService = paymentScheduleService;
         this.leaseRepository = leaseRepository;
+        this.timeTravelService = timeTravelService;
     }
 
     @PostMapping
@@ -66,7 +69,7 @@ public class PrepaymentController {
         Lease lease = leaseRepository.findById(leaseId)
                 .orElseThrow(() -> new IllegalArgumentException("Lease not found"));
         
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         boolean covered = paymentScheduleService.isCoveredByPrepayment(lease, today);
         LocalDate nextDue = paymentScheduleService.getNextPaymentDueDate(lease);
         int totalMonthsPaid = paymentScheduleService.getTotalMonthsPaid(lease);

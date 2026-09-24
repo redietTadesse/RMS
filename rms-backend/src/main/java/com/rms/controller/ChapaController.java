@@ -5,6 +5,8 @@ import com.rms.dto.ChapaPaymentResponse;
 import com.rms.entity.Invoice;
 import com.rms.service.ChapaService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,6 +17,8 @@ import java.util.Map;
 @RequestMapping("/api/payments/chapa")
 @CrossOrigin(origins = "http://localhost:5173")
 public class ChapaController {
+
+    private static final Logger log = LoggerFactory.getLogger(ChapaController.class);
 
     private final ChapaService chapaService;
 
@@ -49,7 +53,7 @@ public class ChapaController {
             boolean verified = chapaService.verifyPayment(txRef);
             return ResponseEntity.ok(Map.of("verified", verified));
         } catch (Exception e) {
-            System.err.println("Verification error: " + e.getMessage());
+            log.error("Verification error", e);
             return ResponseEntity.ok(Map.of("verified", false));
         }
     }

@@ -3,6 +3,7 @@ package com.rms.dto;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.service.TaxCalculationService;
+import com.rms.service.TimeTravelService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -34,6 +35,12 @@ public class InvoiceResponse {
     private BigDecimal penaltyRate;
     private BigDecimal rentInclusive;
 
+    private static TimeTravelService timeTravelService;
+
+    public static void setTimeTravelService(TimeTravelService service) {
+        timeTravelService = service;
+    }
+
     public static InvoiceResponse from(Invoice invoice) {
         return from(invoice, null);
     }
@@ -59,13 +66,16 @@ public class InvoiceResponse {
         response.setLeaseStartDate(invoice.getLease().getStartDate().toString());
         response.setLeaseEndDate(invoice.getLease().getEndDate().toString());
 
+        // Use virtual time if available, otherwise real time
+        LocalDate currentDate = (timeTravelService != null) ? timeTravelService.getCurrentDate() : LocalDate.now();
+
         // Populate tax breakdown if service is available
         if (taxCalculationService != null && invoice.getRentAmount() != null) {
             com.rms.service.TaxCalculationService.TaxBreakdown breakdown =
                     taxCalculationService.getTaxBreakdown(
                             invoice.getLease().getTenant(),
                             invoice.getRentAmount(),
-                            invoice.getIssueDate() != null ? invoice.getIssueDate() : LocalDate.now()
+                            invoice.getIssueDate() != null ? invoice.getIssueDate() : currentDate
                     );
             response.setUntaxedRent(breakdown.getUntaxedRent());
             response.setVatAmount(breakdown.getVatAmount());
@@ -82,7 +92,7 @@ public class InvoiceResponse {
         }
 
         if (invoice.getStatus() == InvoiceStatus.OVERDUE) {
-            response.setDaysOverdue(java.time.temporal.ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now()));
+            response.setDaysOverdue(java.time.temporal.ChronoUnit.DAYS.between(invoice.getDueDate(), currentDate));
             response.setOverdue(true);
         }
 
@@ -90,7 +100,7 @@ public class InvoiceResponse {
             BigDecimal monthlyPenalty = taxCalculationService.calculatePenalty(
                 invoice.getLease().getTenant(),
                 invoice.getRentAmount(),
-                invoice.getIssueDate() != null ? invoice.getIssueDate() : LocalDate.now()
+                invoice.getIssueDate() != null ? invoice.getIssueDate() : timeTravelService.getCurrentDate()
             );
                         response.setDailyPenaltyRate(monthlyPenalty.divide(BigDecimal.valueOf(30), 2, java.math.RoundingMode.HALF_UP));
             response.setPenaltyRate(taxCalculationService.getPenaltyRate().multiply(BigDecimal.valueOf(100)));

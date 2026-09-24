@@ -14,6 +14,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -34,9 +36,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import com.rms.service.TimeTravelService;
 
 @Service
 public class ChapaService {
+
+    private static final Logger log = LoggerFactory.getLogger(ChapaService.class);
 
     private final WebClient webClient;
     private final InvoiceRepository invoiceRepository;
@@ -45,6 +50,7 @@ public class ChapaService {
     private final CurrentUserService currentUserService;
     private final EmailService emailService;
     private final Map<String, String> processedWebhooks = new ConcurrentHashMap<>();
+    private final TimeTravelService timeTravelService;
     private final Map<String, Long> txToInvoiceMap = new ConcurrentHashMap<>();
 
     @Value("${chapa.secret-key}")
@@ -60,12 +66,13 @@ public class ChapaService {
                         UserRepository userRepository,
                         ObjectMapper objectMapper,
                         CurrentUserService currentUserService,
-                        EmailService emailService) {
+                        EmailService emailService, TimeTravelService timeTravelService) {
         this.invoiceRepository = invoiceRepository;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
         this.currentUserService = currentUserService;
         this.emailService = emailService;
+        this.timeTravelService = timeTravelService;
         this.webClient = WebClient.builder()
                 .baseUrl("https://api.chapa.co/v1")
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -153,7 +160,7 @@ public class ChapaService {
                     .onStatus(status -> status.isError(), clientResponse -> {
                         return clientResponse.bodyToMono(String.class)
                                 .flatMap(error -> {
-                                    System.err.println("Chapa verify error: " + error);
+                                    log.error("Chapa verify error: {}", error);
                                     return Mono.error(new RuntimeException("Chapa verification failed: " + error));
                                 });
                     })
@@ -169,7 +176,7 @@ public class ChapaService {
             return false;
 
         } catch (Exception e) {
-            System.err.println("Failed to verify payment: " + e.getMessage());
+            log.error("Failed to verify payment", e);
             return false;
         }
     }
@@ -203,13 +210,13 @@ public class ChapaService {
             return invoice;
         }
 
-        if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.PAID)) {
+        if (!invoice.getStatus().canTransitionTo(InvoiceStatus.PAID)) {
             throw new IllegalArgumentException("Invalid status transition from " + invoice.getStatus() + " to PAID");
         }
 
         try {
             invoice.setStatus(InvoiceStatus.PAID);
-            invoice.setPaymentDate(LocalDate.now());
+            invoice.setPaymentDate(timeTravelService.getCurrentDate());
             invoice.setPaymentMethod("CHAPA");
             Invoice saved = invoiceRepository.save(invoice);
 
@@ -223,7 +230,7 @@ public class ChapaService {
                 emailService.sendPaymentConfirmationEmail(user, saved);
             }
 
-            System.out.println("Payment confirmed via callback: " + txRef + " for invoice " + saved.getInvoiceNumber());
+            log.info("Payment confirmed via callback: {} for invoice {}", txRef, saved.getInvoiceNumber());
             return saved;
         } catch (OptimisticLockingFailureException e) {
             throw new IllegalArgumentException("Invoice was updated by another process. Please try again.");
@@ -235,7 +242,7 @@ public class ChapaService {
         String txRef = (String) payload.get("tx_ref");
 
         if (txRef != null && processedWebhooks.containsKey(txRef)) {
-            System.out.println("Duplicate webhook ignored: " + txRef);
+            log.debug("Duplicate webhook ignored: {}", txRef);
             return;
         }
 
@@ -270,13 +277,13 @@ public class ChapaService {
                 return;
             }
 
-            if (!isValidInvoiceStatusTransition(invoice.getStatus(), InvoiceStatus.PAID)) {
+            if (!invoice.getStatus().canTransitionTo(InvoiceStatus.PAID)) {
                 throw new IllegalArgumentException("Invalid status transition from " + invoice.getStatus() + " to PAID");
             }
 
             try {
                 invoice.setStatus(InvoiceStatus.PAID);
-                invoice.setPaymentDate(LocalDate.now());
+                invoice.setPaymentDate(timeTravelService.getCurrentDate());
                 invoice.setPaymentMethod("CHAPA");
                 invoiceRepository.save(invoice);
 
@@ -287,7 +294,7 @@ public class ChapaService {
                     emailService.sendPaymentConfirmationEmail(user, invoice);
                 }
 
-                System.out.println("Payment recorded via webhook: " + txRef + " for invoice " + invoiceNumber);
+                log.info("Payment recorded via webhook: {} for invoice {}", txRef, invoiceNumber);
             } catch (Exception e) {
                 processedWebhooks.remove(txRef);
                 throw new RuntimeException("Failed to process webhook: " + e.getMessage());
@@ -322,18 +329,5 @@ public class ChapaService {
         }
     }
 
-    private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
-        switch (from) {
-            case PENDING:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE || to == InvoiceStatus.PAID;
-            case SUBMITTED:
-                return to == InvoiceStatus.PAID;
-            case OVERDUE:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
-            case PAID:
-                return false;
-            default:
-                return false;
-        }
-    }
+
 }

@@ -7,6 +7,8 @@ import com.rms.repository.InvoiceRepository;
 import com.rms.repository.LeaseRepository;
 import com.rms.repository.TenantRepository;
 import com.rms.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,14 +22,15 @@ import java.util.List;
 @Service
 public class InvoiceService {
 
+    private static final Logger log = LoggerFactory.getLogger(InvoiceService.class);
+
     private final InvoiceRepository invoiceRepository;
     private final LeaseRepository leaseRepository;
     private final TenantRepository tenantRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final EmailService emailService;
-    private final SmsService smsService;
-        private final SettingsService settingsService;
+    private final SettingsService settingsService;
     private final TaxCalculationService taxCalculationService;
     private final PaymentScheduleService paymentScheduleService;
     private final TimeTravelService timeTravelService;
@@ -38,7 +41,6 @@ public class InvoiceService {
                           UserRepository userRepository,
                           NotificationService notificationService,
                           EmailService emailService,
-                          SmsService smsService,
                           SettingsService settingsService,
                           TaxCalculationService taxCalculationService,
                           PaymentScheduleService paymentScheduleService,
@@ -49,7 +51,6 @@ public class InvoiceService {
         this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.emailService = emailService;
-        this.smsService = smsService;
         this.settingsService = settingsService;
         this.taxCalculationService = taxCalculationService;
         this.paymentScheduleService = paymentScheduleService;
@@ -80,7 +81,7 @@ public class InvoiceService {
             throw new IllegalArgumentException("Lease is not active. Cannot generate invoice.");
         }
 
-                LocalDate today = timeTravelService.getCurrentDate();
+        LocalDate today = timeTravelService.getCurrentDate();
 
         // Skip if still in prepayment period
         if (isCoveredByPrepayment(lease, today)) {
@@ -143,44 +144,6 @@ public class InvoiceService {
         return saved;
     }
 
-    // ─── SEND SMS ON 25TH ───
-    @Scheduled(cron = "0 0 8 25 * ?")
-    @Transactional
-    public void sendRentDueRemindersSms() {
-        LocalDate today = timeTravelService.getCurrentDate();
-        List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
-
-        for (Lease lease : activeLeases) {
-            if (isCoveredByPrepayment(lease, today)) {
-                continue;
-            }
-
-            LocalDate monthStart = today.withDayOfMonth(1);
-            LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
-            
-            Invoice currentInvoice = invoiceRepository.findByLease(lease).stream()
-                    .filter(i -> i.getIssueDate().isAfter(monthStart.minusDays(1)) &&
-                            i.getIssueDate().isBefore(monthEnd.plusDays(1)))
-                    .filter(i -> i.getStatus() == InvoiceStatus.PENDING)
-                    .findFirst()
-                    .orElse(null);
-
-            if (currentInvoice == null) {
-                continue;
-            }
-
-            Tenant tenant = lease.getTenant();
-            if (tenant.getPhone() != null && !tenant.getPhone().isEmpty()) {
-                int daysUntilDue = (int) ChronoUnit.DAYS.between(today, currentInvoice.getDueDate());
-                if (daysUntilDue > 0) {
-                    smsService.sendRentReminderSms(tenant, currentInvoice, daysUntilDue);
-                    System.out.println("📱 SMS reminder sent to " + tenant.getPhone() + 
-                            " for " + currentInvoice.getInvoiceNumber());
-                }
-            }
-        }
-    }
-
     // ─── SEND RENT DUE EMAIL ON DUE DAY ───
     @Scheduled(cron = "0 0 9 * * ?")
     @Transactional
@@ -215,8 +178,8 @@ public class InvoiceService {
             User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
             if (user != null && user.getEmail() != null) {
                 emailService.sendRentDueEmail(user, lease);
-                System.out.println("📧 Rent due email sent to " + user.getEmail() +
-                        " for " + currentInvoice.getInvoiceNumber());
+                log.info("Rent due email sent to {} for invoice {}", 
+                        user.getEmail(), currentInvoice.getInvoiceNumber());
             }
         }
     }
@@ -278,11 +241,6 @@ public class InvoiceService {
         User user = userRepository.findById(tenant.getUserId()).orElse(null);
         if (user != null && user.getEmail() != null) {
             emailService.sendOverdueEmail(user, invoice);
-        }
-
-        if (tenant.getPhone() != null && !tenant.getPhone().isEmpty()) {
-            BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
-            smsService.sendOverdueSms(tenant, invoice, 1, dailyPenalty.doubleValue());
         }
     }
 
@@ -449,21 +407,6 @@ public class InvoiceService {
             return "PENDING";
         }
         return invoice.getStatus().name();
-    }
-
-    private boolean isValidInvoiceStatusTransition(InvoiceStatus from, InvoiceStatus to) {
-        switch (from) {
-            case PENDING:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.OVERDUE;
-            case SUBMITTED:
-                return to == InvoiceStatus.PAID;
-            case OVERDUE:
-                return to == InvoiceStatus.SUBMITTED || to == InvoiceStatus.PAID;
-            case PAID:
-                return false;
-            default:
-                return false;
-        }
     }
 
     @Transactional

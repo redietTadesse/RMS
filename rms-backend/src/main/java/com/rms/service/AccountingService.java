@@ -9,6 +9,8 @@ import com.rms.repository.InvoiceRepository;
 import com.rms.repository.LeaseRepository;
 import org.springframework.stereotype.Service;
 
+import com.rms.service.TimeTravelService;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,15 +22,18 @@ public class AccountingService {
     private final LeaseRepository leaseRepository;
     private final TaxCalculationService taxCalculationService;
     private final SettingsService settingsService;
+    private final TimeTravelService timeTravelService;
 
     public AccountingService(InvoiceRepository invoiceRepository,
                              LeaseRepository leaseRepository,
                              TaxCalculationService taxCalculationService,
-                             SettingsService settingsService) {
+                             SettingsService settingsService,
+                             TimeTravelService timeTravelService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.taxCalculationService = taxCalculationService;
         this.settingsService = settingsService;
+        this.timeTravelService = timeTravelService;
     }
 
     /**
@@ -74,7 +79,7 @@ public class AccountingService {
             var breakdown = taxCalculationService.getTaxBreakdown(
                 inv.getLease().getTenant(),
                 rent,
-                inv.getIssueDate() != null ? inv.getIssueDate() : LocalDate.now()
+                inv.getIssueDate() != null ? inv.getIssueDate() : timeTravelService.getCurrentDate()
             );
 
             // VAT

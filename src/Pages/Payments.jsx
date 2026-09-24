@@ -7,7 +7,7 @@ import {
   CheckCircle2, Clock, AlertTriangle, DollarSign,
   Settings2, X, Loader2, FileCheck, TrendingUp,
 } from 'lucide-react';
-import DashboardLayout from '../components/Layout/DashboardLayout';
+import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { invoicesApi, paymentsApi, leasesApi, settingsApi } from '../services/api';
 
 const statusBadge = {

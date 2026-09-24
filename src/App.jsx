@@ -17,8 +17,8 @@ import Profile from './Pages/Profile';
 import Settings from './Pages/Settings';
 import Reports from './Pages/Reports';
 import UserManagement from './Pages/UserManagement';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-import TimeTravelControls from './components/Test/TimeTravelControls';
+import ProtectedRoute from './Components/auth/ProtectedRoute';
+import TimeTravelControls from './Components/Test/TimeTravelControls';
 
 function AppRoutes() {
   const { loading } = useAuth();
@@ -141,7 +141,8 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>   // ← MUST wrap everything
+    <AuthProvider>
+      {/* AuthProvider MUST wrap everything so useAuth() is available in children */}
       <AppRoutes />
       <TimeTravelControls />
     </AuthProvider>

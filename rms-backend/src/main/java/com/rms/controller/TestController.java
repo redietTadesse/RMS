@@ -1,16 +1,17 @@
 package com.rms.controller;
 
-import com.rms.entity.Invoice;
+import com.rms.dto.InvoiceResponse;
+import com.rms.dto.PaymentRequest;
 import com.rms.entity.Lease;
-import com.rms.entity.Space;
-import com.rms.entity.Tenant;
 import com.rms.service.EmailService;
 import com.rms.service.InvoiceService;
 import com.rms.service.LeaseService;
-import com.rms.service.SmsService;
 import com.rms.service.TimeTravelService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -21,19 +22,18 @@ import java.util.Map;
 @RequestMapping("/api/test")
 public class TestController {
 
+    private static final Logger log = LoggerFactory.getLogger(TestController.class);
+
     private final EmailService emailService;
-    private final SmsService smsService;
     private final TimeTravelService timeTravelService;
     private final InvoiceService invoiceService;
     private final LeaseService leaseService;
 
     public TestController(EmailService emailService,
-                          SmsService smsService,
                           TimeTravelService timeTravelService,
                           InvoiceService invoiceService,
                           LeaseService leaseService) {
         this.emailService = emailService;
-        this.smsService = smsService;
         this.timeTravelService = timeTravelService;
         this.invoiceService = invoiceService;
         this.leaseService = leaseService;
@@ -49,45 +49,10 @@ public class TestController {
         }
     }
 
-    @GetMapping("/sms-test")
-    public String testSms() {
-        try {
-            // Create test data
-            Tenant testTenant = new Tenant();
-            testTenant.setPhone("+251911000000");
-            testTenant.setName("Test Tenant");
-
-            Space space = new Space();
-            space.setUnitNumber("G-01");
-
-            Lease lease = new Lease();
-            lease.setSpace(space);
-
-            Invoice testInvoice = new Invoice();
-            testInvoice.setInvoiceNumber("TEST-001");
-            testInvoice.setLease(lease);
-            testInvoice.setRentAmount(new java.math.BigDecimal("60000"));
-            testInvoice.setTotalAmount(new java.math.BigDecimal("60000"));
-            LocalDate now = timeTravelService.getCurrentDate();
-            testInvoice.setDueDate(now.plusDays(5));
-
-            // Test rent reminder SMS
-            smsService.sendRentReminderSms(testTenant, testInvoice, 5);
-
-            // Test overdue SMS
-            testInvoice.setDueDate(now.minusDays(2));
-            smsService.sendOverdueSms(testTenant, testInvoice, 2, 400.0);
-
-            String mode = smsService.isMockMode() ? "MOCK" : "REAL";
-            return "✅ SMS test completed in " + mode + " mode. Check console logs for SMS content.";
-        } catch (Exception e) {
-            return "❌ SMS test failed: " + e.getMessage();
-                }
-    }
-
     // ─── TIME TRAVEL ENDPOINTS ─────────────────────────────────────────
 
     @GetMapping("/time/current")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getCurrentTime() {
         LocalDate date = timeTravelService.getCurrentDate();
         Map<String, Object> map = new HashMap<>();
@@ -97,6 +62,7 @@ public class TestController {
     }
 
     @PostMapping("/time/set-date")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> setCurrentDate(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         timeTravelService.setFixedDate(date);
         Map<String, Object> map = new HashMap<>();
@@ -107,6 +73,7 @@ public class TestController {
     }
 
     @PostMapping("/time/advance-days")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> advanceDays(@RequestParam int days) {
         LocalDate result = timeTravelService.advanceDays(days);
         Map<String, Object> map = new HashMap<>();
@@ -117,6 +84,7 @@ public class TestController {
     }
 
     @PostMapping("/time/advance-months")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> advanceMonths(@RequestParam int months) {
         LocalDate result = timeTravelService.advanceMonths(months);
         Map<String, Object> map = new HashMap<>();
@@ -127,18 +95,29 @@ public class TestController {
     }
 
     @PostMapping("/time/run-scheduled-jobs")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> runScheduledJobs() {
         LocalDate date = timeTravelService.getCurrentDate();
         Map<String, Object> map = new HashMap<>();
         map.put("currentDate", date.toString());
         map.put("isVirtual", timeTravelService.isActive());
 
+        // Set TimeTravelService on DTOs so they use virtual time
+        InvoiceResponse.setTimeTravelService(timeTravelService);
+        PaymentRequest.setTimeTravelService(timeTravelService);
+        Lease.setTimeTravelService(timeTravelService);
+
         try {
             invoiceService.generateMonthlyInvoices();
             map.put("invoicesGenerated", true);
         } catch (Exception e) {
             map.put("invoicesGenerated", false);
-            map.put("invoiceError", e.getMessage());
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            map.put("invoiceError", root.toString());
+            log.error("Scheduled invoice generation failed", e);
         }
 
         try {
@@ -146,7 +125,12 @@ public class TestController {
             map.put("penaltiesCalculated", true);
         } catch (Exception e) {
             map.put("penaltiesCalculated", false);
-            map.put("penaltyError", e.getMessage());
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            map.put("penaltyError", root.toString());
+            log.error("Scheduled penalty calculation failed", e);
         }
 
         try {
@@ -154,13 +138,19 @@ public class TestController {
             map.put("leasesExpired", expired);
         } catch (Exception e) {
             map.put("leasesExpired", -1);
-            map.put("leaseError", e.getMessage());
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            map.put("leaseError", root.toString());
+            log.error("Scheduled lease expiry sync failed", e);
         }
 
         return ResponseEntity.ok(map);
     }
 
     @PostMapping("/time/reset")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> resetTime() {
         timeTravelService.resetTime();
         LocalDate date = timeTravelService.getCurrentDate();

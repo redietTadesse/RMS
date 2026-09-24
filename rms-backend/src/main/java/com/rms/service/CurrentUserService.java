@@ -1,6 +1,8 @@
 package com.rms.service;
 
+import com.rms.entity.Invoice;
 import com.rms.entity.Tenant;
+import com.rms.entity.TenantDocument;
 import com.rms.entity.User;
 import com.rms.repository.TenantRepository;
 import com.rms.repository.UserRepository;
@@ -40,7 +42,7 @@ public class CurrentUserService {
     }
 
     /** Throws 403 unless the invoice belongs to the logged-in tenant. */
-    public Tenant requireOwnership(com.rms.entity.Invoice invoice) {
+    public Tenant requireOwnership(Invoice invoice) {
         Tenant tenant = getCurrentTenant();
         Long ownerId = invoice.getLease() == null || invoice.getLease().getTenant() == null
                 ? null : invoice.getLease().getTenant().getId();
@@ -48,5 +50,37 @@ public class CurrentUserService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This invoice is not yours");
         }
         return tenant;
+    }
+
+    /** True when the authenticated principal carries the ADMIN role. */
+    public boolean isAdmin() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    /**
+     * Authorizes invoice access for the current caller: admins may access any
+     * invoice; tenants may only access invoices belonging to their own tenant.
+     */
+    public void requireInvoiceAccess(Invoice invoice) {
+        if (isAdmin()) return;
+        requireOwnership(invoice);   // existing tenant-scoped check
+    }
+
+    /**
+     * Authorizes document access. The document must be loaded with its tenant
+     * initialized (JOIN FETCH) so this check does not rely on lazy loading.
+     */
+    public void requireDocumentAccess(TenantDocument document) {
+        if (isAdmin()) return;
+
+        Tenant current = getCurrentTenant();
+        Long ownerId = (document != null && document.getTenant() != null)
+                ? document.getTenant().getId() : null;
+
+        if (ownerId == null || !ownerId.equals(current.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This document is not yours");
+        }
     }
 }
