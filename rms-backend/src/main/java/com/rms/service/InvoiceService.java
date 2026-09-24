@@ -196,12 +196,14 @@ public class InvoiceService {
     @Transactional
     public void calculateDailyPenalties() {
         LocalDate today = timeTravelService.getCurrentDate();
-        List<Invoice> pendingInvoices = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
+        List<Invoice> candidates = invoiceRepository.findByStatusIn(
+            List.of(InvoiceStatus.PENDING, InvoiceStatus.OVERDUE));
 
-        for (Invoice invoice : pendingInvoices) {
+        for (Invoice invoice : candidates) {
             if (invoice.getDueDate().isBefore(today)) {
-                // Mark as OVERDUE
+            if (invoice.getStatus() == InvoiceStatus.PENDING) {
                 invoice.setStatus(InvoiceStatus.OVERDUE);
+            }
 
                 // Calculate daily penalty
                 BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
