@@ -12,6 +12,8 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class FileStorageService {
@@ -26,6 +28,9 @@ public class FileStorageService {
             "application/pdf", "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     };
+        private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
+            ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".doc", ".docx"
+        );
 
     public FileStorageService(@Value("${app.upload.dir:uploads}") String uploadDir) {
         this.rootDir = Paths.get(uploadDir).toAbsolutePath().normalize();
@@ -55,10 +60,16 @@ public class FileStorageService {
         validateFile(file);
 
         String original = file.getOriginalFilename();
-        String extension = original != null && original.contains(".")
-                ? original.substring(original.lastIndexOf("."))
-                : "";
-        String storedName = type + "_" + System.currentTimeMillis() + extension;
+        String safeOriginal = original == null ? "" : Paths.get(original).getFileName().toString();
+        String extension = safeOriginal.contains(".")
+            ? safeOriginal.substring(safeOriginal.lastIndexOf('.')).toLowerCase(Locale.ROOT)
+            : "";
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("File extension not allowed: " + extension);
+        }
+        String safeType = type == null ? "document" : type.replaceAll("[^a-zA-Z0-9_-]", "_");
+        String storedName = safeType + "_" + System.currentTimeMillis() + "_"
+            + UUID.randomUUID().toString().substring(0, 8) + extension;
 
         try {
             Path tenantDir = rootDir.resolve("tenants").resolve("tenant-" + tenantId).resolve("documents");

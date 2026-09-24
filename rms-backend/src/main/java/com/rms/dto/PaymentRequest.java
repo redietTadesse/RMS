@@ -14,7 +14,7 @@ public class PaymentRequest {
 
     @NotBlank(message = "Payment method is required")
     @Pattern(
-            regexp = "CASH|BANK_TRANSFER|CHAPA|RECEIPT",
+            regexp = "(?i)CASH|BANK_TRANSFER|CHAPA|RECEIPT",
             message = "Payment method must be CASH, BANK_TRANSFER, CHAPA, or RECEIPT"
     )
     private String paymentMethod;

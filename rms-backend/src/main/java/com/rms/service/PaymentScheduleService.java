@@ -23,17 +23,20 @@ public class PaymentScheduleService {
     private final InvoiceRepository invoiceRepository;
     private final TaxCalculationService taxCalculationService;
     private final TimeTravelService timeTravelService;
+    private final InvoiceNumberService invoiceNumberService;
 
     public PaymentScheduleService(PaymentScheduleRepository scheduleRepository,
                                   LeaseRepository leaseRepository,
                                   InvoiceRepository invoiceRepository,
                                   TaxCalculationService taxCalculationService,
-                                  TimeTravelService timeTravelService) {
+                                  TimeTravelService timeTravelService,
+                                  InvoiceNumberService invoiceNumberService) {
         this.scheduleRepository = scheduleRepository;
         this.leaseRepository = leaseRepository;
         this.invoiceRepository = invoiceRepository;
         this.taxCalculationService = taxCalculationService;
         this.timeTravelService = timeTravelService;
+        this.invoiceNumberService = invoiceNumberService;
     }
 
     @Transactional
@@ -107,7 +110,7 @@ public class PaymentScheduleService {
             BigDecimal penalty = taxCalculationService.calculatePenalty(tenant, rentInclusive, invoiceDate);
             BigDecimal totalAmount = rentInclusive.add(penalty);
 
-            String invoiceNumber = generateInvoiceNumber();
+            String invoiceNumber = invoiceNumberService.nextInvoiceNumber(invoiceDate);
 
             Invoice invoice = new Invoice();
             invoice.setInvoiceNumber(invoiceNumber);
@@ -138,13 +141,6 @@ public class PaymentScheduleService {
 
         return dailyRate.multiply(BigDecimal.valueOf(daysRemaining))
                 .setScale(2, RoundingMode.HALF_UP);
-    }
-
-    private String generateInvoiceNumber() {
-        String year = String.valueOf(timeTravelService.getCurrentDate().getYear());
-        long count = invoiceRepository.count() + 1;
-        String seq = String.format("%04d", count);
-        return "INV-" + year + "-" + seq;
     }
 
     private void updateNextPaymentDueDate(Lease lease) {

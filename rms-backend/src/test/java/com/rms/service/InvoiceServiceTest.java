@@ -60,6 +60,9 @@ class InvoiceServiceTest {
     @Mock
     private PaymentScheduleService paymentScheduleService;
 
+    @Mock
+    private InvoiceNumberService invoiceNumberService;
+
     @InjectMocks
     private InvoiceService invoiceService;
 
@@ -99,6 +102,8 @@ class InvoiceServiceTest {
         testLease.setTenant(testTenant);
 
         lenient().when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.now());
+        lenient().when(invoiceNumberService.nextInvoiceNumber(any(LocalDate.class)))
+            .thenReturn("INV-2026-0001");
     }
 
     // ✅ TEST 1: Generate invoice success
@@ -143,7 +148,7 @@ class InvoiceServiceTest {
         pastDueInvoice.setPenaltyAmount(BigDecimal.ZERO);
         pendingInvoices.add(pastDueInvoice);
 
-        when(invoiceRepository.findByStatus(InvoiceStatus.PENDING)).thenReturn(pendingInvoices);
+        when(invoiceRepository.findByStatusIn(anyList())).thenReturn(pendingInvoices);
         when(taxCalculationService.calculatePenalty(any(), any(), any()))
                 .thenReturn(new BigDecimal("300"));
 
@@ -164,12 +169,35 @@ class InvoiceServiceTest {
         futureInvoice.setStatus(InvoiceStatus.PENDING);
         pendingInvoices.add(futureInvoice);
 
-        when(invoiceRepository.findByStatus(InvoiceStatus.PENDING)).thenReturn(pendingInvoices);
+        when(invoiceRepository.findByStatusIn(anyList())).thenReturn(pendingInvoices);
+
+        when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.now());
 
         invoiceService.calculateDailyPenalties();
 
         assertEquals(InvoiceStatus.PENDING, futureInvoice.getStatus());
         verify(invoiceRepository, never()).save(any(Invoice.class));
+    }
+
+    @Test
+    void calculateDailyPenalties_ShouldContinue_WhenAlreadyOverdue() {
+        Invoice overdueInvoice = new Invoice();
+        overdueInvoice.setId(2L);
+        overdueInvoice.setLease(testLease);
+        overdueInvoice.setDueDate(LocalDate.now().minusDays(2));
+        overdueInvoice.setStatus(InvoiceStatus.OVERDUE);
+        overdueInvoice.setRentAmount(new BigDecimal("60000"));
+        overdueInvoice.setPenaltyAmount(new BigDecimal("10"));
+
+        when(invoiceRepository.findByStatusIn(anyList())).thenReturn(List.of(overdueInvoice));
+        when(taxCalculationService.calculatePenalty(any(), any(), any()))
+                .thenReturn(new BigDecimal("300"));
+
+        invoiceService.calculateDailyPenalties();
+
+        assertEquals(InvoiceStatus.OVERDUE, overdueInvoice.getStatus());
+        assertEquals(new BigDecimal("20.00"), overdueInvoice.getPenaltyAmount());
+        verify(invoiceRepository).save(overdueInvoice);
     }
 
     // ✅ TEST 5: Get invoice by ID

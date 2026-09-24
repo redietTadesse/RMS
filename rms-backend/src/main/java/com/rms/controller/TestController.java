@@ -40,6 +40,7 @@ public class TestController {
     }
 
     @GetMapping("/email-test")
+    @PreAuthorize("hasRole('ADMIN')")
     public String testEmail() {
         try {
             emailService.sendTestEmail();

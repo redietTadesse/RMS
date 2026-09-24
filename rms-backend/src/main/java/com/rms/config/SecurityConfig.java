@@ -1,4 +1,5 @@
 package com.rms.config;
+
 import com.rms.filter.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,9 +52,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/forgot-password").permitAll()
                         .requestMatchers("/api/auth/reset-password").permitAll()
 
-                        // Test endpoints - email is public, time travel requires ADMIN
+                        // Test endpoints - email test is public; other test endpoints require authentication
                         .requestMatchers("/api/test/email-test").permitAll()
-                        .requestMatchers("/api/test/time/**").authenticated()
+                        .requestMatchers("/api/test/**").authenticated()
 
                         // Chapa gateway endpoints - PUBLIC
                         .requestMatchers("/api/payments/chapa/webhook").permitAll()
