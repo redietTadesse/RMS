@@ -34,7 +34,6 @@ public class UserController {
         this.authService = authService;
     }
 
-    // ─── ADMIN ENDPOINTS ───
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -103,7 +102,6 @@ public class UserController {
         return UserResponse.from(userRepository.save(user));
     }
 
-    // ─── SELF-SERVICE ENDPOINTS ───
 
     /**
      * GET /api/users/me - Get current user profile

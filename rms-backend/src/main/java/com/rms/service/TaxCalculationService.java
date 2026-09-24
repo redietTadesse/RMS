@@ -67,7 +67,6 @@ public class TaxCalculationService {
         return rentInclusive.add(penalty);
     }
 
-    // ─── Configuration accessors ───
     public BigDecimal getWithholdingRate() { return WITHHOLDING_RATE; }
     public BigDecimal getPenaltyRate() {
         return BigDecimal.valueOf(settingsService.getIntSetting("penalty_rate", 20))

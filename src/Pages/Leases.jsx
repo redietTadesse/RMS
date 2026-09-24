@@ -89,6 +89,7 @@ export default function Leases() {
     return () => { cancelled = true; };
   }, []);
 
+
   const resetForm = () => {
     setFormData({
       tenantId: '',
@@ -151,7 +152,6 @@ export default function Leases() {
     setSaving(true);
     setError('');
 
-    // ─── VALIDATION ───
     if (!formData.tenantId) {
       setError('Please select a tenant');
       setSaving(false);
@@ -188,7 +188,6 @@ export default function Leases() {
       return;
     }
 
-    // ─── BUILD PAYLOAD ───
     const payload = {
       tenantId: parseInt(formData.tenantId),
       spaceId: parseInt(formData.spaceId),

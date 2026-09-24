@@ -73,22 +73,22 @@ export default function TimeTravelControls() {
       // Build result summary
       const summary = [];
       if (r.invoicesGenerated) {
-        summary.push('✅ Invoices generated');
+        summary.push('✅ Invoice generation simulated');
       } else if (r.invoiceError) {
         summary.push(`❌ Invoice error: ${r.invoiceError}`);
       }
       
       if (r.penaltiesCalculated) {
-        summary.push('✅ Penalties calculated');
+        summary.push('✅ Penalty calculation simulated');
       } else if (r.penaltyError) {
         summary.push(`❌ Penalty error: ${r.penaltyError}`);
       }
       
       if (r.leasesExpired !== undefined && r.leasesExpired >= 0) {
         if (r.leasesExpired > 0) {
-          summary.push(`✅ ${r.leasesExpired} lease(s) expired`);
+          summary.push(`✅ ${r.leasesExpired} lease expiry simulation(s)`);
         } else {
-          summary.push('✅ No leases expired');
+          summary.push('✅ No lease expiries simulated');
         }
       } else if (r.leaseError) {
         summary.push(`❌ Lease error: ${r.leaseError}`);
@@ -96,6 +96,10 @@ export default function TimeTravelControls() {
       
       if (summary.length === 0) {
         summary.push('⚠️ No results returned');
+      }
+
+      if (r.persisted === false) {
+        summary.push('Database unchanged');
       }
       
       setMsg(summary.join(' | '));
@@ -155,7 +159,8 @@ export default function TimeTravelControls() {
               {lastResult.isVirtual ? 'Virtual Time: ON' : 'Virtual Time: OFF'}<br />
               {lastResult.invoicesGenerated !== undefined && `Invoices: ${lastResult.invoicesGenerated}`}<br />
               {lastResult.penaltiesCalculated !== undefined && `Penalties: ${lastResult.penaltiesCalculated}`}<br />
-              {lastResult.leasesExpired !== undefined && `Leases Expired: ${lastResult.leasesExpired}`}
+              {lastResult.leasesExpired !== undefined && `Lease Expiry Simulations: ${lastResult.leasesExpired}`}<br />
+              {lastResult.persisted === false ? 'Database: unchanged' : 'Database: persisted'}
             </div>
           </div>
         )}
@@ -207,7 +212,7 @@ export default function TimeTravelControls() {
 
       {!collapsed && (
         <div className="mt-3 text-[10px] text-slate-400 border-t border-slate-100 pt-2">
-          ⚠️ Test mode — changes affect all users
+          Simulation mode — scheduled-job results are rolled back
         </div>
       )}
       </>

@@ -45,7 +45,6 @@ export default function Profile() {
     loadProfile();
   }, []);
 
-  // ─── Profile Update Handler ───
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -74,7 +73,6 @@ export default function Profile() {
     }
   };
 
-  // ─── Password Update Handler ───
   const handlePasswordUpdate = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -115,7 +113,6 @@ export default function Profile() {
     }
   };
 
-  // ─── Handle Profile Change ───
   const handleProfileChange = (e) => {
     setProfile({
       ...profile,
@@ -123,7 +120,6 @@ export default function Profile() {
     });
   };
 
-  // ─── Handle Password Change ───
   const handlePasswordChange = (e) => {
     setPasswordForm({
       ...passwordForm,

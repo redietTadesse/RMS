@@ -49,7 +49,6 @@ public class PaymentService {
         this.timeTravelService = timeTravelService;
     }
 
-    // ─── RECORD PAYMENT (Tenant submits receipt) ───
 
     @Transactional
     public Invoice recordPayment(Long invoiceId, PaymentRequest request, MultipartFile receipt) {
@@ -132,7 +131,6 @@ public class PaymentService {
         }
     }
 
-    // ─── APPROVE PAYMENT (Admin) ───
 
     @Transactional
     public Invoice approvePayment(Long invoiceId) {
@@ -178,7 +176,6 @@ public class PaymentService {
         }
     }
 
-    // ─── CALCULATE PENALTY ───
 
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
         int paymentWindowEnd = settingsService.getIntSetting("payment_window_end", 10);
@@ -199,7 +196,6 @@ public class PaymentService {
         return calculatePenalty(invoice, paymentDate);
     }
 
-    // ─── NOTIFICATIONS ───
 
     private void notifyAdminOfSubmittedPayment(Invoice invoice) {
         User admin = userRepository.findByUsername("admin").orElse(null);
@@ -216,9 +212,7 @@ public class PaymentService {
         }
     }
 
-    // ─── VALIDATION HELPERS ───
 
-    // ─── VALIDATION METHODS (For use by controllers) ───
 
     public void validatePaymentRequest(PaymentRequest request) {
         if (request.getPaymentDate() == null) {

@@ -47,7 +47,6 @@ public class LeaseRequest {
     @NotNull(message = "Billing frequency is required")
     private BillingFrequency billingFrequency = BillingFrequency.MONTHLY;
 
-    // ─── GETTERS AND SETTERS ───
 
     public Long getTenantId() { return tenantId; }
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
@@ -76,7 +75,6 @@ public class LeaseRequest {
     public BillingFrequency getBillingFrequency() { return billingFrequency; }
     public void setBillingFrequency(BillingFrequency billingFrequency) { this.billingFrequency = billingFrequency; }
 
-    // ─── CUSTOM VALIDATION METHODS ───
 
     /**
      * Validates that the start date is not after the end date

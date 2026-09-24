@@ -60,10 +60,21 @@ public class InvoiceService {
         this.invoiceNumberService = invoiceNumberService;
     }
 
-    // ─── GENERATE INVOICES ON 1ST ───
     @Scheduled(cron = "0 0 0 1 * ?")
     @Transactional
     public void generateMonthlyInvoices() {
+        if (timeTravelService.isActive()) {
+            return;
+        }
+        generateMonthlyInvoicesInternal();
+    }
+
+    @Transactional
+    public void simulateMonthlyInvoices() {
+        generateMonthlyInvoicesInternal();
+    }
+
+    private void generateMonthlyInvoicesInternal() {
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
         LocalDate today = timeTravelService.getCurrentDate();
 
@@ -151,7 +162,6 @@ public class InvoiceService {
         return saved;
     }
 
-    // ─── SEND RENT DUE EMAIL ON DUE DAY ───
     @Scheduled(cron = "0 0 9 * * ?")
     @Transactional
     public void sendRentDueEmails() {
@@ -191,10 +201,21 @@ public class InvoiceService {
         }
     }
 
-    // ─── DAILY PENALTY CALCULATION ───
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional
     public void calculateDailyPenalties() {
+        if (timeTravelService.isActive()) {
+            return;
+        }
+        calculateDailyPenaltiesInternal();
+    }
+
+    @Transactional
+    public void simulateDailyPenalties() {
+        calculateDailyPenaltiesInternal();
+    }
+
+    private void calculateDailyPenaltiesInternal() {
         LocalDate today = timeTravelService.getCurrentDate();
         List<Invoice> candidates = invoiceRepository.findByStatusIn(
             List.of(InvoiceStatus.PENDING, InvoiceStatus.OVERDUE));
@@ -222,7 +243,6 @@ public class InvoiceService {
         }
     }
 
-    // ─── CALCULATE DAILY PENALTY ───
     private BigDecimal calculateDailyPenalty(Invoice invoice) {
         Tenant tenant = invoice.getLease().getTenant();
         BigDecimal rentInclusive = invoice.getRentAmount();
@@ -253,7 +273,6 @@ public class InvoiceService {
         }
     }
 
-    // ─── UPCOMING PAYMENT REMINDERS ───
     @Scheduled(cron = "0 30 8 * * ?")
     @Transactional
     public void sendUpcomingPaymentReminders() {
@@ -284,7 +303,6 @@ public class InvoiceService {
         }
     }
 
-    // ─── HELPER METHODS ───
     private boolean isCoveredByPrepayment(Lease lease, LocalDate date) {
         return paymentScheduleService.isCoveredByPrepayment(lease, date);
     }
@@ -320,7 +338,6 @@ public class InvoiceService {
         leaseRepository.save(lease);
     }
 
-    // ─── PUBLIC METHODS ───
 
     public List<Invoice> getInvoicesByTenant(Long tenantId) {
         return invoiceRepository.findByLeaseTenantId(tenantId);

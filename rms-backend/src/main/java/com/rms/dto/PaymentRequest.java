@@ -23,7 +23,6 @@ public class PaymentRequest {
     @DecimalMax(value = "99999999.99", message = "Amount cannot exceed 99,999,999.99")
     private BigDecimal amount;
 
-    // ─── GETTERS AND SETTERS ───
 
     public static void setTimeTravelService(TimeTravelService service) {
         timeTravelService = service;
@@ -38,7 +37,6 @@ public class PaymentRequest {
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
 
-    // ─── CUSTOM VALIDATION HELPERS ───
 
     /**
      * Validates all fields are present and valid

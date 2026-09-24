@@ -9,13 +9,16 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "leases")
 public class Lease {
+    // The "time travel" demo needs lease dates to follow a simulated date instead of
+    // the real one. Entities can't have services injected into them, so we keep one
+    // static reference here and set it at startup / whenever the demo date changes.
     private static TimeTravelService timeTravelService;
 
     public static void setTimeTravelService(TimeTravelService service) {
         timeTravelService = service;
     }
 
-    /** Returns virtual date if set, otherwise real system date */
+    // Today according to the demo clock, or the real today when time travel is off.
     private LocalDate getCurrentDate() {
         return (timeTravelService != null) ? timeTravelService.getCurrentDate() : LocalDate.now();
     }
@@ -53,15 +56,21 @@ public class Lease {
     @Column(name = "deposit")
     private BigDecimal deposit = BigDecimal.ZERO;
 
+    // How many months the tenant pays up front when the lease starts (3 by default).
+    // No rent invoice is raised until those months have passed.
     @Column(name = "prepayment_months")
     private Integer initialPaymentMonths = 3;
 
+    // Flips to true once the up-front months are used up and normal monthly rent begins.
     @Column(name = "payment_schedule_active", nullable = false)
     private Boolean paymentScheduleActive = false;
 
+    // First normal rent payment date. Null while the tenant is still in the up-front period.
     @Column(name = "next_payment_due_date")
     private LocalDate nextPaymentDueDate;
 
+    // Day of the month rent falls due (1-31). Clamped to the last day in short months,
+    // so a due day of 31 simply means "the last day" in February.
     @NotNull(message = "Due day is required")
     @Min(value = 1, message = "Due day must be between 1 and 31")
     @Max(value = 31, message = "Due day must be between 1 and 31")
@@ -87,14 +96,16 @@ public class Lease {
     @Column(name = "next_billing_date")
     private LocalDate nextBillingDate;
 
+    // When true, the first invoice only bills for the days left in that month
+    // instead of a full month's rent.
     @Column(name = "first_invoice_prorated")
     private Boolean firstInvoiceProrated = false;
 
+    // Optimistic locking. Hibernate bumps this number on every save so two people
+    // editing the same lease can't silently overwrite each other's changes.
     @Version
     @Column(name = "version")
     private Long version;
-
-    // ─── GETTERS AND SETTERS ───
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -150,11 +161,7 @@ public class Lease {
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
 
-    // ─── CUSTOM VALIDATION HELPERS ───
-
-    /**
-     * Checks if the lease is currently active based on status and dates
-     */
+    // Active means: status is ACTIVE and today sits between the start and end date.
     public boolean isActive() {
         if (status != LeaseStatus.ACTIVE) {
             return false;
@@ -163,17 +170,14 @@ public class Lease {
         return !today.isBefore(startDate) && !today.isAfter(endDate);
     }
 
-    /**
-     * Checks if the lease has expired
-     */
+    // Expired either because it was marked expired, or because the end date passed
+    // while it was still ACTIVE (the nightly job normally flips that for us).
     public boolean isExpired() {
         return status == LeaseStatus.EXPIRED || 
                (status == LeaseStatus.ACTIVE && getCurrentDate().isAfter(endDate));
     }
 
-    /**
-     * Checks if the lease is currently in the prepayment period
-     */
+    // Still inside the up-front months the tenant paid for when the lease started.
     public boolean isInPrepaymentPeriod() {
         if (status != LeaseStatus.ACTIVE) {
             return false;
@@ -182,9 +186,7 @@ public class Lease {
                getCurrentDate().isBefore(nextPaymentDueDate);
     }
 
-    /**
-     * Gets the number of days until the lease expires
-     */
+    // Days left on the lease, or -1 when it isn't active.
     public long getDaysUntilExpiry() {
         if (status != LeaseStatus.ACTIVE) {
             return -1;
@@ -192,9 +194,7 @@ public class Lease {
         return java.time.temporal.ChronoUnit.DAYS.between(getCurrentDate(), endDate);
     }
 
-    /**
-     * Gets the number of days until the next billing date
-     */
+    // Days until the next billing date, or -1 when it isn't active or unset.
     public long getDaysUntilNextBilling() {
         if (status != LeaseStatus.ACTIVE || nextBillingDate == null) {
             return -1;
@@ -202,9 +202,8 @@ public class Lease {
         return java.time.temporal.ChronoUnit.DAYS.between(getCurrentDate(), nextBillingDate);
     }
 
-    /**
-     * Calculates the prorated rent for a given month
-     */
+    // Part-month rent: charges from the given day to the end of that month, using a
+    // daily rate of monthlyRent / days-in-month. Falls back to today if monthDate is null.
     public BigDecimal calculateProratedRent(LocalDate monthDate) {
         if (monthDate == null) {
             monthDate = getCurrentDate();
@@ -221,9 +220,7 @@ public class Lease {
                 .setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
-    /**
-     * Validates the lease dates
-     */
+    // Start date must not fall after the end date.
     public boolean hasValidDates() {
         if (startDate == null || endDate == null) {
             return false;
@@ -231,39 +228,29 @@ public class Lease {
         return !startDate.isAfter(endDate);
     }
 
-    /**
-     * Validates the initial payment months
-     */
+    // The up-front period has to be somewhere between 1 and 24 months.
     public boolean hasValidInitialPayment() {
         return initialPaymentMonths != null && initialPaymentMonths >= 1 && initialPaymentMonths <= 24;
     }
 
-    /**
-     * Validates the due day
-     */
+    // Due day has to be a day number a calendar month can have.
     public boolean hasValidDueDay() {
         return dueDay != null && dueDay >= 1 && dueDay <= 31;
     }
 
-    /**
-     * Validates the rent amount
-     */
+    // Rent has to be more than zero.
     public boolean hasValidRent() {
         return monthlyRent != null && monthlyRent.compareTo(BigDecimal.ZERO) > 0;
     }
 
-    /**
-     * Validates the deposit amount
-     */
+    // Deposit is optional, but it can never be negative.
     public boolean hasValidDeposit() {
         return deposit != null && deposit.compareTo(BigDecimal.ZERO) >= 0;
     }
 
-    // ─── BUSINESS LOGIC METHODS ───
-
-    /**
-     * Calculates the next due date after the prepayment period
-     */
+    // When rent is next due. If we already have a date stored we use it, otherwise we
+    // roll forward to the next time the due day comes around (which lands next month
+    // if that day has already passed this month).
     public LocalDate getNextDueDate() {
         if (status != LeaseStatus.ACTIVE) {
             return null;
@@ -285,9 +272,7 @@ public class Lease {
         return dueDate;
     }
 
-    /**
-     * Gets the number of days until the next due date
-     */
+    // Days left until rent is next due, or -1 when there is no due date to count to.
     public long getDaysUntilDue() {
         LocalDate nextDue = getNextDueDate();
         if (nextDue == null) {
@@ -296,9 +281,7 @@ public class Lease {
         return java.time.temporal.ChronoUnit.DAYS.between(getCurrentDate(), nextDue);
     }
 
-    /**
-     * Checks if the lease is overdue
-     */
+    // True when rent's due date has already gone by.
     public boolean isOverdue() {
         if (status != LeaseStatus.ACTIVE) {
             return false;

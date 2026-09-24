@@ -124,7 +124,6 @@ export const AuthProvider = ({ children }) => {
         scheduleTokenRefreshRef.current = scheduleTokenRefresh;
     }, [scheduleTokenRefresh]);
 
-    // ─── Graceful session lifecycle ────────────────────────────────────────────
     // api.js dispatches these events when a token refresh fails (session expired)
     // or succeeds (tokens were rotated out-of-band by the 401 interceptor).
     // Uses a ref for logout so this effect subscribes once and never re-subscribes.

@@ -30,7 +30,6 @@ public class LeaseController {
         this.leaseService = leaseService;
     }
 
-    // ─── QUERIES ───────────────────────────────────────────────────────────
 
     @GetMapping
     public List<LeaseResponseDTO> getAll() {
@@ -52,7 +51,6 @@ public class LeaseController {
         return leaseService.getByTenant(tenantId);
     }
 
-    // ─── COMMANDS ──────────────────────────────────────────────────────────
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -77,7 +75,6 @@ public class LeaseController {
         leaseService.deleteLease(id);
     }
 
-    // ─── TEST / MAINTENANCE ────────────────────────────────────────────────
 
     @PostMapping("/test/mark-expired")
     @ResponseStatus(HttpStatus.OK)

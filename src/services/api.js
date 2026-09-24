@@ -52,9 +52,9 @@ const errorFromResponse = (res, data) => {
   return new Error(message);
 };
 
-// ─── Single-flight token refresh ────────────────────────────────────────────
-// Shared by the 401 interceptor below AND AuthContext, so a proactive scheduled
-// refresh and a reactive 401 refresh can never race each other.
+// Only one refresh may be in flight at a time. Both the 401 handler below and
+// AuthContext's scheduled refresh go through this, so they can never race each
+// other and invalidate a freshly issued token.
 let refreshPromise = null;
 let sessionExpiredNotified = false;
 
@@ -225,7 +225,6 @@ export async function downloadFile(path, filename) {
   window.URL.revokeObjectURL(url);
 }
 
-// ─── AUTH ───
 export const authApi = {
   login: (username, password) =>
     request('/auth/login', {
@@ -247,7 +246,6 @@ export const authApi = {
     }),
 };
 
-// ─── SPACES ───
 export const spacesApi = {
   getAll: (status) =>
     request(`/spaces${status ? `?status=${status}` : ''}`),
@@ -259,7 +257,6 @@ export const spacesApi = {
   remove: (id) => request(`/spaces/${id}`, { method: 'DELETE' }),
 };
 
-// ─── TENANTS ───
 export const tenantsApi = {
   getAll: (search) =>
     request(`/tenants${search ? `?search=${encodeURIComponent(search)}` : ''}`),
@@ -271,7 +268,6 @@ export const tenantsApi = {
   remove: (id) => request(`/tenants/${id}`, { method: 'DELETE' }),
 };
 
-// ─── DOCUMENTS ───
 export const documentsApi = {
   getForTenant: (tenantId) => request(`/documents/tenant/${tenantId}`),
   getMyDocuments: () => request('/documents/my-documents'),
@@ -293,12 +289,10 @@ export const documentsApi = {
     request(`/documents/${documentId}`, { method: 'DELETE' }),
 };
 
-// ─── DASHBOARD ───
 export const dashboardApi = {
   getStats: () => request('/dashboard/stats'),
 };
 
-// ─── LEASES ───
 export const leasesApi = {
   getAll: () => request('/leases'),
   getById: (id) => request(`/leases/${id}`),
@@ -316,7 +310,6 @@ export const leasesApi = {
   getByTenant: (tenantId) => request(`/leases/tenant/${tenantId}`),
 };
 
-// ─── INVOICES ───
 export const invoicesApi = {
   getAll: () => request('/invoices'),
   getById: (id) => request(`/invoices/${id}`),
@@ -341,7 +334,6 @@ export const invoicesApi = {
     downloadFile(`/invoices/${id}/pdf`, `invoice-${invoiceNumber || id}.pdf`),
 };
 
-// ─── PAYMENTS ───
 export const paymentsApi = {
   record: (invoiceId, paymentData, receiptFile) => {
     const formData = new FormData();
@@ -362,7 +354,6 @@ export const paymentsApi = {
     request(`/payments/${invoiceId}/approve`, { method: 'PUT' }),
 };
 
-// ─── CHAPA ───
 export const chapaApi = {
   initialize: (invoiceId, phoneNumber) =>
     request('/payments/chapa/initialize', {
@@ -375,7 +366,6 @@ export const chapaApi = {
     request(`/payments/chapa/confirm?tx_ref=${txRef}`, { method: 'POST' }),
 };
 
-// ─── TENANT SELF-SERVICE ───
 export const tenantApi = {
   getMyLease: () => request('/tenant/my-lease'),
   getMyInvoices: () => request('/tenant/my-invoices'),
@@ -394,7 +384,6 @@ export const tenantApi = {
   },
 };
 
-// ─── ADMIN ───
 export const adminApi = {
   getAllUsers: () => request('/users'),
   getUserById: (id) => request(`/users/${id}`),
@@ -432,7 +421,6 @@ export const adminApi = {
     request(`/admin/withholding/${tenantId}/preview?rentAmount=${rentAmount}&invoiceDate=${invoiceDate}`),
 };
 
-// ─── USER PROFILE ───
 export const userApi = {
   getProfile: () =>
     request('/users/me'),
@@ -450,7 +438,6 @@ export const userApi = {
     }),
 };
 
-// ─── NOTIFICATIONS ───
 export const notificationsApi = {
   getMine: () => request('/notifications'),
   getUnreadCount: () => request('/notifications/unread-count'),
@@ -460,7 +447,6 @@ export const notificationsApi = {
     request('/notifications/read-all', { method: 'PUT' }),
 };
 
-// ─── REPORTS ───
 export const reportsApi = {
   getRevenue: (months = 6) =>
     request(`/reports/revenue?months=${months}`),
@@ -472,7 +458,6 @@ export const reportsApi = {
     request(`/reports/lease-expiry?days=${days}`),
 };
 
-// ─── SETTINGS ───
 export const settingsApi = {
   getSettings: () => request('/settings'),
   updateSettings: (settings) =>
@@ -482,7 +467,6 @@ export const settingsApi = {
     }),
 };
 
-// ─── ACCOUNTING ───
 export const accountingApi = {
   getSummary: (start, end) => {
     const params = new URLSearchParams();

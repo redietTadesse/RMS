@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -50,7 +52,6 @@ public class TestController {
         }
     }
 
-    // ─── TIME TRAVEL ENDPOINTS ─────────────────────────────────────────
 
     @GetMapping("/time/current")
     @PreAuthorize("hasRole('ADMIN')")
@@ -97,6 +98,7 @@ public class TestController {
 
     @PostMapping("/time/run-scheduled-jobs")
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
     public ResponseEntity<?> runScheduledJobs() {
         LocalDate date = timeTravelService.getCurrentDate();
         Map<String, Object> map = new HashMap<>();
@@ -109,7 +111,7 @@ public class TestController {
         Lease.setTimeTravelService(timeTravelService);
 
         try {
-            invoiceService.generateMonthlyInvoices();
+            invoiceService.simulateMonthlyInvoices();
             map.put("invoicesGenerated", true);
         } catch (Exception e) {
             map.put("invoicesGenerated", false);
@@ -122,7 +124,7 @@ public class TestController {
         }
 
         try {
-            invoiceService.calculateDailyPenalties();
+            invoiceService.simulateDailyPenalties();
             map.put("penaltiesCalculated", true);
         } catch (Exception e) {
             map.put("penaltiesCalculated", false);
@@ -135,7 +137,7 @@ public class TestController {
         }
 
         try {
-            int expired = leaseService.syncExpiredLeases();
+            int expired = leaseService.simulateExpiredLeases();
             map.put("leasesExpired", expired);
         } catch (Exception e) {
             map.put("leasesExpired", -1);
@@ -146,6 +148,12 @@ public class TestController {
             map.put("leaseError", root.toString());
             log.error("Scheduled lease expiry sync failed", e);
         }
+
+        // Time-travel jobs are simulations. Keep their response, but discard
+        // all database changes made by invoice, penalty, and lease processing.
+        TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        map.put("persisted", false);
+        map.put("message", "Scheduled jobs simulated; database changes rolled back");
 
         return ResponseEntity.ok(map);
     }

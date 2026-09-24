@@ -6,6 +6,7 @@ import com.rms.entity.SpaceStatus;
 import com.rms.exception.ResourceNotFoundException;
 import com.rms.repository.SpaceRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -46,6 +47,7 @@ public class SpaceService {
         return SpaceResponseDTO.from(spaceRepository.save(space));
     }
 
+    @Transactional
     public SpaceResponseDTO update(Long id, SpaceUpdateRequest request) {
         Space space = spaceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Space not found with id " + id));

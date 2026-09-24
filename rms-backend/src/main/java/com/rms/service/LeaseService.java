@@ -113,7 +113,7 @@ public class LeaseService {
         validateLeaseRequest(request);
         Tenant tenant = tenantRepository.findById(request.getTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Tenant not found with id " + request.getTenantId()));
-        Space space = spaceRepository.findById(request.getSpaceId())
+        Space space = spaceRepository.findByIdForUpdate(request.getSpaceId())
                 .orElseThrow(() -> new IllegalArgumentException("Space not found with id " + request.getSpaceId()));
 
         if (space.getStatus() != SpaceStatus.VACANT) {
@@ -180,11 +180,10 @@ public class LeaseService {
         lease.setStatus(LeaseStatus.TERMINATED);
         lease.setUpdatedAt(LocalDate.now());
         leaseRepository.save(lease);
-        Space space = lease.getSpace();
-        if (space != null) {
-            space.setStatus(SpaceStatus.VACANT);
-            spaceRepository.save(space);
-        }
+        Space space = spaceRepository.findByIdForUpdate(lease.getSpace().getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Space not found for lease " + id));
+        space.setStatus(SpaceStatus.VACANT);
+        spaceRepository.save(space);
         return LeaseResponseDTO.from(lease);
     }
 
@@ -202,11 +201,10 @@ public class LeaseService {
         }
         notificationRepository.deleteByReferenceId(lease.getId());
         if (lease.getStatus() == LeaseStatus.ACTIVE) {
-            Space space = lease.getSpace();
-            if (space != null) {
-                space.setStatus(SpaceStatus.VACANT);
-                spaceRepository.save(space);
-            }
+            Space space = spaceRepository.findByIdForUpdate(lease.getSpace().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Space not found for lease " + id));
+            space.setStatus(SpaceStatus.VACANT);
+            spaceRepository.save(space);
         }
         leaseRepository.delete(lease);
     }
@@ -214,7 +212,15 @@ public class LeaseService {
     @Scheduled(cron = "0 0 2 * * ?")
     @Transactional
     public void autoMarkExpiredLeases() {
+        if (timeTravelService.isActive()) {
+            return;
+        }
         syncExpiredLeases();
+    }
+
+    @Transactional
+    public int simulateExpiredLeases() {
+        return syncExpiredLeases();
     }
 
     @Transactional
@@ -239,7 +245,8 @@ public class LeaseService {
         lease.setStatus(LeaseStatus.EXPIRED);
         lease.setUpdatedAt(LocalDate.now());
         leaseRepository.save(lease);
-        Space space = lease.getSpace();
+        Space space = spaceRepository.findByIdForUpdate(lease.getSpace().getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Space not found for lease " + leaseId));
         space.setStatus(SpaceStatus.VACANT);
         spaceRepository.save(space);
         notifyLeaseExpired(lease);
@@ -296,7 +303,8 @@ public class LeaseService {
             lease.setStatus(LeaseStatus.EXPIRED);
             lease.setUpdatedAt(LocalDate.now());
             leaseRepository.save(lease);
-            Space space = lease.getSpace();
+                Space space = spaceRepository.findByIdForUpdate(lease.getSpace().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Space not found for lease " + lease.getId()));
             space.setStatus(SpaceStatus.VACANT);
             spaceRepository.save(space);
             notifyLeaseExpired(lease);
