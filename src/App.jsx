@@ -1,4 +1,3 @@
-// src/App.jsx
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
@@ -19,6 +18,8 @@ import Reports from './Pages/Reports';
 import UserManagement from './Pages/UserManagement';
 import ProtectedRoute from './Components/auth/ProtectedRoute';
 import TimeTravelControls from './Components/Test/TimeTravelControls';
+import ForgotPassword from './Pages/ForgotPassword';
+import ResetPassword from './Pages/ResetPassword';
 
 function AppRoutes() {
   const { loading } = useAuth();
@@ -36,7 +37,8 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/payment-callback" element={<PaymentCallback />} />
-
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/register"
         element={

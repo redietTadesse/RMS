@@ -139,6 +139,43 @@ public class AuthService {
     }
 
     @Transactional
+    public void requestPasswordReset(String usernameOrEmail) {
+        var userOpt = userRepository.findByUsername(usernameOrEmail)
+                .or(() -> userRepository.findByEmail(usernameOrEmail));
+
+        if (userOpt.isEmpty()) {
+            return; // silent no-op — don't reveal account existence
+        }
+
+        User user = userOpt.get();
+
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new IllegalArgumentException("This account has no email on file. Contact an administrator.");
+        }
+
+        String token = java.util.UUID.randomUUID().toString();
+        user.setResetToken(token);
+        user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(30));
+        userRepository.save(user);
+
+        emailService.sendPasswordResetEmail(user, token);
+    }
+
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        User user = userRepository.findByResetToken(token)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset link"));
+
+        if (user.getResetTokenExpiry() == null || user.getResetTokenExpiry().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Invalid or expired reset link");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setResetToken(null);
+        user.setResetTokenExpiry(null);
+        userRepository.save(user);
+    }
+    @Transactional
     public void logout(String username) {
         User user = getCurrentUser(username);
         refreshTokenService.revokeAllUserTokens(user);
