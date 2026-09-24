@@ -3,7 +3,7 @@
 // never collides with the shared api.js during merges. Sends the admin JWT the
 // same way api.js does, so the /api/verification/** endpoints can be ADMIN-only.
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+import { API_BASE } from './api';
 
 const getToken = () => localStorage.getItem('token');
 

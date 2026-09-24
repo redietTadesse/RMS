@@ -8,7 +8,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import DashboardLayout from '../components/Layout/DashboardLayout';
-import { tenantApi, chapaApi, documentsApi, invoicesApi } from '../services/api';
+import { tenantApi, chapaApi, documentsApi, invoicesApi, API_BASE } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
   const colors = {
@@ -452,7 +452,7 @@ export default function TenantDashboard() {
   const handleDownload = async (doc) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/documents/download/${doc.id}`, {
+      const response = await fetch(`${API_BASE}/documents/download/${doc.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error(`Download failed: ${response.status}`);

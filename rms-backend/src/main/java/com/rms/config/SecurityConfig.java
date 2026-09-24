@@ -3,6 +3,7 @@ package com.rms.config;
 import com.rms.filter.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -34,8 +35,13 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .authorizeHttpRequests(auth -> auth
+                        // ALWAYS allow CORS preflight
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                        //  ADD THIS LINE - Public login
+                        // Allow Spring Boot's error forward (so real exceptions surface, not 403)
+                        .requestMatchers("/error").permitAll()
+
+                        // Public auth endpoints
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/refresh").permitAll()
                         .requestMatchers("/api/auth/forgot-password").permitAll()
@@ -43,7 +49,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/test/email-test").permitAll()
                         .requestMatchers("/api/test/sms-test").permitAll()
 
-                        // Chapa gateway endpoints - PUBLIC (called by Chapa servers & payment callback)
+                        // Chapa gateway endpoints - PUBLIC
                         .requestMatchers("/api/payments/chapa/webhook").permitAll()
                         .requestMatchers("/api/payments/chapa/confirm").permitAll()
                         .requestMatchers("/api/payments/chapa/verify").permitAll()
@@ -68,12 +74,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/**").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/dashboard/**").hasRole("ADMIN")
 
-                        //  ADMIN only - Documents
+                        // Documents
                         .requestMatchers("/api/documents/upload/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/tenant/**").hasRole("ADMIN")
                         .requestMatchers("/api/documents/delete/**").hasRole("ADMIN")
-
-                        //  ADMIN + TENANT - View/Download
                         .requestMatchers("/api/documents/my-documents").hasAnyRole("ADMIN", "TENANT")
                         .requestMatchers("/api/documents/download/**").hasAnyRole("ADMIN", "TENANT")
 

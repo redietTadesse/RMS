@@ -1,20 +1,21 @@
 // src/components/Documents/DocumentList.jsx
-import { FileText, Download, Trash2 } from 'lucide-react';
+import { FileText, Trash2 } from 'lucide-react';
+import { API_BASE } from '../../services/api';
 
 export default function DocumentList({ documents, onDelete, isAdmin }) {
   const handleDownload = async (doc) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/documents/download/${doc.id}`, {
+      const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+      const response = await fetch(`${API_BASE}/documents/download/${doc.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Download failed: ${response.status}`);
       }
-      
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -24,7 +25,7 @@ export default function DocumentList({ documents, onDelete, isAdmin }) {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      
+
     } catch (error) {
       console.error('Download failed:', error);
       alert('Failed to download document. Please try again.');
