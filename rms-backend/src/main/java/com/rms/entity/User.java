@@ -45,8 +45,18 @@ public class User {
     @Email(message = "Invalid email address")
     @Column(unique = true)
     private String email;
+    @Column(name = "reset_token")
+    private String resetToken;
+
+    @Column(name = "reset_token_expiry")
+    private LocalDateTime resetTokenExpiry;
 
     // ---- Getters and Setters ----
+    public String getResetToken() { return resetToken; }
+    public void setResetToken(String resetToken) { this.resetToken = resetToken; }
+
+    public LocalDateTime getResetTokenExpiry() { return resetTokenExpiry; }
+    public void setResetTokenExpiry(LocalDateTime resetTokenExpiry) { this.resetTokenExpiry = resetTokenExpiry; }
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

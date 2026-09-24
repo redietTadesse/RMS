@@ -8,8 +8,9 @@ import {
   Receipt,
 } from 'lucide-react';
 import DashboardLayout from '../Components/Layout/DashboardLayout';
-import { tenantApi, chapaApi, documentsApi, invoicesApi } from '../services/api';
+import { tenantApi, chapaApi, documentsApi, invoicesApi, API_BASE } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
   const colors = {
     indigo: 'bg-indigo-100 text-indigo-600',
@@ -449,7 +450,7 @@ export default function TenantDashboard() {
   const handleDownload = async (doc) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/documents/download/${doc.id}`, {
+      const response = await fetch(`${API_BASE}/documents/download/${doc.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error(`Download failed: ${response.status}`);
@@ -566,10 +567,10 @@ export default function TenantDashboard() {
           <StatCard label="Awaiting Approval" value={submittedInvoices} icon={Info} color="blue" />
           <StatCard label="Paid" value={paidInvoices} icon={CheckCircle} color="emerald" />
           <StatCard label="Overdue" value={overdueInvoices} icon={AlertCircle} color="rose" />
-          <StatCard 
-            label="Next Rent Due" 
-            value={daysUntilDue !== undefined && daysUntilDue >= 0 ? `${daysUntilDue}d` : 'N/A'} 
-            icon={Calendar} 
+          <StatCard
+            label="Next Rent Due"
+            value={daysUntilDue !== undefined && daysUntilDue >= 0 ? `${daysUntilDue}d` : 'N/A'}
+            icon={Calendar}
             color="purple"
             subtext={nextDueDate ? `Due on ${nextDueDate}` : ''}
           />

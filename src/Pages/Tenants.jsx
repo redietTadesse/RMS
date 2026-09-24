@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { tenantsApi, documentsApi, adminApi } from '../services/api';
+import { tenantsApi, documentsApi, adminApi, API_BASE } from '../services/api';
 import { verificationApi } from '../services/verificationApi';
 import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { Loader2, Plus, Search, Edit, Trash2, FileText, X } from 'lucide-react';
-import DocumentUpload from '../Components/Documents/DocumentUpload';  
-
+import DocumentList from '../Components/Documents/DocumentList';
+import DocumentUpload from '../Components/Documents/DocumentUpload';
 const inputClass = 'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-slate-50 focus:bg-white transition';
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700';
 
@@ -593,7 +593,7 @@ export default function Tenants() {
                         onClick={async () => {
                           try {
                             const token = localStorage.getItem('token');
-                            const response = await fetch(`http://localhost:8080/api/documents/download/${doc.id}`, {
+                            const response = await fetch(`${API_BASE}/documents/download/${doc.id}`, {
                               headers: {
                                 'Authorization': `Bearer ${token}`
                               }

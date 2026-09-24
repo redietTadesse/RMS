@@ -4,8 +4,7 @@
 // same way api.js does, so the /api/verification/** endpoints can be ADMIN-only.
 
 import tokenManager from './TokenManager';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+import { API_BASE } from './api';
 
 const getToken = () => tokenManager.getAccessToken() || localStorage.getItem('token');
 
@@ -37,7 +36,11 @@ async function post(path, body) {
   let data = null;
   const text = await res.text();
   if (text) {
-    try { data = JSON.parse(text); } catch { data = text; }
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
   }
 
   if (!res.ok && !data) {
@@ -46,11 +49,16 @@ async function post(path, body) {
     e.status = res.status;
     throw e;
   }
+
   return data;
 }
 
 export const verificationApi = {
   verifyTin: (tin) => post('/verification/tin', { tin }),
-  initiateIdentity: (faydaNumber) => post('/verification/identity/initiate', { faydaNumber }),
-  completeIdentity: (transactionId, otp) => post('/verification/identity/complete', { transactionId, otp }),
+
+  initiateIdentity: (faydaNumber) =>
+    post('/verification/identity/initiate', { faydaNumber }),
+
+  completeIdentity: (transactionId, otp) =>
+    post('/verification/identity/complete', { transactionId, otp }),
 };

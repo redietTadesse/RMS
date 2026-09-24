@@ -1,6 +1,14 @@
 import tokenManager from './TokenManager';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+// Determine API base URL:
+//  - If VITE_API_URL is set in .env, use it (production / custom setups).
+//  - Otherwise, use the same hostname the page was loaded from, port 8080.
+//    This makes it work on PC (localhost) AND phone (LAN IP) automatically.
+const API_HOST =
+  typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+
+export const API_BASE =
+  import.meta.env.VITE_API_URL || `http://${API_HOST}:8080/api`;
 
 // Auth lifecycle events — dispatched on `window` so non-React modules (api.js)
 // can signal React state (AuthContext) without creating an import cycle.
@@ -175,7 +183,7 @@ async function request(path, options = {}) {
   return attempt();
 }
 
-// ─── AUTH ───
+// ============ AUTH ============
 export const authApi = {
   login: (username, password) =>
     request('/auth/login', {
@@ -188,6 +196,7 @@ export const authApi = {
       body: JSON.stringify(userData),
     }),
   refreshToken: (refreshToken) => refreshAccessTokenOnce(refreshToken),
+
   // Send the refresh token so the server can invalidate the session even when
   // the access token is already expired (the logout endpoint is public).
   logout: (refreshToken) =>
@@ -195,9 +204,21 @@ export const authApi = {
       method: 'POST',
       ...(refreshToken ? { body: JSON.stringify({ refreshToken }) } : {}),
     }),
+
+  forgotPassword: (usernameOrEmail) =>
+    request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ usernameOrEmail }),
+    }),
+
+  resetPassword: (token, newPassword) =>
+    request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
 };
 
-// ─── SPACES ───
+// ============ SPACES ============
 export const spacesApi = {
   getAll: (status) =>
     request(`/spaces${status ? `?status=${status}` : ''}`),
@@ -209,7 +230,7 @@ export const spacesApi = {
   remove: (id) => request(`/spaces/${id}`, { method: 'DELETE' }),
 };
 
-// ─── TENANTS ───
+// ============ TENANTS ============
 export const tenantsApi = {
   getAll: (search) =>
     request(`/tenants${search ? `?search=${encodeURIComponent(search)}` : ''}`),
@@ -221,7 +242,7 @@ export const tenantsApi = {
   remove: (id) => request(`/tenants/${id}`, { method: 'DELETE' }),
 };
 
-// ─── DOCUMENTS ───
+// ============ DOCUMENTS ============
 export const documentsApi = {
   getForTenant: (tenantId) => request(`/documents/tenant/${tenantId}`),
   getMyDocuments: () => request('/documents/my-documents'),
@@ -241,12 +262,12 @@ export const documentsApi = {
     request(`/documents/${documentId}`, { method: 'DELETE' }),
 };
 
-// ─── DASHBOARD ───
+// ============ DASHBOARD ============
 export const dashboardApi = {
   getStats: () => request('/dashboard/stats'),
 };
 
-// ─── LEASES ───
+// ============ LEASES ============
 export const leasesApi = {
   getAll: () => request('/leases'),
   getById: (id) => request(`/leases/${id}`),
@@ -264,7 +285,7 @@ export const leasesApi = {
   getByTenant: (tenantId) => request(`/leases/tenant/${tenantId}`),
 };
 
-// ─── INVOICES ───
+// ============ INVOICES ============
 export const invoicesApi = {
   getAll: () => request('/invoices'),
   getById: (id) => request(`/invoices/${id}`),
@@ -296,7 +317,7 @@ export const invoicesApi = {
   },
 };
 
-// ─── PAYMENTS ───
+// ============ PAYMENTS ============
 export const paymentsApi = {
   record: (invoiceId, paymentData, receiptFile) => {
     const formData = new FormData();
@@ -317,7 +338,7 @@ export const paymentsApi = {
     request(`/payments/${invoiceId}/approve`, { method: 'PUT' }),
 };
 
-// ─── CHAPA ───
+// ============ CHAPA ============
 export const chapaApi = {
   initialize: (invoiceId, phoneNumber) =>
     request('/payments/chapa/initialize', {
@@ -330,7 +351,7 @@ export const chapaApi = {
     request(`/payments/chapa/confirm?tx_ref=${txRef}`, { method: 'POST' }),
 };
 
-// ─── TENANT SELF-SERVICE ───
+// ============ TENANT SELF-SERVICE ============
 export const tenantApi = {
   getMyLease: () => request('/tenant/my-lease'),
   getMyInvoices: () => request('/tenant/my-invoices'),
@@ -349,7 +370,7 @@ export const tenantApi = {
   },
 };
 
-// ─── ADMIN ───
+// ============ ADMIN ============
 export const adminApi = {
   getAllUsers: () => request('/users'),
   getUserById: (id) => request(`/users/${id}`),
@@ -369,7 +390,6 @@ export const adminApi = {
   changeRole: (id, role) =>
     request(`/users/${id}/role?role=${encodeURIComponent(role)}`, { method: 'PATCH' }),
 
-  // Withholding management
   uploadWithholdingEvidence: (tenantId, formData) =>
     request(`/admin/withholding/${tenantId}/evidence`, {
       method: 'POST',
@@ -387,7 +407,7 @@ export const adminApi = {
     request(`/admin/withholding/${tenantId}/preview?rentAmount=${rentAmount}&invoiceDate=${invoiceDate}`),
 };
 
-// ─── USER PROFILE ───
+// ============ USER PROFILE ============
 export const userApi = {
   getProfile: () =>
     request('/users/me'),
@@ -405,7 +425,7 @@ export const userApi = {
     }),
 };
 
-// ─── NOTIFICATIONS ───
+// ============ NOTIFICATIONS ============
 export const notificationsApi = {
   getMine: () => request('/notifications'),
   getUnreadCount: () => request('/notifications/unread-count'),
@@ -415,7 +435,7 @@ export const notificationsApi = {
     request('/notifications/read-all', { method: 'PUT' }),
 };
 
-// ─── REPORTS ───
+// ============ REPORTS ============
 export const reportsApi = {
   getRevenue: (months = 6) =>
     request(`/reports/revenue?months=${months}`),
@@ -427,7 +447,7 @@ export const reportsApi = {
     request(`/reports/lease-expiry?days=${days}`),
 };
 
-// ─── SETTINGS ───
+// ============ SETTINGS ============
 export const settingsApi = {
   getSettings: () => request('/settings'),
   updateSettings: (settings) =>
