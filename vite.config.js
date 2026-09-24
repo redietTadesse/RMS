@@ -11,8 +11,17 @@ const ignoredPaths = ['**/.autoclaw/**', '**/logs/**', '**/node_modules/**', '**
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
+    host: true,        // listen on all interfaces (0.0.0.0)
+    port: 5173,
+    strictPort: true,
     watch: {
       ignored: ignoredPaths,
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
   build: {
@@ -20,4 +29,3 @@ export default defineConfig({
     emptyOutDir: true,
   },
 })
-
