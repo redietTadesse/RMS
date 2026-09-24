@@ -40,8 +40,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/refresh").permitAll()
                         // Logout must work with an expired/missing access token
                         .requestMatchers("/api/auth/logout").permitAll()
-                        // Test endpoints - email is public, time travel requires ADMIN
-                        .requestMatchers("/api/test/email-test").permitAll()
+                        // Test endpoints - all require authentication; methods enforce ADMIN where needed
+                        .requestMatchers("/api/test/**").authenticated()
                         .requestMatchers("/api/test/time/**").authenticated()
 
                         // Chapa gateway endpoints - PUBLIC (called by Chapa servers & payment callback)

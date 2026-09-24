@@ -1,6 +1,6 @@
 package com.rms.controller;
 
-import com.rms.entity.Space;
+import com.rms.dto.*;
 import com.rms.entity.SpaceStatus;
 import com.rms.service.SpaceService;
 import jakarta.validation.Valid;
@@ -21,30 +21,29 @@ public class SpaceController {
         this.spaceService = spaceService;
     }
 
-
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public List<Space> getAll(@RequestParam(required = false) SpaceStatus status) {
+    public List<SpaceResponseDTO> getAll(@RequestParam(required = false) SpaceStatus status) {
         return spaceService.getAll(status);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public Space getById(@PathVariable Long id) {
+    public SpaceResponseDTO getById(@PathVariable Long id) {
         return spaceService.getById(id);
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
-    public Space create(@Valid @RequestBody Space space) {
-        return spaceService.create(space);
+    public SpaceResponseDTO create(@Valid @RequestBody SpaceCreateRequest request) {
+        return spaceService.create(request);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public Space update(@PathVariable Long id, @Valid @RequestBody Space space) {
-        return spaceService.update(id, space);
+    public SpaceResponseDTO update(@PathVariable Long id, @Valid @RequestBody SpaceUpdateRequest request) {
+        return spaceService.update(id, request);
     }
 
     @DeleteMapping("/{id}")

@@ -24,6 +24,7 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
+    private final TimeTravelService timeTravelService;
 
     @Value("${app.email.from}")
     private String fromEmail;
@@ -31,9 +32,11 @@ public class EmailService {
     @Value("${app.base.url}")
     private String baseUrl;
 
-    public EmailService(JavaMailSender mailSender, TemplateEngine templateEngine) {
+    public EmailService(JavaMailSender mailSender, TemplateEngine templateEngine,
+                        TimeTravelService timeTravelService) {
         this.mailSender = mailSender;
         this.templateEngine = templateEngine;
+        this.timeTravelService = timeTravelService;
     }
 
     public void sendInvoiceGeneratedEmail(User tenant, Invoice invoice, Lease lease) {
@@ -53,7 +56,7 @@ public class EmailService {
             context.setVariable("spaceCategory", lease.getSpace().getCategory());
             context.setVariable("monthlyRent", lease.getMonthlyRent());
             context.setVariable("invoiceUrl", baseUrl + "/payments");
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/invoice-generated", context);
             sendHtmlEmail(
@@ -69,7 +72,8 @@ public class EmailService {
     public void sendRentDueEmail(User tenant, Lease lease) {
         try {
             int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 1;
-            LocalDate dueDate = LocalDate.now().withDayOfMonth(Math.min(dueDay, LocalDate.now().lengthOfMonth()));
+            LocalDate today = timeTravelService.getCurrentDate();
+            LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
 
             Context context = new Context();
             context.setVariable("tenantName", tenant.getName());
@@ -77,7 +81,7 @@ public class EmailService {
             context.setVariable("amount", lease.getMonthlyRent());
             context.setVariable("dueDate", dueDate.format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
             context.setVariable("paymentUrl", baseUrl + "/payments");
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/rent-due", context);
             sendHtmlEmail(
@@ -99,7 +103,7 @@ public class EmailService {
             context.setVariable("amount", invoice.getTotalAmount());
             context.setVariable("paymentDate", invoice.getPaymentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
             context.setVariable("paymentMethod", invoice.getPaymentMethod());
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/payment-approved", context);
             sendHtmlEmail(
@@ -120,7 +124,7 @@ public class EmailService {
             context.setVariable("amount", invoice.getTotalAmount());
             context.setVariable("paymentDate", invoice.getPaymentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
             context.setVariable("paymentMethod", invoice.getPaymentMethod());
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/payment-confirmed", context);
             sendHtmlEmail(
@@ -137,7 +141,7 @@ public class EmailService {
         try {
             long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(
                     invoice.getDueDate(),
-                    java.time.LocalDate.now()
+                    timeTravelService.getCurrentDate()
             );
 
             Context context = new Context();
@@ -148,7 +152,7 @@ public class EmailService {
             context.setVariable("daysOverdue", daysOverdue);
             context.setVariable("penaltyAmount", invoice.getPenaltyAmount());
             context.setVariable("invoiceUrl", baseUrl + "/payments");
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/overdue", context);
             sendHtmlEmail(
@@ -167,7 +171,7 @@ public class EmailService {
 
             Context context = new Context();
             context.setVariable("message", "This is a test email from RMS!");
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/test", context);
             sendHtmlEmail(
@@ -189,10 +193,11 @@ public class EmailService {
             context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
             context.setVariable("amount", invoice.getTotalAmount());
             context.setVariable("dueDate", invoice.getDueDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
-            long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), invoice.getDueDate());
+                long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(
+                    timeTravelService.getCurrentDate(), invoice.getDueDate());
             context.setVariable("daysLeft", Math.max(daysLeft, 0));
             context.setVariable("invoiceUrl", baseUrl + "/payments");
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/payment-reminder", context);
             sendHtmlEmail(
@@ -212,7 +217,7 @@ public class EmailService {
             context.setVariable("username", username);
             context.setVariable("password", password);
             context.setVariable("loginUrl", baseUrl + "/login");
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/welcome", context);
             sendHtmlEmail(
@@ -233,11 +238,11 @@ public class EmailService {
             context.setVariable("amount", invoice.getTotalAmount());
             context.setVariable("paymentDate", invoice.getPaymentDate() != null ?
                     invoice.getPaymentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")) :
-                    LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+                    timeTravelService.getCurrentDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
             context.setVariable("paymentMethod", invoice.getPaymentMethod() != null ?
                     invoice.getPaymentMethod() : "Bank Transfer");
             context.setVariable("invoiceUrl", baseUrl + "/payments");
-            context.setVariable("year", java.time.Year.now().getValue());
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
 
             String htmlContent = templateEngine.process("email/payment-confirmed", context);
             sendHtmlEmail(

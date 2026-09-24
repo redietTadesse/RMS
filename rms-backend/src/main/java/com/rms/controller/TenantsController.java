@@ -1,7 +1,8 @@
 package com.rms.controller;
 
-import com.rms.entity.Tenant;
+import com.rms.dto.*;
 import com.rms.service.TenantService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,23 +19,23 @@ public class TenantsController {
     }
 
     @GetMapping
-    public List<Tenant> getAll(@RequestParam(required = false) String search) {
+    public List<TenantResponseDTO> getAll(@RequestParam(required = false) String search) {
         return tenantService.getAll(search);
     }
 
     @GetMapping("/{id}")
-    public Tenant getById(@PathVariable Long id) {
+    public TenantResponseDTO getById(@PathVariable Long id) {
         return tenantService.getById(id);
     }
 
     @PostMapping
-    public Tenant create(@RequestBody Tenant tenant) {
-        return tenantService.create(tenant);
+    public TenantResponseDTO create(@Valid @RequestBody TenantCreateRequest request) {
+        return tenantService.create(request);
     }
 
     @PutMapping("/{id}")
-    public Tenant update(@PathVariable Long id, @RequestBody Tenant tenant) {
-        return tenantService.update(id, tenant);
+    public TenantResponseDTO update(@PathVariable Long id, @Valid @RequestBody TenantUpdateRequest request) {
+        return tenantService.update(id, request);
     }
 
     @DeleteMapping("/{id}")

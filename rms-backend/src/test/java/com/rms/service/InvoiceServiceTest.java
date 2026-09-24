@@ -60,6 +60,9 @@ class InvoiceServiceTest {
     @Mock
     private PaymentScheduleService paymentScheduleService;
 
+    @Mock
+    private InvoiceNumberService invoiceNumberService;
+
     @InjectMocks
     private InvoiceService invoiceService;
 
@@ -99,6 +102,8 @@ class InvoiceServiceTest {
         testLease.setTenant(testTenant);
 
         lenient().when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.now());
+        lenient().when(invoiceNumberService.nextInvoiceNumber(any(LocalDate.class)))
+            .thenReturn("INV-2026-0001");
     }
 
     // ✅ TEST 1: Generate invoice success

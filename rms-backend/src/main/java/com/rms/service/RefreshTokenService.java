@@ -34,7 +34,14 @@ public class RefreshTokenService {
 
     @Transactional
     public String createRefreshToken(User user) {
-        refreshTokenRepository.deleteByUser(user);
+        return createRefreshToken(user, null);
+    }
+
+    @Transactional
+    public String createRefreshToken(User user, String presentedRefreshToken) {
+        if (presentedRefreshToken != null && !presentedRefreshToken.isBlank()) {
+            refreshTokenRepository.deleteByToken(hash(presentedRefreshToken));
+        }
 
         // Store only a SHA-256 hash of the refresh token: a database dump must
         // never yield usable session credentials. The raw token lives only with

@@ -108,10 +108,16 @@ export default function TimeTravelControls() {
   const handleReset = async () => {
     setLoading(true);
     try {
-      const r = await testApi.resetTime();
+      await testApi.resetTime();
+      const r = await testApi.getCurrentTime();
       setCurrentDate(r.currentDate || r.now || '');
-      setMsg('✅ Reset to real time');
-      setLastResult(r);
+      setMsg(r.isVirtual
+        ? '❌ Reset was not applied'
+        : '✅ Real time restored. Reloading data...');
+      setLastResult({ ...r, isVirtual: Boolean(r.isVirtual) });
+      if (!r.isVirtual) {
+        window.location.reload();
+      }
     } catch (e) { setMsg(`❌ ${e.message}`); }
     setLoading(false);
   };

@@ -175,6 +175,56 @@ async function request(path, options = {}) {
   return attempt();
 }
 
+async function downloadBlob(path) {
+  let retried = false;
+
+  const attempt = async () => {
+    let res;
+    try {
+      res = await fetch(`${API_BASE}${path}`, {
+        headers: getHeaders(),
+      });
+    } catch {
+      const err = new Error('Network error — check your connection and try again.');
+      err.kind = 'network';
+      throw err;
+    }
+
+    if (res.ok) {
+      sessionExpiredNotified = false;
+      return res.blob();
+    }
+
+    const data = await readBody(res);
+    const err = errorFromResponse(res, data);
+    if (res.status === 401 && !retried && tokenManager.getRefreshToken()) {
+      try {
+        await refreshAccessTokenOnce();
+        retried = true;
+        return attempt();
+      } catch {
+        handleSessionExpired();
+      }
+    }
+    if (res.status === 401) err.kind = 'auth';
+    throw err;
+  };
+
+  return attempt();
+}
+
+export async function downloadFile(path, filename) {
+  const blob = await downloadBlob(path);
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 // ─── AUTH ───
 export const authApi = {
   login: (username, password) =>
@@ -237,6 +287,8 @@ export const documentsApi = {
   },
   downloadUrl: (documentId) =>
     `${API_BASE}/documents/download/${documentId}`,
+  download: (documentId, filename) =>
+    downloadFile(`/documents/download/${documentId}`, filename || 'document'),
   delete: (documentId) =>
     request(`/documents/${documentId}`, { method: 'DELETE' }),
 };
@@ -285,15 +337,8 @@ export const invoicesApi = {
     request('/invoices/test/mark-overdue', { method: 'POST' }),
   forceOverdue: (id) =>
     request(`/invoices/test/${id}/force-overdue`, { method: 'POST' }),
-  downloadPdf: (id) => {
-    const token = getToken();
-    return fetch(`${API_BASE}/invoices/${id}/pdf`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then(res => {
-      if (!res.ok) throw new Error('Failed to download invoice');
-      return res.blob();
-    });
-  },
+  downloadPdf: (id, invoiceNumber) =>
+    downloadFile(`/invoices/${id}/pdf`, `invoice-${invoiceNumber || id}.pdf`),
 };
 
 // ─── PAYMENTS ───
@@ -338,7 +383,7 @@ export const tenantApi = {
   submitReceipt: (invoiceId, paymentDate, receiptFile) => {
     const formData = new FormData();
     formData.append('payment', new Blob(
-      [JSON.stringify({ paymentDate, paymentMethod: 'receipt' })],
+      [JSON.stringify({ paymentDate, paymentMethod: 'RECEIPT' })],
       { type: 'application/json' }
     ));
     formData.append('receipt', receiptFile);

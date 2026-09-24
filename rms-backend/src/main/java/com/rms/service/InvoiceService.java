@@ -34,6 +34,7 @@ public class InvoiceService {
     private final TaxCalculationService taxCalculationService;
     private final PaymentScheduleService paymentScheduleService;
     private final TimeTravelService timeTravelService;
+    private final InvoiceNumberService invoiceNumberService;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
                           LeaseRepository leaseRepository,
@@ -44,7 +45,8 @@ public class InvoiceService {
                           SettingsService settingsService,
                           TaxCalculationService taxCalculationService,
                           PaymentScheduleService paymentScheduleService,
-                          TimeTravelService timeTravelService) {
+                          TimeTravelService timeTravelService,
+                          InvoiceNumberService invoiceNumberService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
@@ -55,6 +57,7 @@ public class InvoiceService {
         this.taxCalculationService = taxCalculationService;
         this.paymentScheduleService = paymentScheduleService;
         this.timeTravelService = timeTravelService;
+        this.invoiceNumberService = invoiceNumberService;
     }
 
     // ─── GENERATE INVOICES ON 1ST ───
@@ -65,6 +68,10 @@ public class InvoiceService {
         LocalDate today = timeTravelService.getCurrentDate();
 
         for (Lease lease : activeLeases) {
+            LocalDate nextBillingDate = lease.getNextBillingDate();
+            if (nextBillingDate != null && today.isBefore(nextBillingDate)) {
+                continue;
+            }
             if (paymentScheduleService.isCoveredByPrepayment(lease, today)) {
                 continue;
             }
@@ -99,7 +106,7 @@ public class InvoiceService {
         int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 10;
         LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
 
-        String invoiceNumber = generateInvoiceNumber();
+        String invoiceNumber = invoiceNumberService.nextInvoiceNumber(today);
 
         BigDecimal rentAmount = lease.getMonthlyRent();
         
@@ -300,13 +307,6 @@ public class InvoiceService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    private String generateInvoiceNumber() {
-        String year = String.valueOf(LocalDate.now().getYear());
-        long count = invoiceRepository.count() + 1;
-        String seq = String.format("%04d", count);
-        return "INV-" + year + "-" + seq;
-    }
-
     private void updateNextBillingDate(Lease lease) {
         LocalDate currentNext = lease.getNextBillingDate();
         if (currentNext == null) {
@@ -368,7 +368,7 @@ public class InvoiceService {
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             return invoice.getPenaltyAmount();
         }
-        long daysOverdue = ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
+        long daysOverdue = ChronoUnit.DAYS.between(invoice.getDueDate(), timeTravelService.getCurrentDate());
         if (daysOverdue <= 0) {
             return invoice.getPenaltyAmount();
         }
@@ -379,18 +379,18 @@ public class InvoiceService {
     public boolean isOverdue(Invoice invoice) {
         return invoice.getStatus() == InvoiceStatus.OVERDUE ||
                 (invoice.getStatus() == InvoiceStatus.PENDING && 
-                 invoice.getDueDate().isBefore(LocalDate.now()));
+             invoice.getDueDate().isBefore(timeTravelService.getCurrentDate()));
     }
 
     public long getDaysOverdue(Invoice invoice) {
         if (invoice.getStatus() != InvoiceStatus.OVERDUE) {
             return 0;
         }
-        return ChronoUnit.DAYS.between(invoice.getDueDate(), LocalDate.now());
+        return ChronoUnit.DAYS.between(invoice.getDueDate(), timeTravelService.getCurrentDate());
     }
 
     public String getInvoiceStatusDisplay(Invoice invoice) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = timeTravelService.getCurrentDate();
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             return "PAID";
         }

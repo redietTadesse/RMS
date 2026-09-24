@@ -46,7 +46,7 @@ public class AdminWithholdingController {
             @RequestParam(required = false) String startDate,
             org.springframework.security.core.Authentication authentication) {
         
-        Tenant tenant = tenantService.getById(tenantId);
+        Tenant tenant = tenantService.getEntityById(tenantId);
         String uploadedBy = authentication != null ? authentication.getName() : "admin";
 
         TenantDocument document = documentService.uploadDocument(
@@ -61,7 +61,7 @@ public class AdminWithholdingController {
             tenant.setTinNumber(tinNumber);
         }
         tenant.setWithholdingDocumentId(document.getId());
-        tenantService.update(tenantId, tenant);
+        tenantService.saveEntity(tenant);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Withholding evidence uploaded successfully");
@@ -76,7 +76,7 @@ public class AdminWithholdingController {
             @RequestParam(required = false) String startDate,
             org.springframework.security.core.Authentication authentication) {
         
-        Tenant tenant = tenantService.getById(tenantId);
+        Tenant tenant = tenantService.getEntityById(tenantId);
         String verifiedBy = authentication != null ? authentication.getName() : "admin";
 
         LocalDate effectiveDate = startDate != null ? LocalDate.parse(startDate) : timeTravelService.getCurrentDate();
@@ -87,7 +87,7 @@ public class AdminWithholdingController {
         tenant.setWithholdingVerifiedBy(verifiedBy);
         tenant.setWithholdingVerifiedAt(LocalDateTime.now());
 
-        tenantService.update(tenantId, tenant);
+        tenantService.saveEntity(tenant);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Withholding tax activated successfully");
@@ -101,14 +101,14 @@ public class AdminWithholdingController {
             @PathVariable Long tenantId,
             org.springframework.security.core.Authentication authentication) {
         
-        Tenant tenant = tenantService.getById(tenantId);
+        Tenant tenant = tenantService.getEntityById(tenantId);
         
         tenant.setWithholdingTaxApplicable(false);
         tenant.setWithholdingEvidenceVerified(false);
         tenant.setWithholdingVerifiedBy(authentication != null ? authentication.getName() : "admin");
         tenant.setWithholdingVerifiedAt(LocalDateTime.now());
 
-        tenantService.update(tenantId, tenant);
+        tenantService.saveEntity(tenant);
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Withholding tax deactivated successfully");
@@ -121,7 +121,7 @@ public class AdminWithholdingController {
             @RequestParam BigDecimal rentAmount,
             @RequestParam(required = false) String invoiceDate) {
         
-        Tenant tenant = tenantService.getById(tenantId);
+        Tenant tenant = tenantService.getEntityById(tenantId);
         LocalDate date = invoiceDate != null ? LocalDate.parse(invoiceDate) : timeTravelService.getCurrentDate();
 
         TaxCalculationService.TaxBreakdown breakdown = 

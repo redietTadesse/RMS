@@ -1,6 +1,7 @@
 package com.rms.controller;
 
 import com.rms.dto.InvoiceResponse;
+import com.rms.dto.LeaseResponseDTO;
 import com.rms.entity.Invoice;
 import com.rms.entity.InvoiceStatus;
 import com.rms.entity.Lease;
@@ -12,7 +13,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,9 +37,9 @@ public class TenantController {
 
     @GetMapping("/my-lease")
     @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
-    public ResponseEntity<Lease> getMyLease(Authentication authentication) {
+    public ResponseEntity<LeaseResponseDTO> getMyLease(Authentication authentication) {
         String username = authentication.getName();
-        Lease lease = leaseService.getLeaseByTenantUsername(username);
+        LeaseResponseDTO lease = leaseService.getLeaseByTenantUsername(username);
         return ResponseEntity.ok(lease);
     }
 
@@ -57,7 +57,7 @@ public class TenantController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TENANT')")
     public ResponseEntity<Map<String, Object>> getStats(Authentication authentication) {
         String username = authentication.getName();
-        Lease lease = leaseService.getLeaseByTenantUsername(username);
+        Lease lease = leaseService.getLeaseEntityByTenantUsername(username);
         List<Invoice> invoices = invoiceService.getInvoicesByTenantUsername(username);
 
         Map<String, Object> stats = new HashMap<>();

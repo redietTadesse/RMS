@@ -13,8 +13,13 @@ public class TaxCalculationService {
 
     private static final BigDecimal VAT_RATE = BigDecimal.valueOf(0.15);
     private static final BigDecimal WITHHOLDING_RATE = BigDecimal.valueOf(0.03);
-    private static final BigDecimal PENALTY_RATE = BigDecimal.valueOf(0.20);
     private static final BigDecimal VAT_DIVISOR = BigDecimal.valueOf(1.15);
+
+    private final SettingsService settingsService;
+
+    public TaxCalculationService(SettingsService settingsService) {
+        this.settingsService = settingsService;
+    }
 
     public BigDecimal getUntaxedRent(BigDecimal rentInclusive) {
         if (rentInclusive == null || rentInclusive.compareTo(BigDecimal.ZERO) == 0) {
@@ -51,7 +56,10 @@ public class TaxCalculationService {
             return BigDecimal.ZERO;
         }
         BigDecimal untaxedRent = getUntaxedRent(rentInclusive);
-        return untaxedRent.multiply(PENALTY_RATE)
+        BigDecimal penaltyRate = BigDecimal.valueOf(
+            settingsService.getIntSetting("penalty_rate", 20)
+        ).divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+        return untaxedRent.multiply(penaltyRate)
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
@@ -61,7 +69,10 @@ public class TaxCalculationService {
 
     // ─── Configuration accessors ───
     public BigDecimal getWithholdingRate() { return WITHHOLDING_RATE; }
-    public BigDecimal getPenaltyRate() { return PENALTY_RATE; }
+    public BigDecimal getPenaltyRate() {
+        return BigDecimal.valueOf(settingsService.getIntSetting("penalty_rate", 20))
+                .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+    }
     public BigDecimal getVatRate() { return VAT_RATE; }
 
     public TaxBreakdown getTaxBreakdown(Tenant tenant, BigDecimal rentInclusive, LocalDate invoiceDate) {
