@@ -1,3 +1,5 @@
+import EthiopianDatePicker from "../Components/common/EthiopianDatePicker";
+import { formatDualDate } from "../utils/ethiopianCalendar";
 // src/Pages/Leases.jsx
 import { useState, useEffect } from 'react';
 import { leasesApi, tenantsApi, spacesApi, invoicesApi } from '../services/api';
@@ -357,14 +359,7 @@ export default function Leases() {
 
                 <div>
                   <label className={labelClass}>Start Date *</label>
-                  <input
-                    type="date"
-                    name="startDate"
-                    value={formData.startDate}
-                    onChange={handleChange}
-                    className={inputClass}
-                    required
-                  />
+                  <EthiopianDatePicker name="startDate" value={formData.startDate} onChange={handleChange} className={inputClass} />
                   {formData.startDate && (
                     <p className="text-xs text-slate-500 mt-1.5">
                       {new Date(formData.startDate).getDate() <= 15 
@@ -376,14 +371,7 @@ export default function Leases() {
 
                 <div>
                   <label className={labelClass}>End Date *</label>
-                  <input
-                    type="date"
-                    name="endDate"
-                    value={formData.endDate}
-                    onChange={handleChange}
-                    className={inputClass}
-                    required
-                  />
+                  <EthiopianDatePicker name="endDate" value={formData.endDate} onChange={handleChange} className={inputClass} />
                 </div>
 
                 <div>
@@ -509,8 +497,8 @@ export default function Leases() {
                       {lease.tenant?.name || 'N/A'}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{lease.space?.unitNumber || 'N/A'}</td>
-                    <td className="px-4 py-3 text-slate-600">{lease.startDate}</td>
-                    <td className="px-4 py-3 text-slate-600">{lease.endDate}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatDualDate(lease.startDate)}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatDualDate(lease.endDate)}</td>
                     <td className="px-4 py-3 font-semibold text-slate-800">
                       ETB {Number(lease.monthlyRent).toLocaleString()}
                     </td>
