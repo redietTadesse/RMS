@@ -1,6 +1,7 @@
+import { formatDualDate } from "../utils/ethiopianCalendar";
 // src/Pages/TenantPayments.jsx
 import { useEffect, useState } from 'react';
-import { tenantApi, chapaApi } from '../services/api';
+import { tenantApi, arifpayApi } from '../services/api';
 import DashboardLayout from '../Components/Layout/DashboardLayout';
 import { Loader2, CreditCard, Upload, AlertCircle, FileText } from 'lucide-react';
 
@@ -51,7 +52,7 @@ export default function TenantPayments() {
     return () => { cancelled = true; };
   }, []);
 
-  const handleChapaPay = async (invoice) => {
+  const handleArifPay = async (invoice) => {
     setPayError('');
     setPayingId(invoice.id);
     try {
@@ -60,8 +61,9 @@ export default function TenantPayments() {
         setPayingId(null);
         return;
       }
-      const res = await chapaApi.initialize(invoice.id, phone);
-      const url = res?.checkoutUrl || res?.checkout_url || res?.data?.checkout_url;
+      const res = await arifpayApi.initialize(invoice.id, phone);
+      if (res?.sessionId) sessionStorage.setItem("arifpaySessionId", res.sessionId);
+      const url = res?.paymentUrl || res?.checkout_url || res?.data?.checkout_url;
       if (url) {
         window.location.replace(url);
       } else {
@@ -165,7 +167,7 @@ export default function TenantPayments() {
                       <td className="px-6 py-3 font-semibold text-slate-800">
                         ETB {Number(inv.totalAmount).toLocaleString()}
                       </td>
-                      <td className="px-6 py-3 text-slate-600">{inv.dueDate}</td>
+                      <td className="px-6 py-3 text-slate-600">{formatDualDate(inv.dueDate)}</td>
                       <td className="px-6 py-3">
                         <StatusBadge status={inv.status} />
                       </td>
@@ -177,7 +179,7 @@ export default function TenantPayments() {
                         ) : (
                           <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => handleChapaPay(inv)}
+                              onClick={() => handleArifPay(inv)}
                               disabled={payingId === inv.id}
                               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition inline-flex items-center gap-1.5"
                             >

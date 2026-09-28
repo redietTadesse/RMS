@@ -1,3 +1,4 @@
+import { formatDualDate } from "../utils/ethiopianCalendar";
 // src/Pages/Reports.jsx
 import { useEffect, useState } from 'react';
 import {
@@ -228,7 +229,7 @@ export default function Reports() {
                   <tr key={l.leaseId}>
                     <td className="py-2 text-slate-700">{l.tenantName}</td>
                     <td className="py-2 text-slate-700">{l.spaceUnitNumber}</td>
-                    <td className="py-2 text-slate-600">{l.endDate}</td>
+                    <td className="py-2 text-slate-600">{formatDualDate(l.endDate)}</td>
                     <td className={`py-2 text-right font-medium ${l.daysRemaining <= 30 ? 'text-rose-600' : l.daysRemaining <= 60 ? 'text-amber-600' : 'text-slate-600'}`}>
                       {l.daysRemaining}
                     </td>

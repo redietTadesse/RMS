@@ -1,3 +1,5 @@
+import EthiopianDatePicker from "../Components/common/EthiopianDatePicker";
+import { formatDualDate } from "../utils/ethiopianCalendar";
 import { useEffect, useRef, useState } from 'react';
 import { tenantsApi, documentsApi, adminApi, API_BASE } from '../services/api';
 import { verificationApi } from '../services/verificationApi';
@@ -410,13 +412,7 @@ export default function Tenants() {
                     </div>
                     <div>
                       <label className="text-xs font-medium text-slate-500 block mb-1">Effective Date</label>
-                      <input
-                        type="date"
-                        name="withholdingStartDate"
-                        value={formData.withholdingStartDate || ''}
-                        onChange={handleChange}
-                        className={inputClass}
-                      />
+                      <EthiopianDatePicker name="withholdingStartDate" value={formData.withholdingStartDate || ""} onChange={handleChange} className={inputClass} />
                       <p className="text-xs text-slate-400 mt-1">Withholding applies from this date forward</p>
                     </div>
                     <div className="md:col-span-2">
@@ -443,7 +439,7 @@ export default function Tenants() {
                     </div>
                     {formData.withholdingEvidenceVerified && (
                       <div className="md:col-span-2 text-xs text-slate-500 bg-emerald-50 rounded-lg px-3 py-2">
-                        Verified by: {formData.withholdingVerifiedBy || 'Admin'} on {formData.withholdingVerifiedAt ? new Date(formData.withholdingVerifiedAt).toLocaleDateString() : 'N/A'}
+                        Verified by: {formData.withholdingVerifiedBy || 'Admin'} on {formData.withholdingVerifiedAt ? formatDualDate(formData.withholdingVerifiedAt) : 'N/A'}
                       </div>
                     )}
                     {/* Activate / Deactivate buttons */}
@@ -585,7 +581,7 @@ export default function Tenants() {
                       <p className="font-medium text-slate-800">{doc.fileName}</p>
                       <p className="text-sm text-slate-500">{doc.type}</p>
                       {doc.description && <p className="text-sm text-slate-500">{doc.description}</p>}
-                      <p className="text-xs text-slate-400">Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}</p>
+                      <p className="text-xs text-slate-400">Uploaded: {formatDualDate(doc.uploadedAt)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button

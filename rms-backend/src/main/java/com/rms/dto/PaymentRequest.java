@@ -14,8 +14,8 @@ public class PaymentRequest {
 
     @NotBlank(message = "Payment method is required")
     @Pattern(
-            regexp = "(?i)CASH|BANK_TRANSFER|CHAPA|RECEIPT",
-            message = "Payment method must be CASH, BANK_TRANSFER, CHAPA, or RECEIPT"
+            regexp = "(?i)CASH|BANK_TRANSFER|ARIFPAY|RECEIPT",
+            message = "Payment method must be CASH, BANK_TRANSFER, ARIFPAY, or RECEIPT"
     )
     private String paymentMethod;
 
@@ -63,8 +63,8 @@ public class PaymentRequest {
         
         String method = paymentMethod.toUpperCase();
         if (!"CASH".equals(method) && !"BANK_TRANSFER".equals(method) && 
-            !"CHAPA".equals(method) && !"RECEIPT".equals(method)) {
-            return "Payment method must be CASH, BANK_TRANSFER, CHAPA, or RECEIPT";
+            !"ARIFPAY".equals(method) && !"RECEIPT".equals(method)) {
+            return "Payment method must be CASH, BANK_TRANSFER, ARIFPAY, or RECEIPT";
         }
         
         if (amount != null) {
@@ -87,10 +87,10 @@ public class PaymentRequest {
     }
 
     /**
-     * Checks if this is a CHAPA payment
+     * Checks if this is an ARIFPAY payment
      */
-    public boolean isChapaPayment() {
-        return "CHAPA".equalsIgnoreCase(paymentMethod);
+    public boolean isArifPayPayment() {
+        return "ARIFPAY".equalsIgnoreCase(paymentMethod);
     }
 
     /**

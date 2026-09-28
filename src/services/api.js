@@ -225,6 +225,8 @@ export async function downloadFile(path, filename) {
   window.URL.revokeObjectURL(url);
 }
 
+// ============ AUTH ============
+
 export const authApi = {
   login: (username, password) =>
     request('/auth/login', {
@@ -246,6 +248,8 @@ export const authApi = {
     }),
 };
 
+// ============ SPACES ============
+
 export const spacesApi = {
   getAll: (status) =>
     request(`/spaces${status ? `?status=${status}` : ''}`),
@@ -257,6 +261,8 @@ export const spacesApi = {
   remove: (id) => request(`/spaces/${id}`, { method: 'DELETE' }),
 };
 
+// ============ TENANTS ============
+
 export const tenantsApi = {
   getAll: (search) =>
     request(`/tenants${search ? `?search=${encodeURIComponent(search)}` : ''}`),
@@ -267,6 +273,8 @@ export const tenantsApi = {
     request(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(tenant) }),
   remove: (id) => request(`/tenants/${id}`, { method: 'DELETE' }),
 };
+
+// ============ DOCUMENTS ============
 
 export const documentsApi = {
   getForTenant: (tenantId) => request(`/documents/tenant/${tenantId}`),
@@ -289,9 +297,13 @@ export const documentsApi = {
     request(`/documents/${documentId}`, { method: 'DELETE' }),
 };
 
+// ============ DASHBOARD ============
+
 export const dashboardApi = {
   getStats: () => request('/dashboard/stats'),
 };
+
+// ============ LEASES ============
 
 export const leasesApi = {
   getAll: () => request('/leases'),
@@ -309,6 +321,8 @@ export const leasesApi = {
   getActive: () => request('/leases/active'),
   getByTenant: (tenantId) => request(`/leases/tenant/${tenantId}`),
 };
+
+// ============ INVOICES ============
 
 export const invoicesApi = {
   getAll: () => request('/invoices'),
@@ -334,6 +348,8 @@ export const invoicesApi = {
     downloadFile(`/invoices/${id}/pdf`, `invoice-${invoiceNumber || id}.pdf`),
 };
 
+// ============ PAYMENTS ============
+
 export const paymentsApi = {
   record: (invoiceId, paymentData, receiptFile) => {
     const formData = new FormData();
@@ -354,17 +370,22 @@ export const paymentsApi = {
     request(`/payments/${invoiceId}/approve`, { method: 'PUT' }),
 };
 
-export const chapaApi = {
+// ============ ARIFPAY ============
+
+export const arifpayApi = {
   initialize: (invoiceId, phoneNumber) =>
-    request('/payments/chapa/initialize', {
+    request('/payments/arifpay/initialize', {
       method: 'POST',
       body: JSON.stringify({ invoiceId, phoneNumber }),
     }),
-  verify: (txRef) =>
-    request(`/payments/chapa/verify?tx_ref=${txRef}`),
-  confirm: (txRef) =>
-    request(`/payments/chapa/confirm?tx_ref=${txRef}`, { method: 'POST' }),
+
+  verify: (sessionId) =>
+    request(`/payments/arifpay/verify?sessionId=${encodeURIComponent(sessionId)}`, {
+      method: 'POST',
+    }),
 };
+
+// ============ TENANT SELF-SERVICE ============
 
 export const tenantApi = {
   getMyLease: () => request('/tenant/my-lease'),
@@ -383,6 +404,8 @@ export const tenantApi = {
     });
   },
 };
+
+// ============ ADMIN ============
 
 export const adminApi = {
   getAllUsers: () => request('/users'),
@@ -421,6 +444,8 @@ export const adminApi = {
     request(`/admin/withholding/${tenantId}/preview?rentAmount=${rentAmount}&invoiceDate=${invoiceDate}`),
 };
 
+// ============ USER PROFILE ============
+
 export const userApi = {
   getProfile: () =>
     request('/users/me'),
@@ -438,6 +463,8 @@ export const userApi = {
     }),
 };
 
+// ============ NOTIFICATIONS ============
+
 export const notificationsApi = {
   getMine: () => request('/notifications'),
   getUnreadCount: () => request('/notifications/unread-count'),
@@ -446,6 +473,8 @@ export const notificationsApi = {
   markAllRead: () =>
     request('/notifications/read-all', { method: 'PUT' }),
 };
+
+// ============ REPORTS ============
 
 export const reportsApi = {
   getRevenue: (months = 6) =>
@@ -458,6 +487,8 @@ export const reportsApi = {
     request(`/reports/lease-expiry?days=${days}`),
 };
 
+// ============ SETTINGS ============
+
 export const settingsApi = {
   getSettings: () => request('/settings'),
   updateSettings: (settings) =>
@@ -466,6 +497,8 @@ export const settingsApi = {
       body: JSON.stringify(settings),
     }),
 };
+
+// ============ ACCOUNTING ============
 
 export const accountingApi = {
   getSummary: (start, end) => {
@@ -478,7 +511,8 @@ export const accountingApi = {
   getDashboardWidget: () => request('/accounting/dashboard-widget'),
 };
 
-// Test-only time-travel controls (admin only; backend gates /api/test/time/** by ADMIN role)
+// ============ TEST / TIME TRAVEL ============
+
 export const testApi = {
   getCurrentTime: () => request('/test/time/current'),
   setTimeDate: (date) =>

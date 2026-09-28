@@ -85,7 +85,7 @@ public class PaymentService {
         BigDecimal expectedTotal = invoice.getRentAmount().add(penalty);
 
         // Validate payment amount (if provided)
-        if (request.getAmount() != null && !"CHAPA".equalsIgnoreCase(request.getPaymentMethod())) {
+        if (request.getAmount() != null && !"ARIFPAY".equalsIgnoreCase(request.getPaymentMethod())) {
             BigDecimal tolerance = expectedTotal.multiply(BigDecimal.valueOf(0.01)); // 1% tolerance
 
             if (request.getAmount().compareTo(expectedTotal.subtract(tolerance)) < 0) {
@@ -229,8 +229,8 @@ public class PaymentService {
 
         String method = request.getPaymentMethod().toUpperCase();
         if (!"CASH".equals(method) && !"BANK_TRANSFER".equals(method) && 
-            !"CHAPA".equals(method) && !"RECEIPT".equals(method)) {
-            throw new IllegalArgumentException("Payment method must be CASH, BANK_TRANSFER, CHAPA, or RECEIPT");
+            !"ARIFPAY".equals(method) && !"RECEIPT".equals(method)) {
+            throw new IllegalArgumentException("Payment method must be CASH, BANK_TRANSFER, ARIFPAY, or RECEIPT");
         }
 
         if (request.getAmount() != null && request.getAmount().compareTo(BigDecimal.ZERO) < 0) {

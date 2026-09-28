@@ -1,3 +1,4 @@
+import { formatDualDate } from "../utils/ethiopianCalendar";
 // src/pages/Payments.jsx
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -92,7 +93,7 @@ function InvoiceRow({ invoice, onView, onApprove, approving, onForceOverdue }) {
       <td className="px-4 py-3 font-semibold text-slate-800">
         ETB {Number(invoice.totalAmount).toLocaleString()}
       </td>
-      <td className="px-4 py-3 text-slate-600">{invoice.dueDate}</td>
+      <td className="px-4 py-3 text-slate-600">{formatDualDate(invoice.dueDate)}</td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
           <span className={`px-2.5 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${statusBadge[invoice.status]}`}>
@@ -195,12 +196,12 @@ function ViewInvoiceModal({ invoice, onClose, onApprove, approving }) {
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="bg-slate-50 rounded-lg p-3">
             <p className="text-xs text-slate-500">Issue Date</p>
-            <p className="font-medium text-slate-800">{invoice.issueDate}</p>
+            <p className="font-medium text-slate-800">{formatDualDate(invoice.issueDate)}</p>
           </div>
           <div className="bg-slate-50 rounded-lg p-3">
             <p className="text-xs text-slate-500">Due Date</p>
             <p className={`font-medium ${invoice.isOverdue ? 'text-rose-600' : 'text-slate-800'}`}>
-              {invoice.dueDate}
+              {formatDualDate(invoice.dueDate)}
               {invoice.isOverdue && ` (${invoice.daysOverdue} days overdue)`}
             </p>
           </div>

@@ -2,8 +2,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { chapaApi } from '../services/api';
+import { arifpayApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+
+const SESSION_KEY = 'arifpaySessionId';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function PaymentCallback() {
   const [searchParams] = useSearchParams();
@@ -25,49 +28,59 @@ export default function PaymentCallback() {
 
   useEffect(() => {
     const verifyPayment = async () => {
-      // Guard against React StrictMode double-invoke / re-mounts so we don't
-      // call the confirm endpoint (which is idempotent, but no need to redo it).
+      // Guard against React StrictMode double-invoke / re-mounts.
       if (confirmedRef.current) return;
       confirmedRef.current = true;
 
-      const txRef = searchParams.get('tx_ref');
       const statusParam = searchParams.get('status');
+      const sessionId = sessionStorage.getItem(SESSION_KEY);
 
-      // If no tx_ref, show error
-      if (!txRef) {
-        setStatus('error');
-        setMessage('Invalid payment reference. Please contact support.');
-        return;
-      }
-
-      // Check if payment was successful from URL param (Chapa redirect)
-      if (statusParam === 'success') {
-        try {
-          // Confirm (and record) with Chapa API — marks invoice PAID
-          const result = await chapaApi.confirm(txRef);
-
-          if (result.verified) {
-            setStatus('success');
-            setMessage('✅ Payment successful! Your invoice has been marked as paid.');
-            setTimeout(() => navigate(paymentsPathRef.current), 3000);
-          } else {
-            setStatus('error');
-            setMessage(result.message || 'Payment verification failed. Please contact admin.');
-          }
-        } catch (err) {
-          console.error('Verification error:', err);
-          setStatus('error');
-          setMessage(err.message || 'Failed to verify payment');
-        }
-      } else if (statusParam === 'return') {
-        // User returned from Chapa but didn't complete payment
+      // User cancelled on ArifPay, or ArifPay reported an error
+      if (statusParam === 'return') {
+        sessionStorage.removeItem(SESSION_KEY);
         setStatus('error');
         setMessage('Payment was not completed. Please try again.');
         setTimeout(() => navigate(paymentsPathRef.current), 3000);
-      } else {
-        // Unknown status
+        return;
+      }
+
+      if (statusParam !== 'success') {
         setStatus('error');
         setMessage('Unknown payment status. Please contact admin.');
+        return;
+      }
+
+      if (!sessionId) {
+        setStatus('error');
+        setMessage('Payment session not found. If you were charged, please contact admin.');
+        return;
+      }
+
+      try {
+        // ArifPay can redirect a few seconds before it marks the payment SUCCESS,
+        // so check up to 4 times before giving up.
+        let result = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          result = await arifpayApi.verify(sessionId);
+          if (result?.verified) break;
+          if (attempt < 3) await sleep(2500);
+        }
+
+        if (result?.verified) {
+          sessionStorage.removeItem(SESSION_KEY);
+          setStatus('success');
+          setMessage('✅ Payment successful! Your invoice has been marked as paid.');
+          setTimeout(() => navigate(paymentsPathRef.current), 3000);
+        } else {
+          setStatus('error');
+          setMessage(
+            'Payment not confirmed yet. If you were charged, your invoice will update shortly. Otherwise please contact admin.'
+          );
+        }
+      } catch (err) {
+        console.error('Verification error:', err);
+        setStatus('error');
+        setMessage(err.message || 'Failed to verify payment');
       }
     };
 

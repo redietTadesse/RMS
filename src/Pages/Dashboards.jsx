@@ -1,3 +1,4 @@
+import { formatDualDate } from "../utils/ethiopianCalendar";
 // src/pages/Dashboards.jsx - COMPLETE FILE
 import { useEffect, useState } from 'react';
 import {
@@ -24,7 +25,7 @@ function StatCard({ label, value, accent = 'text-slate-800' }) {
 
 const fmtMoney = (n) => Number(n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
+const fmtDate = (d) => (d ? formatDualDate(d) : '—');
 
 function buildRevenueByMonth(invoices) {
   const months = [];

@@ -1,3 +1,4 @@
+import { formatDualDate } from "../utils/ethiopianCalendar";
 import { useEffect, useState } from 'react';
 import { User, Mail, Lock, Save, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import DashboardLayout from '../Components/Layout/DashboardLayout';
@@ -337,7 +338,7 @@ export default function Profile() {
                 {user?.role}
               </span>
               <p className="text-sm text-slate-500 mt-2">
-                Account created: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                Account created: {user?.createdAt ? formatDualDate(user.createdAt) : 'N/A'}
               </p>
             </div>
           </div>
