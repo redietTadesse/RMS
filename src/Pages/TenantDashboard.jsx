@@ -8,7 +8,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import DashboardLayout from '../Components/Layout/DashboardLayout';
-import { tenantApi, chapaApi, documentsApi, invoicesApi } from '../services/api';
+import { tenantApi, arifpayApi, documentsApi, invoicesApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 
 function StatCard({ label, value, icon: Icon, color = 'indigo', subtext }) {
@@ -460,9 +460,10 @@ export default function TenantDashboard() {
         return;
       }
 
-      const res = await chapaApi.initialize(invoice.id, phone);
+      const res = await arifpayApi.initialize(invoice.id, phone);
+      if (res?.sessionId) sessionStorage.setItem("arifpaySessionId", res.sessionId);
       const url =
-        res?.checkoutUrl ||
+        res?.paymentUrl ||
         res?.checkout_url ||
         res?.data?.checkout_url;
 

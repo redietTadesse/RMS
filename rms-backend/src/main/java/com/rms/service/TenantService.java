@@ -1,11 +1,15 @@
 package com.rms.service;
 
 import com.rms.dto.*;
+import com.rms.entity.Role;
 import com.rms.entity.Tenant;
+import com.rms.entity.User;
 import com.rms.exception.ResourceNotFoundException;
 import com.rms.repository.TenantRepository;
 import com.rms.repository.LeaseRepository;
+import com.rms.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,11 +19,14 @@ public class TenantService {
 
     private final TenantRepository tenantRepository;
     private final LeaseRepository leaseRepository;
+    private final UserRepository userRepository;
 
     public TenantService(TenantRepository tenantRepository,
-                         LeaseRepository leaseRepository) {
+                         LeaseRepository leaseRepository,
+                         UserRepository userRepository) {
         this.tenantRepository = tenantRepository;
         this.leaseRepository = leaseRepository;
+        this.userRepository = userRepository;
     }
 
     public List<TenantResponseDTO> getAll(String search) {
@@ -47,13 +54,35 @@ public class TenantService {
         return TenantResponseDTO.from(tenantRepository.save(tenant));
     }
 
+    @Transactional
     public TenantResponseDTO create(TenantCreateRequest request) {
+        Long userId = request.getUserId();
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User account not found with id " + userId));
+
+        if (user.getRole() != Role.TENANT) {
+            throw new IllegalArgumentException("Selected account must have the TENANT role");
+        }
+
+        boolean alreadyLinked = tenantRepository.findAll().stream()
+                .anyMatch(t -> userId.equals(t.getUserId()));
+        if (alreadyLinked) {
+            throw new IllegalArgumentException("This user account is already linked to another tenant");
+        }
+
+        String email = request.getEmail();
+        if (email == null || email.isBlank()) {
+            email = user.getEmail();
+        }
+
         Tenant tenant = new Tenant();
+        tenant.setUserId(userId);
         tenant.setName(request.getName());
         tenant.setType(request.getType());
         tenant.setContact(request.getContact());
         tenant.setPhone(request.getPhone());
-        tenant.setEmail(request.getEmail());
+        tenant.setEmail(email);
         tenant.setTinNumber(request.getTinNumber());
         tenant.setBusinessLicense(request.getBusinessLicense());
 
