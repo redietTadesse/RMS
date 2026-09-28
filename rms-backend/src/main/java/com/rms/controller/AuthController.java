@@ -43,6 +43,7 @@ public class AuthController {
         User user = authService.register(request);
         return UserResponse.from(user);
     }
+
     @PostMapping("/forgot-password")
     public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.requestPasswordReset(request.getUsernameOrEmail());
@@ -54,6 +55,7 @@ public class AuthController {
         authService.resetPassword(request.getToken(), request.getNewPassword());
         return ResponseEntity.ok(Map.of("message", "Password has been reset. You can now log in."));
     }
+
 
     // Logout is intentionally public: the client may hold only an expired
     // access token (or none) and must still be able to invalidate its

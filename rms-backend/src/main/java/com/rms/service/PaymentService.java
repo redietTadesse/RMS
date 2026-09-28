@@ -26,7 +26,6 @@ public class PaymentService {
     private final FileStorageService fileStorageService;
     private final UserRepository userRepository;
     private final EmailService emailService;
-    private final SettingsService settingsService;
     private final NotificationService notificationService;
     private final TaxCalculationService taxCalculationService;
     private final TimeTravelService timeTravelService;
@@ -35,7 +34,6 @@ public class PaymentService {
                           FileStorageService fileStorageService,
                           UserRepository userRepository,
                           EmailService emailService,
-                          SettingsService settingsService,
                           NotificationService notificationService,
                           TaxCalculationService taxCalculationService,
                           TimeTravelService timeTravelService) {
@@ -43,7 +41,6 @@ public class PaymentService {
         this.fileStorageService = fileStorageService;
         this.userRepository = userRepository;
         this.emailService = emailService;
-        this.settingsService = settingsService;
         this.notificationService = notificationService;
         this.taxCalculationService = taxCalculationService;
         this.timeTravelService = timeTravelService;
@@ -177,17 +174,37 @@ public class PaymentService {
     }
 
 
+    /**
+     * Penalty due at payment time — computed the SAME way the nightly accrual job
+     * (InvoiceService.calculateDailyPenaltiesInternal) does, so the two paths agree:
+     *
+     *   daily penalty = monthly penalty (TaxCalculationService) ÷ 30
+     *   total         = daily penalty × days overdue (due date → payment date)
+     *
+     * The old formula used "day of month paid − payment_window_end" and divided by
+     * the PAYMENT month's length. That ignored the invoice's actual due date (a
+     * payment on the 15th was always "5 days late" regardless of how overdue the
+     * invoice was) and overwrote the cron-accrued penalty with a smaller number
+     * the moment the tenant paid.
+     */
     private BigDecimal calculatePenalty(Invoice invoice, LocalDate paymentDate) {
-        int paymentWindowEnd = settingsService.getIntSetting("payment_window_end", 10);
-
-        // No penalty if paid within the grace period (first X days of month)
-        if (paymentDate.getDayOfMonth() <= paymentWindowEnd) {
+        if (invoice.getDueDate() == null) {
             return BigDecimal.ZERO;
         }
 
-        Tenant tenant = invoice.getLease().getTenant();
-        // Use the invoice issue date for withholding determination
-        return taxCalculationService.calculatePenalty(tenant, invoice.getRentAmount(), invoice.getIssueDate());
+        long daysOverdue = ChronoUnit.DAYS.between(invoice.getDueDate(), paymentDate);
+        if (daysOverdue <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal monthlyPenalty = taxCalculationService.calculatePenalty(
+                invoice.getLease().getTenant(),
+                invoice.getRentAmount(),
+                invoice.getIssueDate());
+        BigDecimal dailyPenalty = monthlyPenalty.divide(
+                BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
+
+        return dailyPenalty.multiply(BigDecimal.valueOf(daysOverdue));
     }
 
     public BigDecimal calculatePenaltyPreview(Long invoiceId, LocalDate paymentDate) {

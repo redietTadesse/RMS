@@ -1,6 +1,6 @@
 import tokenManager from './TokenManager';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
 // Auth lifecycle events — dispatched on `window` so non-React modules (api.js)
 // can signal React state (AuthContext) without creating an import cycle.
@@ -487,8 +487,8 @@ export const testApi = {
     request('/test/time/advance-days?days=' + days, { method: 'POST' }),
   advanceMonths: (months) =>
     request('/test/time/advance-months?months=' + months, { method: 'POST' }),
-  runScheduledJobs: () =>
-    request('/test/time/run-scheduled-jobs', { method: 'POST' }),
+  runScheduledJobs: (persist = true) =>
+    request('/test/time/run-scheduled-jobs?persist=' + persist, { method: 'POST' }),
   resetTime: () =>
     request('/test/time/reset', { method: 'POST' }),
 };

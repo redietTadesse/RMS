@@ -55,7 +55,9 @@ public class LeaseService {
 
     @Transactional
     public List<LeaseResponseDTO> getAll() {
-        syncExpiredLeases();
+        if (!timeTravelService.isActive()) {
+            syncExpiredLeases();
+        }
         return leaseRepository.findAll().stream()
                 .map(LeaseResponseDTO::from)
                 .collect(Collectors.toList());
@@ -65,7 +67,9 @@ public class LeaseService {
     public LeaseResponseDTO getById(Long id) {
         Lease lease = leaseRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Lease not found with id " + id));
-        expireLeaseIfNeeded(lease);
+        if (!timeTravelService.isActive()) {
+            expireLeaseIfNeeded(lease);
+        }
         return LeaseResponseDTO.from(lease);
     }
 
@@ -78,7 +82,9 @@ public class LeaseService {
 
     @Transactional
     public List<LeaseResponseDTO> getByTenant(Long tenantId) {
-        syncExpiredLeases();
+        if (!timeTravelService.isActive()) {
+            syncExpiredLeases();
+        }
         return leaseRepository.findByTenantId(tenantId).stream()
                 .map(LeaseResponseDTO::from)
                 .collect(Collectors.toList());
@@ -91,7 +97,9 @@ public class LeaseService {
     }
 
     public Lease getLeaseEntityByTenantUsername(String username) {
-        syncExpiredLeases();
+        if (!timeTravelService.isActive()) {
+            syncExpiredLeases();
+        }
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
         Tenant tenant = tenantRepository.findByUserId(user.getId())
@@ -103,7 +111,9 @@ public class LeaseService {
                 .orElse(null);
 
         if (lease != null) {
-            expireLeaseIfNeeded(lease);
+            if (!timeTravelService.isActive()) {
+                expireLeaseIfNeeded(lease);
+            }
         }
         return lease;
     }

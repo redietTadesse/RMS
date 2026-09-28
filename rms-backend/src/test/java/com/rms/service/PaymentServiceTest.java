@@ -34,9 +34,6 @@ class PaymentServiceTest {
     private FileStorageService fileStorageService;
 
     @Mock
-    private SettingsService settingsService;
-
-    @Mock
     private NotificationService notificationService;
 
     @Mock
@@ -74,6 +71,7 @@ class PaymentServiceTest {
         testInvoice.setTotalAmount(new BigDecimal("60000"));
         testInvoice.setStatus(InvoiceStatus.PENDING);
         testInvoice.setIssueDate(LocalDate.of(2026, 8, 1));
+        testInvoice.setDueDate(LocalDate.of(2026, 8, 10));
 
         paymentRequest = new PaymentRequest();
         paymentRequest.setPaymentDate(LocalDate.of(2026, 8, 5));
@@ -82,11 +80,9 @@ class PaymentServiceTest {
         lenient().when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.now());
     }
 
-    // ✅ TEST 1: No penalty when paid within window
     @Test
-    void calculatePenalty_ShouldReturnZero_WhenPaidWithinWindow() {
+    void calculatePenalty_ShouldReturnZero_WhenPaidBeforeDueDate() {
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
-        when(settingsService.getIntSetting("payment_window_end", 10)).thenReturn(10);
         LocalDate paymentDate = LocalDate.of(2026, 8, 8);
 
         BigDecimal penalty = paymentService.calculatePenaltyPreview(1L, paymentDate);
@@ -94,25 +90,44 @@ class PaymentServiceTest {
         assertEquals(BigDecimal.ZERO, penalty);
     }
 
-    // ✅ TEST 2: Penalty applied when paid after window
     @Test
-    void calculatePenalty_ShouldApplyPenalty_WhenPaidAfterWindow() {
+    void calculatePenalty_ShouldApplyDailyPenalty_WhenPaidAfterDueDate() {
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
-        when(settingsService.getIntSetting("payment_window_end", 10)).thenReturn(10);
+        // Monthly penalty → daily = monthly / 30 (matches InvoiceService.calculateDailyPenalty)
         when(taxCalculationService.calculatePenalty(any(), any(), any()))
-                .thenReturn(new BigDecimal("12000"));
+                .thenReturn(new BigDecimal("10434.78"));
         LocalDate paymentDate = LocalDate.of(2026, 8, 15);
 
         BigDecimal penalty = paymentService.calculatePenaltyPreview(1L, paymentDate);
 
-        assertEquals(new BigDecimal("12000"), penalty);
+        // Due 2026-08-10, paid 2026-08-15 → 5 days overdue
+        // daily = 10434.78 / 30 = 347.83 (scale 2) → 5 × 347.83 = 1739.15
+        assertEquals(new BigDecimal("1739.15"), penalty);
+    }
+
+        @Test
+        void calculatePenalty_ShouldBeZero_OnDueDate() {
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
+
+        assertEquals(BigDecimal.ZERO,
+            paymentService.calculatePenaltyPreview(1L, LocalDate.of(2026, 8, 10)));
+        }
+
+        @Test
+        void calculatePenalty_ShouldApplyOneDailyPenalty_DayAfterDueDate() {
+        when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
+        when(taxCalculationService.calculatePenalty(any(), any(), any()))
+                .thenReturn(new BigDecimal("10434.78"));
+
+        // 1 day overdue → 10434.78 / 30 = 347.83
+        assertEquals(new BigDecimal("347.83"),
+            paymentService.calculatePenaltyPreview(1L, LocalDate.of(2026, 8, 11)));
     }
 
     // ✅ TEST 3: Record payment with receipt
     @Test
     void recordPayment_ShouldMarkInvoiceAsSubmitted_WhenReceiptUploaded() {
         when(invoiceRepository.findById(1L)).thenReturn(Optional.of(testInvoice));
-        when(settingsService.getIntSetting("payment_window_end", 10)).thenReturn(10);
         when(fileStorageService.storeReceipt(any(), any())).thenReturn("receipts/test.pdf");
         when(invoiceRepository.save(any(Invoice.class))).thenReturn(testInvoice);
 
