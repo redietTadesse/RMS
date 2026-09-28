@@ -200,6 +200,31 @@ class InvoiceServiceTest {
         verify(invoiceRepository).save(overdueInvoice);
     }
 
+    // ✅ REGRESSION: prorated first invoice must divide by the START month's
+    // length, not the billing month's. Sep 24 start billed in December must
+    // use September's 30 days (14,000.00), not December's 31 (15,483.84).
+    @Test
+    void generateInvoice_ShouldProrateUsingStartMonthLength_WhenBilledInDifferentMonth() {
+        testLease.setStartDate(LocalDate.of(2026, 9, 24));          // day 24 > 15 → prorate
+        testLease.setFirstInvoiceProrated(true);
+        testLease.setNextBillingDate(LocalDate.of(2026, 10, 1));
+        testLease.setBillingFrequency(com.rms.entity.BillingFrequency.MONTHLY);
+
+        // Billing happens in December (31 days) — a different month than the start.
+        when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.of(2026, 12, 5));
+        when(invoiceRepository.existsByLeaseAndIssueDateBetween(any(), any(), any())).thenReturn(false);
+        when(invoiceRepository.countByLease(testLease)).thenReturn(0L);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        Invoice result = invoiceService.generateInvoiceForLease(testLease);
+
+        // September: 30 days. daysRemaining = 30 − 24 + 1 = 7.
+        // dailyRate = 60000 / 30 = 2000.00 → 2000.00 × 7 = 14000.00
+        assertNotNull(result);
+        assertEquals(new BigDecimal("14000.00"), result.getRentAmount());
+    }
+
     // ✅ TEST 5: Get invoice by ID
     @Test
     void getInvoiceById_ShouldReturnInvoice_WhenFound() {

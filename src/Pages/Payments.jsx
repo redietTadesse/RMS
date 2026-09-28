@@ -153,6 +153,25 @@ function InvoiceRow({ invoice, onView, onApprove, approving, onForceOverdue }) {
 }
 
 function ViewInvoiceModal({ invoice, onClose, onApprove, approving }) {
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [penaltyPreview, setPenaltyPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    paymentsApi.previewPenalty(invoice.id, paymentDate)
+      .then((penalty) => {
+        if (!cancelled) setPenaltyPreview(Number(penalty || 0));
+      })
+      .catch(() => {
+        if (!cancelled) setPenaltyPreview(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [invoice.id, paymentDate]);
+
   if (!invoice) return null;
 
   return (
@@ -191,6 +210,29 @@ function ViewInvoiceModal({ invoice, onClose, onApprove, approving }) {
         <div className="bg-indigo-50 rounded-lg p-4 mb-4">
           <p className="text-xs text-slate-500">Total Amount</p>
           <p className="text-2xl font-bold text-slate-800">ETB {Number(invoice.totalAmount).toLocaleString()}</p>
+        </div>
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-amber-700">Payment calculation preview</p>
+              <p className="text-sm font-semibold text-amber-950">
+                {previewLoading ? 'Calculating...' : penaltyPreview === null ? 'Unavailable' : `Penalty: ETB ${penaltyPreview.toLocaleString()}`}
+              </p>
+            </div>
+            <label className="text-xs text-amber-800">
+              Payment date
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(event) => setPaymentDate(event.target.value)}
+                className="mt-1 block rounded border border-amber-300 bg-white px-2 py-1 text-xs text-slate-800"
+              />
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-amber-700">
+            Days 1–{10} are penalty-free. After day 10, the penalty is 20% of daily rent per late day.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm">

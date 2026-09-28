@@ -8,6 +8,7 @@ import {
 import { reportsApi } from '../services/api';
 import { exportToCsv } from '../utils/csvExport';
 import DashboardLayout from '../Components/Layout/DashboardLayout';
+import SchedulerDemo from '../Components/Test/SchedulerDemo';
 import { Loader2, Download, AlertCircle } from 'lucide-react';
 
 const PIE_COLORS = { Vacant: '#22c55e', Occupied: '#3b82f6' };
@@ -96,6 +97,8 @@ export default function Reports() {
             <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
+
+        <SchedulerDemo />
 
         {/* Revenue Report */}
         <SectionCard
