@@ -31,7 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 path.equals("/api/auth/register") ||
                 path.equals("/api/auth/refresh") ||
                 path.equals("/api/auth/logout") ||
-                path.startsWith("/api/payments/chapa/webhook");
+                path.startsWith("/api/payments/arifpay/notify");
     }
 
     @Override

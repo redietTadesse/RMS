@@ -8,7 +8,7 @@ public enum InvoiceStatus {
 
     /**
      * Canonical invoice status state machine.
-     * Single source of truth used by PaymentService and ChapaService.
+     * Single source of truth used by PaymentService and ArifPayService.
      *
      * PENDING   -> SUBMITTED (tenant submits receipt) | OVERDUE (past due) | PAID (direct gateway payment)
      * SUBMITTED -> PAID (admin approval)

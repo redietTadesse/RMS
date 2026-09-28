@@ -56,10 +56,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/test/email-test").permitAll()
                         .requestMatchers("/api/test/**").authenticated()
 
-                        // Chapa gateway endpoints - PUBLIC
-                        .requestMatchers("/api/payments/chapa/webhook").permitAll()
-                        .requestMatchers("/api/payments/chapa/confirm").permitAll()
-                        .requestMatchers("/api/payments/chapa/verify").permitAll()
+                        // ArifPay gateway callback - PUBLIC
+                        .requestMatchers("/api/payments/arifpay/notify").permitAll()
 
                         // Register - ADMIN only
                         .requestMatchers("/api/auth/register").hasRole("ADMIN")

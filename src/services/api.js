@@ -639,36 +639,19 @@ export const paymentsApi = {
     ),
 };
 
-// ============ CHAPA ============
+// ============ ARIFPAY ============
 
-export const chapaApi = {
-  initialize: (
-    invoiceId,
-    phoneNumber
-  ) =>
-    request(
-      '/payments/chapa/initialize',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          invoiceId,
-          phoneNumber,
-        }),
-      }
-    ),
+export const arifpayApi = {
+  initialize: (invoiceId, phoneNumber) =>
+    request("/payments/arifpay/initialize", {
+      method: "POST",
+      body: JSON.stringify({ invoiceId, phoneNumber }),
+    }),
 
-  verify: (txRef) =>
-    request(
-      `/payments/chapa/verify?tx_ref=${txRef}`
-    ),
-
-  confirm: (txRef) =>
-    request(
-      `/payments/chapa/confirm?tx_ref=${txRef}`,
-      {
-        method: 'POST',
-      }
-    ),
+  verify: (sessionId) =>
+    request("/payments/arifpay/verify?sessionId=" + encodeURIComponent(sessionId), {
+      method: "POST",
+    }),
 };
 
 // ============ TENANT SELF-SERVICE ============
