@@ -1,3 +1,4 @@
+import { formatDualDate } from "../utils/ethiopianCalendar";
 // src/pages/TenantDashboard.jsx
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -83,7 +84,7 @@ function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploadin
 
             {isPaid && invoice.paymentDate && (
               <span className="text-xs text-emerald-600 font-medium bg-emerald-100 px-2 py-0.5 rounded-full">
-                Paid on {new Date(invoice.paymentDate).toLocaleDateString()}
+                Paid on {formatDualDate(invoice.paymentDate)}
               </span>
             )}
 
@@ -106,7 +107,7 @@ function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploadin
             <div>
               <p className="text-slate-500">Due Date</p>
               <p className={`font-medium ${invoice.isOverdue ? 'text-rose-600' : 'text-slate-800'}`}>
-                {invoice.dueDate}
+                {formatDualDate(invoice.dueDate)}
               </p>
             </div>
 
@@ -177,7 +178,7 @@ function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploadin
 
           {isPaid && invoice.paymentMethod && (
             <div className="mt-2 text-sm text-emerald-700">
-              ✅ Paid via {invoice.paymentMethod} on {new Date(invoice.paymentDate).toLocaleDateString()}
+              ✅ Paid via {invoice.paymentMethod} on {formatDualDate(invoice.paymentDate)}
             </div>
           )}
 
@@ -190,7 +191,7 @@ function InvoiceCard({ invoice, onPay, onUpload, onDownloadPdf, paying, uploadin
 
           {invoice.status === 'PENDING' && !invoice.isOverdue && (
             <div className="mt-3 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-1.5">
-              💡 This invoice is due on {invoice.dueDate}. You can pay online or upload a receipt.
+              💡 This invoice is due on {formatDualDate(invoice.dueDate)}. You can pay online or upload a receipt.
             </div>
           )}
 
@@ -315,7 +316,7 @@ function PaymentHistory({ invoices }) {
                 </p>
                 <p className="text-xs text-slate-500">
                   {inv.paymentDate
-                    ? new Date(inv.paymentDate).toLocaleDateString()
+                    ? formatDualDate(inv.paymentDate)
                     : 'N/A'}
                 </p>
               </div>
@@ -743,7 +744,7 @@ export default function TenantDashboard() {
                   Lease Expired
                 </p>
                 <p className="text-xs text-amber-600">
-                  Your lease expired on {lease.endDate}. Please contact admin to renew.
+                  Your lease expired on {formatDualDate(lease.endDate)}. Please contact admin to renew.
                 </p>
               </div>
             </div>
@@ -816,11 +817,11 @@ export default function TenantDashboard() {
                 </p>
 
                 <p className="text-sm font-medium text-slate-800 mt-1">
-                  {lease.startDate} → {lease.endDate}
+                  {formatDualDate(lease.startDate)} → {formatDualDate(lease.endDate)}
                 </p>
 
                 <p className="text-xs text-slate-400 mt-1">
-                  Started: {new Date(lease.startDate).toLocaleDateString()}
+                  Started: {formatDualDate(lease.startDate)}
                 </p>
 
                 {daysUntilDue !== undefined && daysUntilDue >= 0 && (
@@ -966,7 +967,7 @@ export default function TenantDashboard() {
                     )}
 
                     <p className="text-xs text-slate-400 mt-1">
-                      Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}
+                      Uploaded: {formatDualDate(doc.uploadedAt)}
                     </p>
                   </div>
 

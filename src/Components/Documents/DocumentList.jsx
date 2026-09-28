@@ -1,3 +1,4 @@
+import { formatDualDate } from "../../utils/ethiopianCalendar";
 // src/components/Documents/DocumentList.jsx
 import { FileText, Trash2 } from 'lucide-react';
 import { documentsApi } from '../../services/api';
@@ -29,7 +30,7 @@ export default function DocumentList({ documents, onDelete, isAdmin }) {
             <p className="font-medium text-slate-800">{doc.fileName}</p>
             <p className="text-sm text-slate-500">{doc.type}</p>
             {doc.description && <p className="text-sm text-slate-500">{doc.description}</p>}
-            <p className="text-xs text-slate-400">Uploaded: {new Date(doc.uploadedAt).toLocaleDateString()}</p>
+            <p className="text-xs text-slate-400">Uploaded: {formatDualDate(doc.uploadedAt)}</p>
           </div>
           <div className="flex items-center gap-2">
             <button

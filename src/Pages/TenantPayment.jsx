@@ -1,3 +1,4 @@
+import { formatDualDate } from "../utils/ethiopianCalendar";
 // src/Pages/TenantPayments.jsx
 import { useEffect, useState } from 'react';
 import { tenantApi, arifpayApi } from '../services/api';
@@ -166,7 +167,7 @@ export default function TenantPayments() {
                       <td className="px-6 py-3 font-semibold text-slate-800">
                         ETB {Number(inv.totalAmount).toLocaleString()}
                       </td>
-                      <td className="px-6 py-3 text-slate-600">{inv.dueDate}</td>
+                      <td className="px-6 py-3 text-slate-600">{formatDualDate(inv.dueDate)}</td>
                       <td className="px-6 py-3">
                         <StatusBadge status={inv.status} />
                       </td>
