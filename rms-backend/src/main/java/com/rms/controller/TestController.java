@@ -162,11 +162,37 @@ public class TestController {
             log.error("Scheduled lease expiry sync failed", e);
         }
 
-            List<Map<String, Object>> simulatedOverdue = invoiceRepository
+        try {
+            int upcoming = invoiceService.simulateUpcomingReminders();
+            map.put("upcomingRemindersSent", upcoming);
+        } catch (Exception e) {
+            map.put("upcomingRemindersSent", -1);
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            map.put("upcomingReminderError", root.toString());
+            log.error("Upcoming reminder job failed", e);
+        }
+
+        try {
+            int due = invoiceService.simulateDueReminders();
+            map.put("dueRemindersSent", due);
+        } catch (Exception e) {
+            map.put("dueRemindersSent", -1);
+            Throwable root = e;
+            while (root.getCause() != null) {
+                root = root.getCause();
+            }
+            map.put("dueReminderError", root.toString());
+            log.error("Due-today reminder job failed", e);
+        }
+
+        List<Map<String, Object>> simulatedOverdue = invoiceRepository
                 .findByStatusIn(List.of(InvoiceStatus.PENDING, InvoiceStatus.OVERDUE))
                 .stream()
                 .filter(invoice -> invoice.getStatus() == InvoiceStatus.OVERDUE
-                    || invoice.getDueDate().isBefore(date))
+                        || invoice.getDueDate().isBefore(date))
                 .map(invoice -> {
                     Map<String, Object> item = new HashMap<>();
                     item.put("invoiceNumber", invoice.getInvoiceNumber());
@@ -174,16 +200,16 @@ public class TestController {
                     item.put("dueDate", invoice.getDueDate());
                     item.put("penaltyAmount", invoice.getPenaltyAmount());
                     item.put("daysOverdue", Math.max(0,
-                        java.time.temporal.ChronoUnit.DAYS.between(invoice.getDueDate(), date)));
+                            java.time.temporal.ChronoUnit.DAYS.between(invoice.getDueDate(), date)));
                     return item;
                 })
                 .collect(Collectors.toList());
-            BigDecimal simulatedPenaltyTotal = simulatedOverdue.stream()
+        BigDecimal simulatedPenaltyTotal = simulatedOverdue.stream()
                 .map(item -> (BigDecimal) item.get("penaltyAmount"))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-            map.put("simulatedOverdueInvoices", simulatedOverdue);
-            map.put("simulatedOverdueCount", simulatedOverdue.size());
-            map.put("simulatedPenaltyTotal", simulatedPenaltyTotal);
+        map.put("simulatedOverdueInvoices", simulatedOverdue);
+        map.put("simulatedOverdueCount", simulatedOverdue.size());
+        map.put("simulatedPenaltyTotal", simulatedPenaltyTotal);
 
         if (persist) {
             // Default mode: commit the jobs' work so the admin can see the
