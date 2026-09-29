@@ -3,6 +3,7 @@ package com.rms.entity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "invoices")
@@ -49,7 +50,24 @@ public class Invoice {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDate createdAt = LocalDate.now();
+    @Column(name = "upcoming_reminder_sent_at")
+    private LocalDateTime upcomingReminderSentAt;
 
+    @Column(name = "due_reminder_sent_at")
+    private LocalDateTime dueReminderSentAt;
+    // ─── Reminder idempotency markers ────────────────────────────────────
+
+    /** Set when the "payment due soon" reminder (3 days before due) goes out. */
+    @Column(name = "upcoming_reminder_sent_on")
+    private LocalDate upcomingReminderSentOn;
+
+    /** Set when the "payment due today" reminder goes out. */
+    @Column(name = "due_reminder_sent_on")
+    private LocalDate dueReminderSentOn;
+
+    /** Set when the "invoice overdue" notification goes out. */
+    @Column(name = "overdue_reminder_sent_on")
+    private LocalDate overdueReminderSentOn;
     @Version
     @Column(name = "version")
     private Long version;
@@ -95,5 +113,17 @@ public class Invoice {
 
     public Long getVersion() { return version; }
     public void setVersion(Long version) { this.version = version; }
-}
+    public LocalDateTime getUpcomingReminderSentAt() { return upcomingReminderSentAt; }
+    public void setUpcomingReminderSentAt(LocalDateTime v) { this.upcomingReminderSentAt = v; }
+
+    public LocalDateTime getDueReminderSentAt() { return dueReminderSentAt; }
+    public void setDueReminderSentAt(LocalDateTime v) { this.dueReminderSentAt = v;
+}    public LocalDate getUpcomingReminderSentOn() { return upcomingReminderSentOn; }
+    public void setUpcomingReminderSentOn(LocalDate v) { this.upcomingReminderSentOn = v; }
+
+    public LocalDate getDueReminderSentOn() { return dueReminderSentOn; }
+    public void setDueReminderSentOn(LocalDate v) { this.dueReminderSentOn = v; }
+
+    public LocalDate getOverdueReminderSentOn() { return overdueReminderSentOn; }
+    public void setOverdueReminderSentOn(LocalDate v) { this.overdueReminderSentOn = v; } }
 
