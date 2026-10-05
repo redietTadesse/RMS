@@ -21,6 +21,11 @@ public class LeaseResponseDTO {
     private String tenantName;
     private Long spaceId;
     private String unitNumber;
+    // Nested views of the related rows. The UI reads lease.tenant.name and
+    // lease.space.unitNumber / lease.space.category, so these have to stay in the
+    // payload alongside the flat fields above.
+    private TenantResponseDTO tenant;
+    private SpaceResponseDTO space;
     private LocalDate startDate;
     private LocalDate endDate;
     private BigDecimal monthlyRent;
@@ -39,6 +44,8 @@ public class LeaseResponseDTO {
                 .tenantName(lease.getTenant() != null ? lease.getTenant().getName() : null)
                 .spaceId(lease.getSpace() != null ? lease.getSpace().getId() : null)
                 .unitNumber(lease.getSpace() != null ? lease.getSpace().getUnitNumber() : null)
+                .tenant(TenantResponseDTO.from(lease.getTenant()))
+                .space(SpaceResponseDTO.from(lease.getSpace()))
                 .startDate(lease.getStartDate())
                 .endDate(lease.getEndDate())
                 .monthlyRent(lease.getMonthlyRent())

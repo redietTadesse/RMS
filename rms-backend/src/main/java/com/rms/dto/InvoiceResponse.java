@@ -5,7 +5,9 @@ import com.rms.entity.InvoiceStatus;
 import com.rms.service.TaxCalculationService;
 import com.rms.service.TimeTravelService;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 public class InvoiceResponse {
     private Long id;
@@ -34,6 +36,12 @@ public class InvoiceResponse {
     private BigDecimal dailyPenaltyRate;
     private BigDecimal penaltyRate;
     private BigDecimal rentInclusive;
+
+    // Plain-English derivations of the numbers above, so an admin can see which
+    // formula produced each amount without reading the code.
+    private String rentExplanation;        // "Full month rent" / "Prorated: ..."
+    private String dueDateExplanation;     // "Due on day 10 of the month"
+    private String penaltyExplanation;     // "5 days overdue × ETB 115.94/day"
 
     private static TimeTravelService timeTravelService;
 
@@ -104,6 +112,50 @@ public class InvoiceResponse {
             );
                         response.setDailyPenaltyRate(monthlyPenalty.divide(BigDecimal.valueOf(30), 2, java.math.RoundingMode.HALF_UP));
             response.setPenaltyRate(taxCalculationService.getPenaltyRate().multiply(BigDecimal.valueOf(100)));
+        }
+
+        BigDecimal rentAmount = invoice.getRentAmount();
+        BigDecimal monthlyRent = invoice.getLease().getMonthlyRent();
+
+        // ── Rent explanation ──
+        // Anything below the lease's monthly rent was prorated for a part-month
+        // start, so spell out the day count and the daily rate behind it.
+        if (rentAmount != null && monthlyRent != null && rentAmount.compareTo(monthlyRent) < 0) {
+            LocalDate start = invoice.getLease().getStartDate();
+            int daysInStartMonth = start.lengthOfMonth();
+            int daysRemaining = daysInStartMonth - start.getDayOfMonth() + 1;
+            response.setRentExplanation(String.format(
+                    "Prorated first month — %d of %d days (daily rate ETB %,.2f)",
+                    daysRemaining, daysInStartMonth,
+                    monthlyRent.divide(BigDecimal.valueOf(daysInStartMonth), 2, RoundingMode.HALF_UP)));
+        } else {
+            response.setRentExplanation("Full month rent — no proration");
+        }
+
+        // ── Due date explanation ──
+        Integer dueDay = invoice.getLease().getDueDay();
+        response.setDueDateExplanation(
+                "Due on day " + (dueDay != null ? dueDay : 10) + " of the month");
+
+        // ── Penalty explanation ──
+        if (invoice.getPenaltyAmount() != null
+                && invoice.getPenaltyAmount().compareTo(BigDecimal.ZERO) > 0
+                && invoice.getStatus() == InvoiceStatus.OVERDUE
+                && invoice.getDueDate() != null
+                && rentAmount != null) {
+            long days = ChronoUnit.DAYS.between(invoice.getDueDate(), currentDate);
+            BigDecimal monthly = taxCalculationService != null
+                    ? taxCalculationService.calculatePenalty(
+                            invoice.getLease().getTenant(),
+                            rentAmount,
+                            invoice.getIssueDate() != null ? invoice.getIssueDate() : currentDate)
+                    : BigDecimal.ZERO;
+            BigDecimal daily = monthly.divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
+            response.setPenaltyExplanation(String.format(
+                    "%d day%s overdue × ETB %,.2f/day (monthly ETB %,.2f ÷ 30)",
+                    days, days == 1 ? "" : "s", daily, monthly));
+        } else {
+            response.setPenaltyExplanation("No penalty — invoice is not overdue");
         }
 
         if (invoice.getPaymentDate() != null) {
@@ -189,4 +241,13 @@ public class InvoiceResponse {
 
     public BigDecimal getRentInclusive() { return rentInclusive; }
     public void setRentInclusive(BigDecimal rentInclusive) { this.rentInclusive = rentInclusive; }
+
+    public String getRentExplanation() { return rentExplanation; }
+    public void setRentExplanation(String rentExplanation) { this.rentExplanation = rentExplanation; }
+
+    public String getDueDateExplanation() { return dueDateExplanation; }
+    public void setDueDateExplanation(String dueDateExplanation) { this.dueDateExplanation = dueDateExplanation; }
+
+    public String getPenaltyExplanation() { return penaltyExplanation; }
+    public void setPenaltyExplanation(String penaltyExplanation) { this.penaltyExplanation = penaltyExplanation; }
 }

@@ -212,6 +212,28 @@ function ViewInvoiceModal({ invoice, onClose, onApprove, approving }) {
           <p className="text-2xl font-bold text-slate-800">ETB {Number(invoice.totalAmount).toLocaleString()}</p>
         </div>
 
+        {invoice.rentExplanation && (
+          <div className="mt-4 bg-indigo-50 border border-indigo-100 rounded-lg p-4">
+            <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
+              How this was calculated
+            </p>
+            <ul className="text-xs text-slate-700 space-y-1">
+              <li><span className="font-medium">Rent:</span> {invoice.rentExplanation}</li>
+              <li><span className="font-medium">Due date:</span> {invoice.dueDateExplanation}</li>
+              <li><span className="font-medium">Penalty:</span> {invoice.penaltyExplanation}</li>
+              {Number(invoice.untaxedRent) > 0 && (
+                <li>
+                  <span className="font-medium">Tax breakdown:</span>{' '}
+                  untaxed rent ETB {Number(invoice.untaxedRent).toLocaleString()},
+                  VAT ETB {Number(invoice.vatAmount).toLocaleString()}
+                  {Number(invoice.withholdingTax) > 0 &&
+                    `, withholding ETB ${Number(invoice.withholdingTax).toLocaleString()}`}
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-4">
           <div className="flex items-center justify-between gap-3">
             <div>

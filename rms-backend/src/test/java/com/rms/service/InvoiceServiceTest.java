@@ -200,18 +200,99 @@ class InvoiceServiceTest {
         verify(invoiceRepository).save(overdueInvoice);
     }
 
-    // ✅ REGRESSION: prorated first invoice must divide by the START month's
-    // length, not the billing month's. Sep 24 start billed in December must
-    // use September's 30 days (14,000.00), not December's 31 (15,483.84).
+    // ✅ REGRESSION (Fix 1): proration is only valid for the lease's START month.
+    // A Sep 28 start with 3 months prepaid must bill December at the FULL monthly
+    // rent — December is not a part month just because the lease began part-way
+    // through September.
     @Test
-    void generateInvoice_ShouldProrateUsingStartMonthLength_WhenBilledInDifferentMonth() {
+    void generateInvoice_ShouldNotProrate_WhenBillingMonthDiffersFromStartMonth() {
+        testLease.setStartDate(LocalDate.of(2026, 9, 28));          // day 28 > 15 → would prorate
+        testLease.setFirstInvoiceProrated(true);
+        testLease.setNextBillingDate(LocalDate.of(2026, 12, 1));
+        testLease.setBillingFrequency(com.rms.entity.BillingFrequency.MONTHLY);
+
+        when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.of(2026, 12, 28));
+        when(invoiceRepository.existsByLeaseAndIssueDateBetween(any(), any(), any())).thenReturn(false);
+        when(invoiceRepository.countByLease(testLease)).thenReturn(0L);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        Invoice result = invoiceService.generateInvoiceForLease(testLease);
+
+        // Full month's rent — no proration in a foreign month.
+        // (compareTo, not equals: the fixture's monthlyRent is scale 0.)
+        assertNotNull(result);
+        assertEquals(0, result.getRentAmount().compareTo(new BigDecimal("60000.00")));
+        // The one-shot flag is cleared either way, so it can never fire later.
+        assertEquals(false, testLease.getFirstInvoiceProrated());
+    }
+
+    // ✅ REGRESSION (Fix 2): a due day that already passed this month rolls
+    // forward, so a Dec 28 invoice with dueDay = 10 is due Jan 10 — not born
+    // overdue on Dec 10.
+    @Test
+    void generateInvoice_ShouldRollDueDateForward_WhenDueDayAlreadyPassed() {
+        testLease.setStartDate(LocalDate.of(2026, 9, 28));
+        testLease.setFirstInvoiceProrated(true);
+        testLease.setNextBillingDate(LocalDate.of(2026, 12, 1));
+        testLease.setBillingFrequency(com.rms.entity.BillingFrequency.MONTHLY);
+
+        when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.of(2026, 12, 28));
+        when(invoiceRepository.existsByLeaseAndIssueDateBetween(any(), any(), any())).thenReturn(false);
+        when(invoiceRepository.countByLease(testLease)).thenReturn(0L);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        Invoice result = invoiceService.generateInvoiceForLease(testLease);
+
+        assertNotNull(result);
+        assertEquals(LocalDate.of(2027, 1, 10), result.getDueDate());
+        assertEquals(InvoiceStatus.PENDING, result.getStatus());
+    }
+
+    // ✅ The exact demo scenario: lease starts Sep 28 with 3 months prepaid,
+    // dueDay = 1, jobs run on Dec 28. The December bill must be a clean full
+    // month that is due Jan 1, 2027 and starts life PENDING — not a prorated
+    // December bill that was already overdue on Dec 1.
+    @Test
+    void generateInvoice_DecemberBillAfterSeptemberStart_IsFullMonthAndDueNextMonth() {
+        testLease.setStartDate(LocalDate.of(2026, 9, 28));
+        testLease.setFirstInvoiceProrated(true);
+        testLease.setDueDay(1);
+        testLease.setNextBillingDate(LocalDate.of(2026, 12, 1));
+        testLease.setBillingFrequency(com.rms.entity.BillingFrequency.MONTHLY);
+
+        when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.of(2026, 12, 28));
+        when(invoiceRepository.existsByLeaseAndIssueDateBetween(any(), any(), any())).thenReturn(false);
+        when(invoiceRepository.countByLease(testLease)).thenReturn(0L);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
+
+        Invoice result = invoiceService.generateInvoiceForLease(testLease);
+
+        assertNotNull(result);
+        // Fix 1: no proration in a foreign month → full monthly rent.
+        assertEquals(0, result.getRentAmount().compareTo(new BigDecimal("60000.00")));
+        // Fix 2: Dec 1 has passed, so the due date rolls to Jan 1 next year.
+        assertEquals(LocalDate.of(2027, 1, 1), result.getDueDate());
+        // Therefore it is born PENDING and carries no penalty.
+        assertEquals(InvoiceStatus.PENDING, result.getStatus());
+        assertEquals(0, result.getPenaltyAmount().compareTo(BigDecimal.ZERO));
+        assertEquals(0, result.getTotalAmount().compareTo(new BigDecimal("60000.00")));
+    }
+
+    // ✅ Positive case: billing INSIDE the start month still prorates, and the
+    // daily rate divides by the START month's length (September = 30 days),
+    // never the billing month's.
+    @Test
+    void generateInvoice_ShouldProrateUsingStartMonthLength_WhenBilledInStartMonth() {
         testLease.setStartDate(LocalDate.of(2026, 9, 24));          // day 24 > 15 → prorate
         testLease.setFirstInvoiceProrated(true);
         testLease.setNextBillingDate(LocalDate.of(2026, 10, 1));
         testLease.setBillingFrequency(com.rms.entity.BillingFrequency.MONTHLY);
 
-        // Billing happens in December (31 days) — a different month than the start.
-        when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.of(2026, 12, 5));
+        // Billed in the same month the lease started (September, 30 days).
+        when(timeTravelService.getCurrentDate()).thenReturn(LocalDate.of(2026, 9, 24));
         when(invoiceRepository.existsByLeaseAndIssueDateBetween(any(), any(), any())).thenReturn(false);
         when(invoiceRepository.countByLease(testLease)).thenReturn(0L);
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(inv -> inv.getArgument(0));

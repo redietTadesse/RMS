@@ -180,6 +180,12 @@ public class InvoiceService {
         // day (e.g. February and dueDay = 31), clamp to the last day.
         int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 10;
         LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
+        // If the due day has already passed this month, the invoice would be born
+        // overdue. Roll it to next month's due day so it starts life as PENDING.
+        if (dueDate.isBefore(today)) {
+            LocalDate nextMonth = today.plusMonths(1);
+            dueDate = nextMonth.withDayOfMonth(Math.min(dueDay, nextMonth.lengthOfMonth()));
+        }
 
         // Get a unique sequential invoice number, e.g. INV-2026-0001.
         String invoiceNumber = invoiceNumberService.nextInvoiceNumber(today);
@@ -188,12 +194,13 @@ public class InvoiceService {
         BigDecimal rentAmount = lease.getMonthlyRent();
 
         // If this is the very first invoice for a lease that started mid-month,
-        // prorate it. Then flip the flag so it only happens once.
+        // prorate it — but only when we are actually billing for that start month.
+        // Then flip the flag so it only happens once.
         if (Boolean.TRUE.equals(lease.getFirstInvoiceProrated()) && !hasFirstInvoiceBeenGenerated(lease)) {
-            if (shouldProrateFirstInvoice(lease)) {
+            if (shouldProrateFirstInvoice(lease, today)) {
                 rentAmount = calculateProratedRent(lease, today);
             }
-            lease.setFirstInvoiceProrated(false);
+            lease.setFirstInvoiceProrated(false);   // clear either way — one-shot
             leaseRepository.save(lease);
         }
 
@@ -439,11 +446,15 @@ public class InvoiceService {
     }
 
     /**
-     * A first invoice gets prorated only if the lease started after the 15th
-     * of the month. If it started on the 1st–15th, the tenant pays full rent.
+     * Prorate only when the invoice being generated is for the same month the
+     * lease started in. A lease that started Sep 28 with 3 months prepaid must
+     * NOT prorate its December invoice — December is a full month.
      */
-    private boolean shouldProrateFirstInvoice(Lease lease) {
-        return lease.getStartDate().getDayOfMonth() > 15;
+    private boolean shouldProrateFirstInvoice(Lease lease, LocalDate billingDate) {
+        LocalDate start = lease.getStartDate();
+        return start.getDayOfMonth() > 15
+                && start.getYear() == billingDate.getYear()
+                && start.getMonth() == billingDate.getMonth();
     }
 
     /**
