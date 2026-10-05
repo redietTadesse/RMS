@@ -25,13 +25,13 @@ import java.util.List;
  * This service is responsible for everything that has to do with invoices:
  *   1. Generating a new invoice each billing cycle (usually monthly).
  *   2. Adding a small penalty each day an invoice is late.
- *   3. Sending reminder emails before/on/after due dates.
+ *   3. Sending reminder SMS/emails before/on/after due dates.
  *   4. Handling prepayments (when a tenant pays for several months upfront).
  *
  * Four things run automatically on a schedule (see @Scheduled annotations):
  *   - On the 1st of every month at midnight: generate invoices.
  *   - Every night at 1 AM: add a day's worth of penalty to overdue invoices.
- *   - Every morning at 9 AM: send "rent is due today" emails.
+ *   - Every morning at 9 AM: send "rent is due today" reminders.
  *   - Every morning at 8:30 AM: send "payment due soon" reminders.
  *
  * Every scheduled job has a matching "simulate" method. The difference:
@@ -48,19 +48,19 @@ public class InvoiceService {
 
     // ─── Dependencies (things this service needs to do its job) ─────────────
 
-    private final InvoiceRepository invoiceRepository;              // read/write invoices
-    private final LeaseRepository leaseRepository;                  // read/write leases
-    private final TenantRepository tenantRepository;                // look up tenants
-    private final UserRepository userRepository;                    // look up login accounts
-    private final NotificationService notificationService;          // in-app bell notifications
-    private final EmailService emailService;                        // outgoing emails
-    private final SettingsService settingsService;                  // admin-configurable values
-    private final TaxCalculationService taxCalculationService;      // VAT / withholding / penalty math
-    private final PaymentScheduleService paymentScheduleService;    // prepayment handling
-    private final TimeTravelService timeTravelService;              // virtual "today" for testing
-    private final InvoiceNumberService invoiceNumberService;        // unique sequential invoice numbers
+    private final InvoiceRepository invoiceRepository;
+    private final LeaseRepository leaseRepository;
+    private final TenantRepository tenantRepository;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
+    private final EmailService emailService;
+    private final SettingsService settingsService;
+    private final TaxCalculationService taxCalculationService;
+    private final PaymentScheduleService paymentScheduleService;
+    private final TimeTravelService timeTravelService;
+    private final InvoiceNumberService invoiceNumberService;
+    private final SmsService smsService;
 
-    /** Standard constructor — Spring injects every dependency above. */
     public InvoiceService(InvoiceRepository invoiceRepository,
                           LeaseRepository leaseRepository,
                           TenantRepository tenantRepository,
@@ -71,7 +71,8 @@ public class InvoiceService {
                           TaxCalculationService taxCalculationService,
                           PaymentScheduleService paymentScheduleService,
                           TimeTravelService timeTravelService,
-                          InvoiceNumberService invoiceNumberService) {
+                          InvoiceNumberService invoiceNumberService,
+                          SmsService smsService) {
         this.invoiceRepository = invoiceRepository;
         this.leaseRepository = leaseRepository;
         this.tenantRepository = tenantRepository;
@@ -83,75 +84,45 @@ public class InvoiceService {
         this.paymentScheduleService = paymentScheduleService;
         this.timeTravelService = timeTravelService;
         this.invoiceNumberService = invoiceNumberService;
+        this.smsService = smsService;
     }
 
     // ═════════════════════════════════════════════════════════════════════════
     // SECTION 1 — MONTHLY INVOICE GENERATION
     // ═════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Runs automatically on the 1st of every month at midnight.
-     * Skips entirely if time travel is active — in that case the admin
-     * triggers invoice generation manually via the test panel (see
-     * simulateMonthlyInvoices below).
-     */
     @Scheduled(cron = "0 0 0 1 * ?")
     @Transactional
     public void generateMonthlyInvoices() {
         if (timeTravelService.isActive()) {
-            return;   // virtual time is on — don't fire on the real clock
+            return;
         }
         generateMonthlyInvoicesInternal();
     }
 
-    /**
-     * Manual version — called by the test panel when the admin wants to
-     * simulate a month passing without waiting for the real cron.
-     */
     @Transactional
     public void simulateMonthlyInvoices() {
         generateMonthlyInvoicesInternal();
     }
 
-    /**
-     * The actual invoice generation work. Walks every active lease and
-     * creates an invoice for each one that is due — with two skip conditions:
-     *
-     *   1. `nextBillingDate` is still in the future (this lease isn't due yet).
-     *   2. The lease is covered by a prepayment (tenant already paid ahead).
-     */
     private void generateMonthlyInvoicesInternal() {
         List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
         LocalDate today = timeTravelService.getCurrentDate();
 
         for (Lease lease : activeLeases) {
-            // Skip if the lease's next billing date hasn't arrived yet.
-            // This is how we honor billingFrequency — a quarterly lease
-            // only generates an invoice every three months, not every month.
             LocalDate nextBillingDate = lease.getNextBillingDate();
             if (nextBillingDate != null && today.isBefore(nextBillingDate)) {
                 continue;
             }
-
-            // Skip if the tenant already paid for this period.
             if (paymentScheduleService.isCoveredByPrepayment(lease, today)) {
                 continue;
             }
-
             generateInvoiceForLease(lease);
         }
     }
 
-    /**
-     * Creates ONE invoice for ONE lease. This is the most important method
-     * in the service — most "walk me through the code" questions end up here.
-     *
-     * Returns the saved Invoice, or null if the invoice was skipped (because
-     * one already exists for this month, or the tenant is prepaid).
-     */
     @Transactional
     public Invoice generateInvoiceForLease(Lease lease) {
-        // Sanity checks — this method shouldn't be called with bad input.
         if (lease == null) {
             throw new IllegalArgumentException("Lease cannot be null");
         }
@@ -161,23 +132,16 @@ public class InvoiceService {
 
         LocalDate today = timeTravelService.getCurrentDate();
 
-        // Skip if the tenant has prepaid the current period.
         if (isCoveredByPrepayment(lease, today)) {
             return null;
         }
 
-        // Skip if this lease already has an invoice for the current month.
-        // (Without this, the monthly job would generate a duplicate invoice
-        // every time it ran.)
         LocalDate monthStart = today.withDayOfMonth(1);
         LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
         if (invoiceRepository.existsByLeaseAndIssueDateBetween(lease, monthStart, monthEnd)) {
             return null;
         }
 
-        // Compute the due date. Example: if lease.dueDay = 10, the due date
-        // is the 10th of the current month. If the month doesn't have that
-        // day (e.g. February and dueDay = 31), clamp to the last day.
         int dueDay = lease.getDueDay() != null ? lease.getDueDay() : 10;
         LocalDate dueDate = today.withDayOfMonth(Math.min(dueDay, today.lengthOfMonth()));
         // If the due day has already passed this month, the invoice would be born
@@ -187,10 +151,8 @@ public class InvoiceService {
             dueDate = nextMonth.withDayOfMonth(Math.min(dueDay, nextMonth.lengthOfMonth()));
         }
 
-        // Get a unique sequential invoice number, e.g. INV-2026-0001.
         String invoiceNumber = invoiceNumberService.nextInvoiceNumber(today);
 
-        // Start with the full monthly rent.
         BigDecimal rentAmount = lease.getMonthlyRent();
 
         // If this is the very first invoice for a lease that started mid-month,
@@ -204,8 +166,6 @@ public class InvoiceService {
             leaseRepository.save(lease);
         }
 
-        // Build the new invoice. Starts as PENDING (unpaid).
-        // penaltyAmount = 0 for now — penalties get added later by the daily job.
         Invoice invoice = new Invoice();
         invoice.setInvoiceNumber(invoiceNumber);
         invoice.setLease(lease);
@@ -219,11 +179,8 @@ public class InvoiceService {
 
         Invoice saved = invoiceRepository.save(invoice);
 
-        // Move the lease's nextBillingDate forward so we don't bill again
-        // for the same period.
         updateNextBillingDate(lease);
 
-        // Notify the tenant — once-only bell notification plus an email.
         User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
         if (user != null) {
             notificationService.createForUserOnce(
@@ -242,99 +199,162 @@ public class InvoiceService {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // SECTION 2 — REMINDER EMAILS
+    // SECTION 2 — REMINDERS (upcoming + due today)
     // ═════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Runs every morning at 9 AM. Sends a "rent is due today" email to any
-     * tenant whose invoice is due TODAY and is still unpaid.
-     */
+    /** Runs every morning at 9 AM — "rent is due today". */
     @Scheduled(cron = "0 0 9 * * ?")
     @Transactional
     public void sendRentDueEmails() {
-        LocalDate today = timeTravelService.getCurrentDate();
-        List<Lease> activeLeases = leaseRepository.findByStatus(LeaseStatus.ACTIVE);
-
-        for (Lease lease : activeLeases) {
-            // Skip if the lease is prepaid for the current period.
-            if (isCoveredByPrepayment(lease, today)) {
-                continue;
-            }
-
-            // Find this month's invoice for this lease.
-            LocalDate monthStart = today.withDayOfMonth(1);
-            LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
-
-            Invoice currentInvoice = invoiceRepository.findByLease(lease).stream()
-                    .filter(i -> i.getIssueDate().isAfter(monthStart.minusDays(1)) &&
-                            i.getIssueDate().isBefore(monthEnd.plusDays(1)))
-                    .filter(i -> i.getStatus() == InvoiceStatus.PENDING)
-                    .findFirst()
-                    .orElse(null);
-
-            if (currentInvoice == null) {
-                continue;   // no unpaid invoice this month — nothing to remind
-            }
-
-            // Only send if today IS the due date. Otherwise skip.
-            if (!currentInvoice.getDueDate().equals(today)) {
-                continue;
-            }
-
-            User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
-            if (user != null && user.getEmail() != null) {
-                emailService.sendRentDueEmail(user, lease);
-                log.info("Rent due email sent to {} for invoice {}",
-                        user.getEmail(), currentInvoice.getInvoiceNumber());
-            }
+        if (timeTravelService.isActive()) {
+            return;
         }
+        sendDueRemindersInternal();
     }
 
-    /**
-     * Runs every morning at 8:30 AM. Sends a "payment due soon" reminder
-     * N days before the due date (N is configurable in Settings, default 3).
-     */
+    @Transactional
+    public int simulateDueReminders() {
+        return sendDueRemindersInternal();
+    }
+
+    private int sendDueRemindersInternal() {
+        LocalDate today = timeTravelService.getCurrentDate();
+        List<Invoice> pending = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
+        int sent = 0;
+
+        for (Invoice invoice : pending) {
+            if (invoice.getDueReminderSentOn() != null) continue;
+            if (invoice.getLease() == null) continue;
+            if (!invoice.getDueDate().equals(today)) continue;
+
+            Tenant tenant = invoice.getLease().getTenant();
+            if (tenant == null) continue;
+
+            notificationService.createForUserOnce(
+                    tenant.getUserId(),
+                    "PAYMENT_DUE_TODAY",
+                    invoice.getId(),
+                    "Payment Due Today",
+                    "Invoice " + invoice.getInvoiceNumber() + " for ETB " + invoice.getTotalAmount()
+                            + " is due today. Pay now to avoid late penalties.",
+                    "/payments"
+            );
+
+            String phone = tenant.getPhone();
+            if (phone != null && !phone.isBlank()) {
+                String msg = "RMS: Invoice " + invoice.getInvoiceNumber()
+                        + " for ETB " + invoice.getTotalAmount()
+                        + " is due TODAY (" + invoice.getDueDate()
+                        + "). Pay now to avoid daily penalties.";
+                try {
+                    boolean ok = smsService.send(phone, msg);
+                    log.info("Due-today SMS to {} for invoice {}: {}",
+                            phone, invoice.getInvoiceNumber(), ok ? "sent" : "rejected");
+                } catch (Exception e) {
+                    log.error("Due-today SMS failed for invoice {}: {}",
+                            invoice.getInvoiceNumber(), e.getMessage());
+                }
+            }
+
+            User user = userRepository.findById(tenant.getUserId()).orElse(null);
+            if (user != null && user.getEmail() != null) {
+                try {
+                    emailService.sendRentDueEmail(user, invoice.getLease());
+                } catch (Exception e) {
+                    log.error("Due-today email failed for invoice {}: {}",
+                            invoice.getInvoiceNumber(), e.getMessage());
+                }
+            }
+
+            invoice.setDueReminderSentOn(today);
+            invoiceRepository.save(invoice);
+            sent++;
+        }
+
+        log.info("Due-today reminders sent: {}", sent);
+        return sent;
+    }
+
+    /** Runs every morning at 8:30 AM — "payment due soon" (3 days before). */
     @Scheduled(cron = "0 30 8 * * ?")
     @Transactional
     public void sendUpcomingPaymentReminders() {
+        if (timeTravelService.isActive()) {
+            return;
+        }
+        sendUpcomingRemindersInternal();
+    }
+
+    @Transactional
+    public int simulateUpcomingReminders() {
+        return sendUpcomingRemindersInternal();
+    }
+
+    private int sendUpcomingRemindersInternal() {
         LocalDate today = timeTravelService.getCurrentDate();
         int reminderDays = settingsService.getIntSetting("reminder_days_before", 3);
         LocalDate targetDueDate = today.plusDays(reminderDays);
-        List<Invoice> pendingInvoices = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
 
-        for (Invoice invoice : pendingInvoices) {
-            Lease lease = invoice.getLease();
-            if (lease == null || !invoice.getDueDate().equals(targetDueDate)) {
-                continue;   // not due within the reminder window
+        List<Invoice> pending = invoiceRepository.findByStatus(InvoiceStatus.PENDING);
+        int sent = 0;
+
+        for (Invoice invoice : pending) {
+            if (invoice.getUpcomingReminderSentOn() != null) continue;
+            if (invoice.getLease() == null) continue;
+            if (!invoice.getDueDate().equals(targetDueDate)) continue;
+
+            Tenant tenant = invoice.getLease().getTenant();
+            if (tenant == null) continue;
+
+            notificationService.createForUserOnce(
+                    tenant.getUserId(),
+                    "PAYMENT_REMINDER",
+                    invoice.getId(),
+                    "Payment Due Soon",
+                    "Invoice " + invoice.getInvoiceNumber() + " for ETB " + invoice.getTotalAmount()
+                            + " is due on " + invoice.getDueDate() + ". Please pay to avoid late penalties.",
+                    "/payments"
+            );
+
+            String phone = tenant.getPhone();
+            if (phone != null && !phone.isBlank()) {
+                String msg = "RMS: Invoice " + invoice.getInvoiceNumber()
+                        + " for ETB " + invoice.getTotalAmount()
+                        + " is due on " + invoice.getDueDate()
+                        + ". Please pay to avoid penalties.";
+                try {
+                    boolean ok = smsService.send(phone, msg);
+                    log.info("Upcoming-reminder SMS to {} for invoice {}: {}",
+                            phone, invoice.getInvoiceNumber(), ok ? "sent" : "rejected");
+                } catch (Exception e) {
+                    log.error("Upcoming-reminder SMS failed for invoice {}: {}",
+                            invoice.getInvoiceNumber(), e.getMessage());
+                }
             }
 
-            User user = userRepository.findById(lease.getTenant().getUserId()).orElse(null);
+            User user = userRepository.findById(tenant.getUserId()).orElse(null);
             if (user != null && user.getEmail() != null) {
-                emailService.sendPaymentReminderEmail(user, invoice);
-                notificationService.createForUserOnce(
-                        user.getId(),
-                        "PAYMENT_REMINDER",
-                        invoice.getId(),
-                        "Payment Due Soon",
-                        "Invoice " + invoice.getInvoiceNumber() + " for ETB " + invoice.getTotalAmount() +
-                                " is due on " + invoice.getDueDate() + ". Please pay to avoid late penalties.",
-                        "/payments"
-                );
+                try {
+                    emailService.sendPaymentReminderEmail(user, invoice);
+                } catch (Exception e) {
+                    log.error("Upcoming-reminder email failed for invoice {}: {}",
+                            invoice.getInvoiceNumber(), e.getMessage());
+                }
             }
+
+            invoice.setUpcomingReminderSentOn(today);
+            invoiceRepository.save(invoice);
+            sent++;
         }
+
+        log.info("Upcoming reminders sent (targetDueDate={}): {}", targetDueDate, sent);
+        return sent;
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // SECTION 3 — DAILY PENALTY ACCRUAL
+    // SECTION 3 — DAILY PENALTY ACCRUAL + OVERDUE NOTIFICATION
     // ═════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Runs automatically every night at 1 AM. Adds one day's worth of penalty
-     * to every unpaid invoice that's past its due date.
-     *
-     * Note: SKIPS when time travel is active — the admin triggers the manual
-     * version from the test panel instead.
-     */
     @Scheduled(cron = "0 0 1 * * ?")
     @Transactional
     public void calculateDailyPenalties() {
@@ -344,19 +364,20 @@ public class InvoiceService {
         calculateDailyPenaltiesInternal();
     }
 
-    /** Manual version — called from the test panel. */
     @Transactional
     public void simulateDailyPenalties() {
         calculateDailyPenaltiesInternal();
     }
 
     /**
-     * The actual penalty accrual work.
-     *
-     * IMPORTANT: the query includes both PENDING and OVERDUE invoices.
-     * An earlier version only looked at PENDING, which meant once an
-     * invoice flipped to OVERDUE it dropped out of the query and
-     * penalties stopped accruing after day 1. Fixed by including both.
+     * Walks every PENDING or OVERDUE invoice past its due date and:
+     *   1. Flips PENDING → OVERDUE the first time.
+     *   2. Adds one day's penalty.
+     *   3. Fires the overdue notification (SMS + email + in-app) once,
+     *      guarded by the overdueReminderSentOn marker on the invoice itself.
+     *      This is more robust than the old `daysOverdue == 1` check, which
+     *      silently skipped the notification if virtual time jumped past
+     *      the first day.
      */
     private void calculateDailyPenaltiesInternal() {
         LocalDate today = timeTravelService.getCurrentDate();
@@ -364,42 +385,29 @@ public class InvoiceService {
                 List.of(InvoiceStatus.PENDING, InvoiceStatus.OVERDUE));
 
         for (Invoice invoice : candidates) {
-            // Only touch invoices that are actually late.
             if (invoice.getDueDate().isBefore(today)) {
 
-                // The first time we see a PENDING invoice go past its due date,
-                // flip it to OVERDUE. On subsequent runs the status is already
-                // OVERDUE so this is a no-op.
                 if (invoice.getStatus() == InvoiceStatus.PENDING) {
                     invoice.setStatus(InvoiceStatus.OVERDUE);
                 }
 
-                // Add one day's penalty. Penalty formula is:
-                //   (monthly penalty rate applied to untaxed rent) / 30.
                 BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
                 BigDecimal newPenalty = invoice.getPenaltyAmount().add(dailyPenalty);
                 invoice.setPenaltyAmount(newPenalty);
                 invoice.setTotalAmount(invoice.getRentAmount().add(newPenalty));
 
-                invoiceRepository.save(invoice);
-
-                // Send the tenant a notification on the FIRST overdue day only.
-                long daysOverdue = ChronoUnit.DAYS.between(invoice.getDueDate(), today);
-                if (daysOverdue == 1) {
+                // Fire the overdue notification exactly once — the first
+                // time we see this invoice in overdue state.
+                if (invoice.getOverdueReminderSentOn() == null) {
                     notifyOverdue(invoice);
+                    invoice.setOverdueReminderSentOn(today);
                 }
+
+                invoiceRepository.save(invoice);
             }
         }
     }
 
-    /**
-     * One day's penalty for an invoice:
-     *   monthly penalty (from TaxCalculationService) ÷ 30.
-     *
-     * Example: if rent is 10,000 and the penalty rate is 20%, then
-     *   monthly penalty = (10,000 / 1.15) × 20% ≈ 1,739.13
-     *   daily penalty  = 1,739.13 / 30 ≈ 57.97
-     */
     private BigDecimal calculateDailyPenalty(Invoice invoice) {
         Tenant tenant = invoice.getLease().getTenant();
         BigDecimal rentInclusive = invoice.getRentAmount();
@@ -410,24 +418,74 @@ public class InvoiceService {
     }
 
     /**
-     * Sends the tenant a notification + email when an invoice first goes overdue.
-     * Only called once per invoice (guarded by the daysOverdue == 1 check above).
+     * Sends the tenant an in-app notification + email + SMS when an invoice
+     * first goes overdue. Caller is responsible for setting the idempotency
+     * marker (overdueReminderSentOn) afterwards.
      */
     private void notifyOverdue(Invoice invoice) {
+        log.info("notifyOverdue: starting for invoice {}", invoice.getInvoiceNumber());
+
         Tenant tenant = invoice.getLease().getTenant();
+        if (tenant == null) {
+            log.error("notifyOverdue: no tenant on invoice {}", invoice.getInvoiceNumber());
+            return;
+        }
 
-        notificationService.createForUserOnce(
-                tenant.getUserId(),
-                "INVOICE_OVERDUE",
-                invoice.getId(),
-                "Invoice overdue",
-                "Invoice " + invoice.getInvoiceNumber() + " is overdue. Penalty is accumulating daily.",
-                "/payments"
-        );
+        log.info("notifyOverdue: tenant id={} phone={} userId={}",
+                tenant.getId(), tenant.getPhone(), tenant.getUserId());
 
+        // In-app notification
+        try {
+            notificationService.createForUserOnce(
+                    tenant.getUserId(),
+                    "INVOICE_OVERDUE",
+                    invoice.getId(),
+                    "Invoice overdue",
+                    "Invoice " + invoice.getInvoiceNumber() + " is overdue. Penalty is accumulating daily.",
+                    "/payments"
+            );
+            log.info("notifyOverdue: in-app notification ok");
+        } catch (Exception e) {
+            log.error("notifyOverdue: in-app notification failed: {}", e.getMessage(), e);
+        }
+
+        // Email
         User user = userRepository.findById(tenant.getUserId()).orElse(null);
         if (user != null && user.getEmail() != null) {
-            emailService.sendOverdueEmail(user, invoice);
+            try {
+                emailService.sendOverdueEmail(user, invoice);
+                log.info("notifyOverdue: email sent to {}", user.getEmail());
+            } catch (Exception e) {
+                log.error("notifyOverdue: email failed: {}", e.getMessage(), e);
+            }
+        } else {
+            log.info("notifyOverdue: skipping email (user null or email null)");
+        }
+
+        // SMS
+        String phone = tenant.getPhone();
+        if (phone == null || phone.isBlank()) {
+            log.warn("notifyOverdue: tenant has no phone, skipping SMS");
+            return;
+        }
+
+        String normalized = SmsService.normalizePhone(phone);
+        if (normalized == null) {
+            log.warn("notifyOverdue: phone '{}' failed normalization (expected 09XXXXXXXX / 07XXXXXXXX)", phone);
+            return;
+        }
+
+        String msg = "RMS: Invoice " + invoice.getInvoiceNumber()
+                + " for ETB " + invoice.getTotalAmount()
+                + " is OVERDUE (was due " + invoice.getDueDate()
+                + "). Penalty is accumulating daily. Please pay now.";
+
+        try {
+            log.info("notifyOverdue: sending SMS to {} via AfroMessage", normalized);
+            boolean ok = smsService.send(phone, msg);
+            log.info("notifyOverdue: SMS result = {}", ok);
+        } catch (Exception e) {
+            log.error("notifyOverdue: SMS failed: {}", e.getMessage(), e);
         }
     }
 
@@ -435,12 +493,10 @@ public class InvoiceService {
     // SECTION 4 — HELPER METHODS
     // ═════════════════════════════════════════════════════════════════════════
 
-    /** Delegates to PaymentScheduleService — kept as a wrapper for readability. */
     private boolean isCoveredByPrepayment(Lease lease, LocalDate date) {
         return paymentScheduleService.isCoveredByPrepayment(lease, date);
     }
 
-    /** True if this lease has ever had an invoice (used for the prorate check). */
     private boolean hasFirstInvoiceBeenGenerated(Lease lease) {
         return invoiceRepository.countByLease(lease) > 0;
     }
@@ -457,18 +513,6 @@ public class InvoiceService {
                 && start.getMonth() == billingDate.getMonth();
     }
 
-    /**
-     * Calculates the prorated amount for a partial month.
-     * Example: lease starts on the 20th of a 30-day month.
-     *   Days remaining (including start day) = 11.
-     *   Daily rate = monthly rent ÷ 30.
-     *   Prorated rent = daily rate × 11.
-     *
-     * The month length MUST come from the lease's start month, not the billing
-     * date's month: daysRemaining is derived from startDate.getDayOfMonth(), so
-     * the denominator has to be the same month. (E.g. a Sep 24 start billed in
-     * December used December's 31 days → wrong daily rate.)
-     */
     private BigDecimal calculateProratedRent(Lease lease, LocalDate billingDate) {
         LocalDate startDate = lease.getStartDate();
         int daysInMonth = startDate.lengthOfMonth();
@@ -481,11 +525,6 @@ public class InvoiceService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Advances the lease's nextBillingDate by its billing frequency after
-     * an invoice is generated. Example: a MONTHLY lease whose next billing
-     * date was 2026-12-01 becomes 2027-01-01.
-     */
     private void updateNextBillingDate(Lease lease) {
         LocalDate currentNext = lease.getNextBillingDate();
         if (currentNext == null) {
@@ -498,18 +537,13 @@ public class InvoiceService {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // SECTION 5 — READ METHODS (used by controllers)
+    // SECTION 5 — READ METHODS
     // ═════════════════════════════════════════════════════════════════════════
 
-    /** All invoices for a specific tenant (by tenant ID). */
     public List<Invoice> getInvoicesByTenant(Long tenantId) {
         return invoiceRepository.findByLeaseTenantId(tenantId);
     }
 
-    /**
-     * All invoices for the logged-in tenant. Resolves the username to a
-     * tenant record first, then returns that tenant's invoices.
-     */
     public List<Invoice> getInvoicesByTenantUsername(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
@@ -518,36 +552,27 @@ public class InvoiceService {
         return invoiceRepository.findByLeaseTenantId(tenant.getId());
     }
 
-    /** Filter invoices by status (PENDING, PAID, OVERDUE, SUBMITTED). */
     public List<Invoice> getInvoicesByStatus(InvoiceStatus status) {
         return invoiceRepository.findByStatus(status);
     }
 
-    /** Every invoice in the system (admin only). */
     public List<Invoice> getAllInvoices() {
         return invoiceRepository.findAll();
     }
 
-    /** Single invoice by ID — throws if not found. */
     public Invoice getInvoiceById(Long id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invoice not found with id: " + id));
     }
 
-    /** Persist any changes to an invoice. */
     public Invoice saveInvoice(Invoice invoice) {
         return invoiceRepository.save(invoice);
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    // SECTION 6 — MANUAL OPERATIONS (called from controllers / admin panel)
+    // SECTION 6 — MANUAL OPERATIONS
     // ═════════════════════════════════════════════════════════════════════════
 
-    /**
-     * Admin-triggered version of invoice generation — creates ONE invoice
-     * for the given lease. Used by the "Generate Invoice" button on the
-     * leases page.
-     */
     @Transactional
     public Invoice generateInvoice(Long leaseId) {
         Lease lease = leaseRepository.findById(leaseId)
@@ -558,36 +583,30 @@ public class InvoiceService {
         return generateInvoiceForLease(lease);
     }
 
-    /** Public wrapper — lets external code trigger the overdue notification. */
+    /** Public wrapper — used by InvoiceController.testMarkOverdue/forceOverdue. */
     public void notifyInvoiceOverdue(Invoice invoice) {
         notifyOverdue(invoice);
     }
 
-    /**
-     * The total penalty an invoice would have if it were paid today.
-     * Used for showing "you'll owe X if you pay now" previews.
-     */
     public BigDecimal calculateTotalPenalty(Long invoiceId) {
         Invoice invoice = getInvoiceById(invoiceId);
         if (invoice.getStatus() == InvoiceStatus.PAID) {
-            return invoice.getPenaltyAmount();   // paid — penalty is fixed
+            return invoice.getPenaltyAmount();
         }
         long daysOverdue = ChronoUnit.DAYS.between(invoice.getDueDate(), timeTravelService.getCurrentDate());
         if (daysOverdue <= 0) {
-            return invoice.getPenaltyAmount();   // not overdue yet
+            return invoice.getPenaltyAmount();
         }
         BigDecimal dailyPenalty = calculateDailyPenalty(invoice);
         return invoice.getPenaltyAmount().add(dailyPenalty.multiply(BigDecimal.valueOf(daysOverdue)));
     }
 
-    /** True if the invoice is overdue (by status OR by past-due date). */
     public boolean isOverdue(Invoice invoice) {
         return invoice.getStatus() == InvoiceStatus.OVERDUE ||
                 (invoice.getStatus() == InvoiceStatus.PENDING &&
                         invoice.getDueDate().isBefore(timeTravelService.getCurrentDate()));
     }
 
-    /** How many days overdue (returns 0 for non-overdue invoices). */
     public long getDaysOverdue(Invoice invoice) {
         if (invoice.getStatus() != InvoiceStatus.OVERDUE) {
             return 0;
@@ -595,12 +614,6 @@ public class InvoiceService {
         return ChronoUnit.DAYS.between(invoice.getDueDate(), timeTravelService.getCurrentDate());
     }
 
-    /**
-     * A display-friendly status string. Adds one extra case that the raw
-     * status doesn't have: if the invoice is PENDING but the due date has
-     * passed, this returns "OVERDUE" so the UI can show it correctly even
-     * before the daily job flips the status.
-     */
     public String getInvoiceStatusDisplay(Invoice invoice) {
         LocalDate today = timeTravelService.getCurrentDate();
         if (invoice.getStatus() == InvoiceStatus.PAID) {
@@ -621,16 +634,6 @@ public class InvoiceService {
         return invoice.getStatus().name();
     }
 
-    /**
-     * Record a prepayment — the tenant pays N months in advance.
-     *
-     * Validates:
-     *   1. The lease exists and is ACTIVE.
-     *   2. The amount paid is at least N × monthly rent (with 1% tolerance).
-     *
-     * Then delegates to PaymentScheduleService, which records the schedule
-     * and generates the invoices for those months marked PAID.
-     */
     @Transactional
     public PaymentSchedule processPrepayment(Long leaseId, Integer monthsToPay,
                                              BigDecimal amountPaid, LocalDate paymentDate) {
