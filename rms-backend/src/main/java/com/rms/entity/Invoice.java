@@ -125,5 +125,8 @@ public class Invoice {
     public void setDueReminderSentOn(LocalDate v) { this.dueReminderSentOn = v; }
 
     public LocalDate getOverdueReminderSentOn() { return overdueReminderSentOn; }
+public String getSpaceUnit() {
+        return lease != null && lease.getSpace() != null ? lease.getSpace().getUnitNumber() : null;
+    }
     public void setOverdueReminderSentOn(LocalDate v) { this.overdueReminderSentOn = v; } }
 

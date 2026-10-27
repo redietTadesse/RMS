@@ -270,7 +270,8 @@ export default function TimeTravelControls() {
 
       {!collapsed && (
         <div className="mt-3 text-[10px] text-slate-400 border-t border-slate-100 pt-2">
-          Job results are saved to the database · Reset returns to real time
+          Job results are saved to the database · Reset returns to real time<br/>
+          Note: Invoices are only created for months without existing invoices
         </div>
       )}
       </>

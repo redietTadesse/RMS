@@ -2,6 +2,7 @@ package com.rms.service;
 
 import com.rms.entity.Invoice;
 import com.rms.entity.Lease;
+import com.rms.entity.Tenant;
 import com.rms.entity.User;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -116,6 +117,30 @@ public class EmailService {
         }
     }
 
+    // Fallback method for when tenant has no user account
+    public void sendRentDueEmailToTenant(Tenant tenant, Invoice invoice) {
+        try {
+            Context context = new Context();
+            context.setVariable("tenantName", tenant.getName());
+            context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
+            context.setVariable("amount", invoice.getTotalAmount());
+            context.setVariable("dueDate", invoice.getDueDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("spaceUnit", invoice.getSpaceUnit());
+            context.setVariable("paymentUrl", baseUrl + "/payments");
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
+
+            String htmlContent = templateEngine.process("email/rent-due", context);
+            sendHtmlEmail(
+                    tenant.getEmail(),
+                    "🚨 Rent Due Today: " + invoice.getInvoiceNumber(),
+                    htmlContent
+            );
+            log.info("Rent due email sent to tenant: {}", tenant.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send rent due email to tenant", e);
+        }
+    }
+
     public void sendPaymentApprovedEmail(User tenant, Invoice invoice) {
         try {
             Context context = new Context();
@@ -186,6 +211,36 @@ public class EmailService {
         }
     }
 
+    // Fallback method for when tenant has no user account
+    public void sendOverdueEmailToTenant(Tenant tenant, Invoice invoice) {
+        try {
+            long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(
+                    invoice.getDueDate(),
+                    timeTravelService.getCurrentDate()
+            );
+
+            Context context = new Context();
+            context.setVariable("tenantName", tenant.getName());
+            context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
+            context.setVariable("amount", invoice.getTotalAmount());
+            context.setVariable("dueDate", invoice.getDueDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            context.setVariable("daysOverdue", daysOverdue);
+            context.setVariable("penaltyAmount", invoice.getPenaltyAmount());
+            context.setVariable("invoiceUrl", baseUrl + "/payments");
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
+
+            String htmlContent = templateEngine.process("email/overdue", context);
+            sendHtmlEmail(
+                    tenant.getEmail(),
+                    "⚠️ URGENT: Invoice " + invoice.getInvoiceNumber() + " is OVERDUE",
+                    htmlContent
+            );
+            log.info("Overdue email sent to tenant: {}", tenant.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send overdue email to tenant", e);
+        }
+    }
+
     public void sendTestEmail() {
         try {
             String testEmail = "eyobyaregal1111@gmail.com";
@@ -228,6 +283,32 @@ public class EmailService {
             );
         } catch (Exception e) {
             log.error("Failed to send reminder email", e);
+        }
+    }
+
+    // Fallback method for when tenant has no user account
+    public void sendPaymentReminderEmailToTenant(Tenant tenant, Invoice invoice) {
+        try {
+            Context context = new Context();
+            context.setVariable("tenantName", tenant.getName());
+            context.setVariable("invoiceNumber", invoice.getInvoiceNumber());
+            context.setVariable("amount", invoice.getTotalAmount());
+            context.setVariable("dueDate", invoice.getDueDate().format(DateTimeFormatter.ofPattern("MMMM dd, yyyy")));
+            long daysLeft = java.time.temporal.ChronoUnit.DAYS.between(
+                    timeTravelService.getCurrentDate(), invoice.getDueDate());
+            context.setVariable("daysLeft", Math.max(daysLeft, 0));
+            context.setVariable("invoiceUrl", baseUrl + "/payments");
+            context.setVariable("year", timeTravelService.getCurrentDate().getYear());
+
+            String htmlContent = templateEngine.process("email/payment-reminder", context);
+            sendHtmlEmail(
+                    tenant.getEmail(),
+                    "🔔 Payment Reminder: " + invoice.getInvoiceNumber(),
+                    htmlContent
+            );
+            log.info("Payment reminder email sent to tenant: {}", tenant.getEmail());
+        } catch (Exception e) {
+            log.error("Failed to send payment reminder email to tenant", e);
         }
     }
 

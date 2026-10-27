@@ -257,11 +257,19 @@ public class InvoiceService {
             }
 
             User user = userRepository.findById(tenant.getUserId()).orElse(null);
-            if (user != null && user.getEmail() != null) {
+            if (user != null && user.getEmail() != null && !user.getEmail().isBlank()) {
                 try {
                     emailService.sendRentDueEmail(user, invoice.getLease());
                 } catch (Exception e) {
                     log.error("Due-today email failed for invoice {}: {}",
+                            invoice.getInvoiceNumber(), e.getMessage());
+                }
+            } else if (tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
+                // Fallback: send to tenant email directly if no user account or user has no email
+                try {
+                    emailService.sendRentDueEmailToTenant(tenant, invoice);
+                } catch (Exception e) {
+                    log.error("Due-today email to tenant failed for invoice {}: {}",
                             invoice.getInvoiceNumber(), e.getMessage());
                 }
             }
@@ -333,11 +341,19 @@ public class InvoiceService {
             }
 
             User user = userRepository.findById(tenant.getUserId()).orElse(null);
-            if (user != null && user.getEmail() != null) {
+            if (user != null && user.getEmail() != null && !user.getEmail().isBlank()) {
                 try {
                     emailService.sendPaymentReminderEmail(user, invoice);
                 } catch (Exception e) {
                     log.error("Upcoming-reminder email failed for invoice {}: {}",
+                            invoice.getInvoiceNumber(), e.getMessage());
+                }
+            } else if (tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
+                // Fallback: send to tenant email directly if no user account or user has no email
+                try {
+                    emailService.sendPaymentReminderEmailToTenant(tenant, invoice);
+                } catch (Exception e) {
+                    log.error("Upcoming-reminder email to tenant failed for invoice {}: {}",
                             invoice.getInvoiceNumber(), e.getMessage());
                 }
             }
@@ -451,15 +467,23 @@ public class InvoiceService {
 
         // Email
         User user = userRepository.findById(tenant.getUserId()).orElse(null);
-        if (user != null && user.getEmail() != null) {
+        if (user != null && user.getEmail() != null && !user.getEmail().isBlank()) {
             try {
                 emailService.sendOverdueEmail(user, invoice);
                 log.info("notifyOverdue: email sent to {}", user.getEmail());
             } catch (Exception e) {
                 log.error("notifyOverdue: email failed: {}", e.getMessage(), e);
             }
+        } else if (tenant.getEmail() != null && !tenant.getEmail().isBlank()) {
+            // Fallback: send to tenant email directly if no user account or user has no email
+            try {
+                emailService.sendOverdueEmailToTenant(tenant, invoice);
+                log.info("notifyOverdue: email sent to tenant {}", tenant.getEmail());
+            } catch (Exception e) {
+                log.error("notifyOverdue: email to tenant failed: {}", e.getMessage(), e);
+            }
         } else {
-            log.info("notifyOverdue: skipping email (user null or email null)");
+            log.info("notifyOverdue: skipping email (no email available)");
         }
 
         // SMS
